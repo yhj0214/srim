@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: layout(~{::main})}">
+<main>
+    <!-- 페이지 헤더 -->
+    <div class="mb-4">
+        <h2>
+            <i class="bi bi-gear"></i> 관리 페이지
+        </h2>
+        <p class="text-muted">시스템 관리 및 데이터 크롤링</p>
+    </div>
+
+    <!-- 통계 카드 -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h5 class="text-muted">전체 종목</h5>
+                    <h2 class="text-primary" th:text="${totalCount != null ? totalCount : 0}">0</h2>
+                    <small class="text-muted">개</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4" th:if="${stats != null && stats['KOSPI'] != null}">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h5 class="text-muted">KOSPI</h5>
+                    <h2 class="text-success" th:text="${stats['KOSPI']}">0</h2>
+                    <small class="text-muted">개</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4" th:if="${stats != null && stats['KOSDAQ'] != null}">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h5 class="text-muted">KOSDAQ</h5>
+                    <h2 class="text-info" th:text="${stats['KOSDAQ']}">0</h2>
+                    <small class="text-muted">개</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 크롤링 섹션 -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-arrow-repeat"></i> KRX 상장법인 크롤링</h5>
+        </div>
+        <div class="card-body">
+            <p class="mb-3">
+                KRX(한국거래소)에서 상장법인 목록을 크롤링하여 데이터베이스에 저장합니다.
+            </p>
+            
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <button class="btn btn-success w-100" onclick="crawlMarket('all')">
+                        <i class="bi bi-arrow-repeat"></i> 전체 시장 크롤링
+                    </button>
+                    <small class="text-muted d-block mt-1">KOSPI + KOSDAQ</small>
+                </div>
+                <div class="col-md-4">
+                    <button class="btn btn-outline-success w-100" onclick="crawlMarket('KOSPI')">
+                        <i class="bi bi-arrow-repeat"></i> KOSPI만 크롤링
+                    </button>
+                </div>
+                <div class="col-md-4">
+                    <button class="btn btn-outline-success w-100" onclick="crawlMarket('KOSDAQ')">
+                        <i class="bi bi-arrow-repeat"></i> KOSDAQ만 크롤링
+                    </button>
+                </div>
+            </div>
+
+            <!-- 진행 상태 -->
+            <div id="crawlStatus" class="mt-3" style="display: none;">
+                <div class="alert alert-info">
+                    <div class="d-flex align-items-center">
+                        <div class="spinner-border spinner-border-sm me-2" role="status">
+                            <span class="visually-hidden">크롤링 중...</span>
+                        </div>
+                        <span id="crawlStatusText">크롤링을 진행 중입니다...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 결과 표시 -->
+            <div id="crawlResult" class="mt-3" style="display: none;"></div>
+        </div>
+    </div>
+
+    <!-- 데이터 관리 섹션 -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-database"></i> 데이터 관리</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead class="table-light">
+                        <tr>
+                            <th>시장</th>
+                            <th class="text-end">종목 수</th>
+                            <th class="text-end">비율</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="entry : ${stats}">
+                            <td><strong th:text="${entry.key}">KOSPI</strong></td>
+                            <td class="text-end" th:text="${entry.value}">0</td>
+                            <td class="text-end">
+                                <span th:text="${totalCount > 0 ? #numbers.formatDecimal(entry.value * 100.0 / totalCount, 1, 1) + '%' : '0%'}">0%</span>
+                            </td>
+                        </tr>
+                        <tr th:if="${stats == null || stats.isEmpty()}">
+                            <td colspan="3" class="text-center text-muted">
+                                데이터가 없습니다. 크롤링을 실행해주세요.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function crawlMarket(market) {
+            const confirmMsg = market === 'all' 
+                ? 'KRX 전체 시장(KOSPI + KOSDAQ)을 크롤링하시겠습니까?\n시간이 다소 걸릴 수 있습니다.'
+                : market + ' 시장을 크롤링하시겠습니까?';
+            
+            if (!confirm(confirmMsg)) {
+                return;
+            }
+
+            // 상태 표시
+            showCrawlStatus('크롤링을 시작합니다...');
+            hideResult();
+
+            // API 엔드포인트 결정
+            const url = market === 'all' 
+                ? '/api/crawling/krx/all'
+                : '/api/crawling/krx?market=' + market;
+
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(result => {
+                hideStatus();
+                
+                if (result.success) {
+                    const count = result.data.totalCount || result.data.count || 0;
+                    showResult('success', 
+                        '크롤링이 완료되었습니다!', 
+                        '총 ' + count + '건의 데이터가 처리되었습니다.');
+                    
+                    // 3초 후 페이지 새로고침
+                    setTimeout(() => {
+                        location.reload();
+                    }, 3000);
+                } else {
+                    showResult('danger', 
+                        '크롤링 실패', 
+                        result.message || '알 수 없는 오류가 발생했습니다.');
+                }
+            })
+            .catch(error => {
+                hideStatus();
+                showResult('danger', 
+                    '네트워크 오류', 
+                    '서버와 통신 중 오류가 발생했습니다.');
+                console.error('Error:', error);
+            });
+        }
+
+        function showCrawlStatus(message) {
+            const statusDiv = document.getElementById('crawlStatus');
+            const statusText = document.getElementById('crawlStatusText');
+            statusText.textContent = message;
+            statusDiv.style.display = 'block';
+        }
+
+        function hideStatus() {
+            document.getElementById('crawlStatus').style.display = 'none';
+        }
+
+        function showResult(type, title, message) {
+            const resultDiv = document.getElementById('crawlResult');
+            resultDiv.innerHTML = `
+                <div class="alert alert-${type} alert-dismissible fade show">
+                    <strong>${title}</strong><br>
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            resultDiv.style.display = 'block';
+        }
+
+        function hideResult() {
+            document.getElementById('crawlResult').style.display = 'none';
+        }
+    </script>
+</main>
+</html>

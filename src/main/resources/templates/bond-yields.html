@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: layout(~{::main})}">
+<main>
+    <div class="row">
+        <div class="col-12">
+            <!-- 헤더 -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2><i class="bi bi-bar-chart-line text-primary"></i> 회사채 수익률</h2>
+                    <p class="text-muted mb-0">등급별 만기별 채권 수익률 현황 (오늘 날짜 기준)</p>
+                </div>
+                <div>
+                    <button class="btn btn-primary" onclick="loadBondYieldData()">
+                        <i class="bi bi-arrow-clockwise"></i> 새로고침
+                    </button>
+                </div>
+            </div>
+
+            <!-- 등급 범례 -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="d-flex gap-4 flex-wrap">
+                        <div class="d-flex align-items-center">
+                            <div style="width: 20px; height: 20px; background-color: #d4edda; border-radius: 3px;" class="me-2"></div>
+                            <span>우량 (AA 이상)</span>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <div style="width: 20px; height: 20px; background-color: #fff3cd; border-radius: 3px;" class="me-2"></div>
+                            <span>양호 (A등급)</span>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <div style="width: 20px; height: 20px; background-color: #f8d7da; border-radius: 3px;" class="me-2"></div>
+                            <span>주의 (BBB 이하)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 수익률 테이블 -->
+            <div class="card">
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="text-center">구분</th>
+                                    <th class="text-center">3월</th>
+                                    <th class="text-center">6월</th>
+                                    <th class="text-center">9월</th>
+                                    <th class="text-center">1년</th>
+                                    <th class="text-center">1년6월</th>
+                                    <th class="text-center">2년</th>
+                                    <th class="text-center">3년</th>
+                                    <th class="text-center">5년</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bondYieldTableBody">
+                                <tr>
+                                    <td colspan="9" class="text-center">
+                                        <div class="spinner-border spinner-border-sm" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                        데이터 로딩 중...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="text-end mt-2">
+                        <small class="text-muted">단위: % | 출처: 한국예탁결제원</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 페이지 로드 시 오늘 날짜 데이터 로드
+        document.addEventListener('DOMContentLoaded', function() {
+            loadBondYieldData();
+        });
+
+        /**
+         * 회사채 수익률 데이터 로드 (오늘 날짜만)
+         */
+        async function loadBondYieldData() {
+            const tbody = document.getElementById('bondYieldTableBody');
+            const button = document.querySelector('button[onclick="loadBondYieldData()"]');
+            const originalHtml = button ? button.innerHTML : '';
+            
+            try {
+                if (button) {
+                    button.disabled = true;
+                    button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>로딩 중...';
+                }
+                
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="9" class="text-center">
+                            <div class="spinner-border spinner-border-sm" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            데이터 로딩 중...
+                        </td>
+                    </tr>
+                `;
+                
+                const response = await fetch('/api/bond-yields');
+                
+                if (!response.ok) {
+                    throw new Error('데이터를 불러올 수 없습니다.');
+                }
+                
+                const result = await response.json();
+                
+                if (result.success && result.data && result.data.data) {
+                    if (result.data.data.length === 0) {
+                        tbody.innerHTML = `
+                            <tr>
+                                <td colspan="9" class="text-center text-danger">
+                                    <i class="bi bi-exclamation-triangle"></i> 
+                                    회사채 수익률 데이터 서버에 문제가 있어 데이터를 가져올 수 없습니다.<br>
+                                    잠시 후 다시 시도해주세요.
+                                </td>
+                            </tr>
+                        `;
+                    } else {
+                        renderBondTable(result.data.data);
+                    }
+                } else {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="9" class="text-center text-warning">
+                                <i class="bi bi-exclamation-triangle"></i> 
+                                데이터가 없습니다.
+                            </td>
+                        </tr>
+                    `;
+                }
+                
+            } catch (error) {
+                console.error('Error loading bond yield data:', error);
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="9" class="text-center text-danger">
+                            <i class="bi bi-exclamation-triangle"></i> 
+                            데이터를 불러오는데 실패했습니다.
+                        </td>
+                    </tr>
+                `;
+            } finally {
+                if (button) {
+                    button.disabled = false;
+                    button.innerHTML = originalHtml;
+                }
+            }
+        }
+
+        /**
+         * 테이블 렌더링 함수
+         */
+        function renderBondTable(data) {
+            const tbody = document.getElementById('bondYieldTableBody');
+            
+            if (!data || data.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="9" class="text-center text-warning">
+                            <i class="bi bi-exclamation-triangle"></i> 
+                            데이터가 없습니다.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            let html = '';
+            
+            data.forEach(row => {
+                const rating = row.rating;
+                let rowClass = '';
+                
+                // 등급별 색상 구분
+                if (['AAA', 'AA+', 'AA', 'AA-'].includes(rating)) {
+                    rowClass = 'table-success';
+                } else if (['A+', 'A', 'A-'].includes(rating)) {
+                    rowClass = 'table-warning';
+                } else if (['BBB+', 'BBB', 'BBB-'].includes(rating)) {
+                    rowClass = 'table-danger';
+                }
+                
+                html += `<tr class="${rowClass}">`;
+                html += `<td class="fw-bold${rating === '국고채' ? ' bg-light' : ''}">${rating}</td>`;
+                html += `<td class="text-center">${row['3M'] || '-'}</td>`;
+                html += `<td class="text-center">${row['6M'] || '-'}</td>`;
+                html += `<td class="text-center">${row['9M'] || '-'}</td>`;
+                html += `<td class="text-center">${row['1Y'] || '-'}</td>`;
+                html += `<td class="text-center">${row['1Y6M'] || '-'}</td>`;
+                html += `<td class="text-center">${row['2Y'] || '-'}</td>`;
+                html += `<td class="text-center">${row['3Y'] || '-'}</td>`;
+                html += `<td class="text-center">${row['5Y'] || '-'}</td>`;
+                html += `</tr>`;
+            });
+            
+            tbody.innerHTML = html;
+        }
+    </script>
+</main>
+</html>

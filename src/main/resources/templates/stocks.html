@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: layout(~{::main})}">
+<main>
+    <!-- 페이지 헤더 -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+            <i class="bi bi-list-ul"></i> 종목 목록
+        </h2>
+        <div>
+            <button class="btn btn-success me-2" onclick="crawlKrxStocks()">
+                <i class="bi bi-arrow-repeat"></i> KRX 크롤링
+            </button>
+            <span class="text-muted">
+                총 <strong th:text="${stocks.totalElements}">0</strong>개 종목
+            </span>
+        </div>
+    </div>
+
+    <!-- 검색 폼 -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form action="/stocks" method="get" class="row g-3">
+                <div class="col-md-10">
+                    <input type="text" 
+                           class="form-control" 
+                           name="q" 
+                           th:value="${keyword}"
+                           placeholder="종목명 또는 종목코드 검색...">
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-search"></i> 검색
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 종목 목록 테이블 -->
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th>종목코드</th>
+                            <th>회사명</th>
+                            <th>시장</th>
+                            <th>업종</th>
+                            <th>상장일</th>
+                            <th>액션</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="stock : ${stocks.content}">
+                            <td>
+                                <code th:text="${stock.tickerKrx}">005930</code>
+                            </td>
+                            <td>
+                                <strong th:text="${stock.companyName}">삼성전자</strong>
+                            </td>
+                            <td>
+                                <span class="badge bg-primary" th:text="${stock.market}">KOSPI</span>
+                            </td>
+                            <td th:text="${stock.industry}">전기전자</td>
+                            <td th:text="${stock.listingDate != null ? #temporals.format(stock.listingDate, 'yyyy-MM-dd') : '-'}">1975-06-11</td>
+                            <td>
+                                <a th:href="@{'/stocks/' + ${stock.market} + '-' + ${stock.tickerKrx}}" 
+                                   class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-eye"></i> 상세
+                                </a>
+                            </td>
+                        </tr>
+                        <tr th:if="${stocks.empty}">
+                            <td colspan="6" class="text-center text-muted py-4">
+                                <i class="bi bi-inbox display-4"></i>
+                                <p class="mt-3">검색 결과가 없습니다.</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 페이징 -->
+            <nav th:if="${stocks.totalPages > 1}">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item" th:classappend="${stocks.first} ? 'disabled'">
+                        <a class="page-link" 
+                           th:href="@{/stocks(q=${keyword}, page=${currentPage - 1})}">
+                            이전
+                        </a>
+                    </li>
+                    
+                    <li class="page-item" 
+                        th:each="i : ${#numbers.sequence(0, stocks.totalPages - 1)}"
+                        th:if="${i >= currentPage - 2 && i <= currentPage + 2}"
+                        th:classappend="${i == currentPage} ? 'active'">
+                        <a class="page-link" 
+                           th:href="@{/stocks(q=${keyword}, page=${i})}"
+                           th:text="${i + 1}">1</a>
+                    </li>
+                    
+                    <li class="page-item" th:classappend="${stocks.last} ? 'disabled'">
+                        <a class="page-link" 
+                           th:href="@{/stocks(q=${keyword}, page=${currentPage + 1})}">
+                            다음
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </div>
+
+    <script>
+        function crawlKrxStocks() {
+            if (!confirm('KRX에서 상장법인 목록을 크롤링하시겠습니까?\n시간이 다소 걸릴 수 있습니다.')) {
+                return;
+            }
+
+            const btn = event.target.closest('button');
+            const originalHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>크롤링 중...';
+
+            fetch('/api/crawling/krx/all', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(result => {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+
+                if (result.success) {
+                    alert('크롤링이 완료되었습니다.\n총 ' + result.data.totalCount + '건의 데이터가 처리되었습니다.');
+                    location.reload();
+                } else {
+                    alert('크롤링 실패: ' + result.message);
+                }
+            })
+            .catch(error => {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+                alert('네트워크 오류가 발생했습니다.');
+                console.error('Error:', error);
+            });
+        }
+    </script>
+</main>
+</html>

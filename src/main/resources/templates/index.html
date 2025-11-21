@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: layout(~{::main})}">
+<main>
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <!-- 헤더 -->
+            <div class="text-center mb-5">
+                <h1 class="display-4 mb-3">
+                    <i class="bi bi-graph-up-arrow text-primary"></i> SRIM
+                </h1>
+                <p class="lead text-muted">주식 가격 조사를 위한 웹 서비스 시스템</p>
+                <p class="text-muted">
+                    총 <span class="badge bg-primary" th:text="${totalStocks}">0</span>개 종목 등록
+                </p>
+            </div>
+
+            <!-- 검색 폼 -->
+            <div class="card shadow-sm">
+                <div class="card-body p-4">
+                    <form action="/stocks/search" method="get">
+                        <div class="input-group input-group-lg">
+                            <span class="input-group-text bg-white">
+                                <i class="bi bi-search"></i>
+                            </span>
+                            <input type="text" 
+                                   class="form-control" 
+                                   name="q" 
+                                   placeholder="종목명 또는 종목코드를 입력하세요 (예: 삼성전자, 005930)"
+                                   autofocus>
+                            <button class="btn btn-primary" type="submit">
+                                검색
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- 안내 카드 -->
+            <div class="row mt-4">
+                <div class="col-md-4 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body text-center">
+                            <i class="bi bi-search display-4 text-primary mb-3"></i>
+                            <h5 class="card-title">종목 검색</h5>
+                            <p class="card-text text-muted">
+                                회사명이나 종목코드로 원하는 종목을 찾아보세요
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body text-center">
+                            <i class="bi bi-graph-up display-4 text-success mb-3"></i>
+                            <h5 class="card-title">재무 분석</h5>
+                            <p class="card-text text-muted">
+                                연간/분기별 재무제표와 주요 지표를 확인하세요
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body text-center">
+                            <i class="bi bi-calculator display-4 text-info mb-3"></i>
+                            <h5 class="card-title">S-RIM 평가</h5>
+                            <p class="card-text text-muted">
+                                잔여이익모델 기반 적정주가를 계산해보세요
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 바로가기 버튼 -->
+            <div class="text-center mt-4">
+                <a href="/stocks" class="btn btn-outline-primary btn-lg">
+                    <i class="bi bi-list-ul"></i> 전체 종목 보기
+                </a>
+            </div>
+        </div>
+    </div>
+</main>
+</html>

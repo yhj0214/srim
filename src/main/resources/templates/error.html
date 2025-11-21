@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: layout(~{::main})}">
+<main>
+    <div class="text-center py-5">
+        <i class="bi bi-exclamation-triangle display-1 text-warning"></i>
+        <h2 class="mt-4">오류가 발생했습니다</h2>
+        <p class="text-muted" th:text="${error}">요청하신 페이지를 찾을 수 없습니다.</p>
+        <a href="/" class="btn btn-primary mt-3">
+            <i class="bi bi-house"></i> 홈으로 돌아가기
+        </a>
+    </div>
+</main>
+</html>
