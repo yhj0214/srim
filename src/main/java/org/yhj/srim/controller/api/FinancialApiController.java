@@ -42,25 +42,25 @@ public class FinancialApiController {
     /**
      * 분기 재무 테이블 API (stockId 기반)
      */
-    @GetMapping("/{stockId}/financial/quarter")
-    public ResponseEntity<ApiResponse<FinancialTableDto>> getQuarterTableByStockId(
-            @PathVariable Long stockId,
-            @RequestParam(defaultValue = "10") int limit) {
-        
-        log.info("=== 분기 재무 테이블 API 호출 (stockId) ===");
-        log.info("stockId: {}, limit: {}", stockId, limit);
-        
-        try {
-            FinancialTableDto table = financialService.getQuarterTableByStockId(stockId, limit);
-            log.info("분기 재무 데이터 조회 성공: headers={}, rows={}", 
-                    table.getHeaders().size(), table.getRows().size());
-            return ResponseEntity.ok(ApiResponse.success(table));
-        } catch (Exception e) {
-            log.error("분기 재무 테이블 조회 실패: stockId={}", stockId, e);
-            return ResponseEntity.badRequest()
-                    .body(ApiResponse.error("재무 데이터 조회에 실패했습니다: " + e.getMessage()));
-        }
-    }
+//    @GetMapping("/{stockId}/financial/quarter")
+//    public ResponseEntity<ApiResponse<FinancialTableDto>> getQuarterTableByStockId(
+//            @PathVariable Long stockId,
+//            @RequestParam(defaultValue = "10") int limit) {
+//
+//        log.info("=== 분기 재무 테이블 API 호출 (stockId) ===");
+//        log.info("stockId: {}, limit: {}", stockId, limit);
+//
+//        try {
+//            FinancialTableDto table = financialService.getQuarterTableByStockId(stockId, limit);
+//            log.info("분기 재무 데이터 조회 성공: headers={}, rows={}",
+//                    table.getHeaders().size(), table.getRows().size());
+//            return ResponseEntity.ok(ApiResponse.success(table));
+//        } catch (Exception e) {
+//            log.error("분기 재무 테이블 조회 실패: stockId={}", stockId, e);
+//            return ResponseEntity.badRequest()
+//                    .body(ApiResponse.error("재무 데이터 조회에 실패했습니다: " + e.getMessage()));
+//        }
+//    }
 
     /**
      * 연간 재무 테이블 API (market-ticker 기반)
@@ -86,27 +86,27 @@ public class FinancialApiController {
         }
     }
 
-    /**
-     * 분기 재무 테이블 API (market-ticker 기반)
-     */
-    @GetMapping("/{market}-{ticker}/financial/quarter")
-    public ResponseEntity<ApiResponse<FinancialTableDto>> getQuarterTableByTicker(
-            @PathVariable String market,
-            @PathVariable String ticker,
-            @RequestParam(defaultValue = "8") int limit) {
-        
-        log.info("=== 분기 재무 테이블 API 호출 (ticker) ===");
-        log.info("market: {}, ticker: {}, limit: {}", market, ticker, limit);
-        
-        try {
-            FinancialTableDto table = financialService.getQuarterTableByTicker(market, ticker, limit);
-            log.info("분기 재무 데이터 조회 성공: headers={}, rows={}", 
-                    table.getHeaders().size(), table.getRows().size());
-            return ResponseEntity.ok(ApiResponse.success(table));
-        } catch (Exception e) {
-            log.error("분기 재무 테이블 조회 실패: market={}, ticker={}", market, ticker, e);
-            return ResponseEntity.badRequest()
-                    .body(ApiResponse.error("재무 데이터 조회에 실패했습니다: " + e.getMessage()));
-        }
-    }
+//    /**
+//     * 분기 재무 테이블 API (market-ticker 기반)
+//     */
+//    @GetMapping("/{market}-{ticker}/financial/quarter")
+//    public ResponseEntity<ApiResponse<FinancialTableDto>> getQuarterTableByTicker(
+//            @PathVariable String market,
+//            @PathVariable String ticker,
+//            @RequestParam(defaultValue = "8") int limit) {
+//
+//        log.info("=== 분기 재무 테이블 API 호출 (ticker) ===");
+//        log.info("market: {}, ticker: {}, limit: {}", market, ticker, limit);
+//
+//        try {
+//            FinancialTableDto table = financialService.getQuarterTableByTicker(market, ticker, limit);
+//            log.info("분기 재무 데이터 조회 성공: headers={}, rows={}",
+//                    table.getHeaders().size(), table.getRows().size());
+//            return ResponseEntity.ok(ApiResponse.success(table));
+//        } catch (Exception e) {
+//            log.error("분기 재무 테이블 조회 실패: market={}, ticker={}", market, ticker, e);
+//            return ResponseEntity.badRequest()
+//                    .body(ApiResponse.error("재무 데이터 조회에 실패했습니다: " + e.getMessage()));
+//        }
+//    }
 }
