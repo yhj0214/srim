@@ -134,7 +134,18 @@
                 btn.innerHTML = originalHtml;
 
                 if (result.success) {
-                    alert('크롤링이 완료되었습니다.\n총 ' + result.data.totalCount + '건의 데이터가 처리되었습니다.');
+                    const data = result.data || {};
+
+                    // 안전하게 값 꺼내기 (totalCount 대비도 남겨둠)
+                    const crawledCount = data.crawledCount ?? data.totalCount ?? 0;
+                    const mappedCount  = data.mappedCount ?? 0;
+
+                    alert(
+                        '크롤링이 완료되었습니다.\n'
+                        + '총 ' + crawledCount + '건의 데이터를 크롤링하였습니다.\n'
+                        + 'DART 상 ' + mappedCount + '건의 데이터가 매핑되었습니다.'
+                    );
+
                     location.reload();
                 } else {
                     alert('크롤링 실패: ' + result.message);

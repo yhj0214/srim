@@ -39,4 +39,9 @@ public class HomeViewController {
     public String srim() {
         return "srim";
     }
+
+    @GetMapping("/admin")
+    public String admin(){
+        return "admin";
+    }
 }

@@ -28,11 +28,16 @@ public class DartCorpCodeSyncService {
      * 2) stock_code.dart_corp_code 를 대량 UPDATE 한다.
      */
     @Transactional
-    public void syncFromXml() throws Exception {
+    public int syncFromXml(){
         log.info("=== DART corpCode 동기화 시작 ===");
 
         // 1) XML → dart_corp_map 적재
-        int inserted = loadXmlToTempTable();
+        int inserted = 0;
+        try {
+            inserted = loadXmlToTempTable();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
         log.info("dart_corp_map 적재 건수 = {}", inserted);
 
         // 2) stock_code 갱신
@@ -44,6 +49,8 @@ public class DartCorpCodeSyncService {
         log.info("stock_code.dart_corp_code 갱신 건수 = {}", updated);
 
         log.info("=== DART corpCode 동기화 완료 ===");
+
+        return updated;
     }
 
     /**

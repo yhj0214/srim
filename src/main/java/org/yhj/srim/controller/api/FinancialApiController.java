@@ -25,7 +25,7 @@ public class FinancialApiController {
             @RequestParam(defaultValue = "10") int limit) {
         
         log.info("=== 연간 재무 테이블 API 호출 (stockId) ===");
-        log.info("stockId: {}, limit: {}", stockId, limit);
+        log.info("stockId: {}, {}년 데이터(limit)", stockId, limit);
         
         try {
             FinancialTableDto table = financialService.getAnnualTableByStockId(stockId, limit);

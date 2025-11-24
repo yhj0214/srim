@@ -5,6 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.yhj.srim.controller.dto.ApiResponse;
+import org.yhj.srim.controller.dto.CrawlAllMarketsResult;
+import org.yhj.srim.service.DartCorpCodeSyncService;
 import org.yhj.srim.service.KrxStockCrawlingService;
 
 import java.util.HashMap;
@@ -20,29 +22,20 @@ import java.util.Map;
 public class KrxCrawlingApiController {
 
     private final KrxStockCrawlingService krxStockCrawlingService;
+    private final DartCorpCodeSyncService dartCorpCodeSyncService;
 
     /**
      * 전체 시장 크롤링 (KOSPI + KOSDAQ)
      * GET /api/crawling/krx/all
      */
     @PostMapping("/all")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> crawlAllMarkets() {
-        try {
-            log.info("전체 시장 크롤링 요청");
-            
-            int count = krxStockCrawlingService.crawlAllMarkets();
-            
-            Map<String, Object> result = new HashMap<>();
-            result.put("totalCount", count);
-            result.put("message", "크롤링이 완료되었습니다.");
-            
-            return ResponseEntity.ok(ApiResponse.success(result));
-            
-        } catch (Exception e) {
-            log.error("크롤링 실패", e);
-            return ResponseEntity.internalServerError()
-                    .body(ApiResponse.error("크롤링 중 오류가 발생했습니다: " + e.getMessage()));
-        }
+    public ApiResponse<CrawlAllMarketsResult> crawlAllMarkets() {
+        log.info("전체 시장 크롤링 요청");
+
+        int crawledCount = krxStockCrawlingService.crawlAllMarkets();
+        int mappedCount = dartCorpCodeSyncService.syncFromXml();
+
+        return ApiResponse.success(new CrawlAllMarketsResult(crawledCount, mappedCount));
     }
 
     /**
