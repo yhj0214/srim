@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.yhj.srim.common.exception.code.CommonErrorCode;
 import org.yhj.srim.common.exception.code.ErrorCode;
 import org.yhj.srim.controller.dto.ApiResponse;
@@ -35,5 +36,12 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(errorCode.getHttpStatus())
                 .body(error(errorCode.getCode(), errorCode.getMessage()));
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleException(NoResourceFoundException e) {
+        log.debug("no satic resource found", e.getMessage());
+
+        return ResponseEntity.notFound().build();
     }
 }

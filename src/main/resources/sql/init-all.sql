@@ -168,7 +168,7 @@ CREATE TABLE dart_corp_map (
 
 /* 10) 연도별 주식 현황 */
 CREATE TABLE `stock_share_status` (
-      `id`               BIGINT       NOT NULL AUTO_INCREMENT COMMENT 'PK',
+      `stock_status_id`  BIGINT       NOT NULL AUTO_INCREMENT COMMENT 'PK',
       `company_id`       BIGINT       NOT NULL COMMENT 'FK: company.company_id',
       `bsns_year`        INT          NOT NULL COMMENT '사업연도(예: 2024)',
       `stlm_dt`          DATE         NOT NULL COMMENT '결산일(예: 2018-12-31)',
@@ -182,7 +182,7 @@ CREATE TABLE `stock_share_status` (
       `created_at`       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성시각',
       `updated_at`       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정시각',
 
-      CONSTRAINT `PK_STOCK_SHARE_STATUS` PRIMARY KEY (`id`),
+      CONSTRAINT `PK_STOCK_SHARE_STATUS` PRIMARY KEY (`stock_status_id`),
 
       CONSTRAINT `FK_SSS_COMPANY`
           FOREIGN KEY (`company_id`) REFERENCES `company` (`company_id`)
@@ -242,7 +242,7 @@ CREATE TABLE `dart_fs_line` (
                                 `sj_div`             VARCHAR(4)    NOT NULL COMMENT '재무제표 양식 구분(BS/CIS/CF 등, sj_div)',
                                 `sj_nm`              VARCHAR(200)  NULL COMMENT '양식 명칭(재무상태표/포괄손익계산서/현금흐름표 등)',
 
-                                `account_id`         VARCHAR(100)  NOT NULL COMMENT '계정 ID(ifrs-full_Revenue 등, account_id)',
+                                `account_id`         VARCHAR(200)  NOT NULL COMMENT '계정 ID(ifrs-full_Revenue 등, account_id)',
                                 `account_nm`         VARCHAR(200)  NULL COMMENT '계정명(account_nm)',
                                 `account_detail`     VARCHAR(200)  NULL COMMENT '계정 세부 구분(account_detail)',
 
@@ -290,7 +290,7 @@ CREATE TABLE `dart_fs_line` (
  *   - 비즈니스 룰/매핑을 SQL로 관리하고 싶을 때 유용
  * =============================================================== */
 CREATE TABLE `fs_account_map` (
-      `account_id`   VARCHAR(100)  NOT NULL COMMENT 'DART account_id (ifrs-full_Revenue 등)',
+      `account_id`   VARCHAR(200)  NOT NULL COMMENT 'DART account_id (ifrs-full_Revenue 등)',
       `sj_div`       VARCHAR(4)    NOT NULL COMMENT '재무제표 양식 구분(BS/CIS/CF 등)',
       `metric_code`  VARCHAR(32)   NOT NULL COMMENT 'FK: fin_metric_def.metric_code',
       `priority`     TINYINT       NOT NULL DEFAULT 1 COMMENT '여러 매핑 존재 시 우선순위(1=기본)',
@@ -318,7 +318,7 @@ CREATE TABLE `fs_account_map` (
 CREATE TABLE `fs_required_account` (
        `id`           BIGINT        NOT NULL AUTO_INCREMENT COMMENT 'PK',
        `sj_div`       VARCHAR(4)    NOT NULL COMMENT '재무제표 양식(BS/CIS/CF 등)',
-       `account_id`   VARCHAR(100)  NOT NULL COMMENT '필수로 봐야 하는 DART account_id',
+       `account_id`   VARCHAR(200)  NOT NULL COMMENT '필수로 봐야 하는 DART account_id',
        `account_nm`   VARCHAR(200)  NULL COMMENT '계정명(설명용)',
        `is_required`  TINYINT(1)    NOT NULL DEFAULT 1 COMMENT '필수 여부(1=필수, 0=선택)',
        `notes`        VARCHAR(300)  NULL COMMENT '비고(적용 조건 등)',
@@ -330,7 +330,9 @@ CREATE TABLE `fs_required_account` (
        CONSTRAINT `UNQ_FS_REQUIRED_ACC`    UNIQUE (`sj_div`, `account_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='필수 재무제표 계정 정의(BS/CIS/CF별 필수 계정 목록)';
 
-
+-- 누락 조회 인덱스
+-- CREATE INDEX IX_FS_REQ_SJ_REQ
+--     ON fs_required_account (sj_div, is_required, account_id);
 
 -- ===============================================================
 -- 샘플 데이터 삽입

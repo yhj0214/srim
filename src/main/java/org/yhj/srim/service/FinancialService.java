@@ -29,7 +29,6 @@ public class FinancialService {
     private final FinMetricValueRepository finMetricValueRepository;
     private final CompanyRepository companyRepository;
     private final StockCodeRepository stockCodeRepository;
-    private final DartCrawlingService dartCrawlingService;
 
     /**
      * stockId로 연간 재무 테이블 조회

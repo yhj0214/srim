@@ -23,9 +23,9 @@ public class StockShareStatus {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id")
+    @Column(name = "stock_status_id")
     @Comment("PK")
-    private Long id;
+    private Long stockStatusId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "company_id", nullable = false,
@@ -70,4 +70,37 @@ public class StockShareStatus {
             insertable = false,
             columnDefinition = "DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
     private LocalDateTime updatedAt;
+
+    @PrePersist
+    protected void onCreate() {
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = this.createdAt;
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public static StockShareStatus create(
+            Company company,
+            int bsnsYear,
+            LocalDate stlmDt,
+            String se,
+            Long isuStockTotqy,
+            Long istcTotqy,
+            Long tesstkCo,
+            Long distbStockCo
+    ) {
+        StockShareStatus s = new StockShareStatus();
+        s.company = company;
+        s.bsnsYear = bsnsYear;
+        s.settlementDate = stlmDt;
+        s.se = se;
+        s.isuStockTotqy = isuStockTotqy;
+        s.istcTotqy = istcTotqy;
+        s.tesstkCo = tesstkCo;
+        s.distbStockCo = distbStockCo;
+        return s;
+    }
 }
