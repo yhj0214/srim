@@ -173,7 +173,7 @@ public class DartCrawlingService {
                                 .build());
 
         statusEntity = StockShareStatus.builder()
-                .id(statusEntity.getId())
+                .stockStatusId(statusEntity.getStockStatusId())
                 .company(company)
                 .bsnsYear(bsnsYear)
                 .settlementDate(stlmDt)

@@ -16,6 +16,7 @@ import org.yhj.srim.common.exception.CustomException;
 import org.yhj.srim.common.exception.code.CrawlingErrorCode;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -153,7 +154,78 @@ public class DartClient {
      * @return
      */
     public List<DartShareStatusRow> fetchShareStatus(String corpCode, int year){
-        return null;
-    }
+        String url = DART_SHARE_URL
+                + "?crtfc_key=" + apiKey
+                + "&corp_code=" + corpCode
+                + "&bsns_year=" + year
+                + "&reprt_code=11011";
 
+        ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+        String body = response.getBody();
+
+        return parseShareResponse(body);
+    }
+    private List<DartShareStatusRow> parseShareResponse(String json) {
+        List<DartShareStatusRow> result = new ArrayList<>();
+        try {
+            JsonNode root = objectMapper.readTree(json);
+            JsonNode listNode = root.get("list");
+            if (listNode == null || !listNode.isArray()) {
+                log.warn("DART 주식수 응답에 list 필드가 없거나 배열이 아닙니다. json={}", json);
+                return result;
+            }
+
+            log.debug("RAW NODE: {}", listNode.toString());
+
+            for (JsonNode node : listNode) {
+                DartShareStatusRow row = new DartShareStatusRow();
+
+                // 공시 메타 정보
+                row.setRceptNo(getText(node, "rcept_no"));
+                row.setCorpCls(getText(node, "corp_cls"));
+                row.setCorpCode(getText(node, "corp_code"));
+                row.setCorpName(getText(node, "corp_name"));
+
+                // 사업연도
+                Integer bsnsYear = getInteger(node, "bsns_year");
+                row.setBsnsYear(bsnsYear);
+
+                // 결산일 (2023-12-31)
+                String stlmDtStr = getText(node, "stlm_dt");
+                LocalDate stlmDt = null;
+                if (stlmDtStr != null && !stlmDtStr.isBlank()) {
+                    stlmDt = LocalDate.parse(stlmDtStr.trim());
+                }
+                row.setStlmDt(stlmDt);
+
+                row.setSe(getText(node, "se"));
+
+                row.setIsuStockTotqy(parseLong(node, "isu_stock_totqy"));
+                row.setNowToIsuStockTotqy(parseLong(node, "now_to_isu_stock_totqy"));
+                row.setNowToDcrsStockTotqy(parseLong(node, "now_to_dcrs_stock_totqy"));
+                row.setRedc(parseLong(node, "redc"));
+                row.setProfitIncnr(parseLong(node, "profit_incnr"));
+                row.setRdmstkRepy(parseLong(node, "rdmstk_repy"));
+                row.setEtc(parseLong(node, "etc"));
+                row.setIstcTotqy(parseLong(node, "istc_totqy"));
+                row.setTesstkCo(parseLong(node, "tesstk_co"));
+
+                Long distb = parseLong(node, "distb_stock_co");
+
+                // 없으면 발행주식 - 자기주식으로 계산
+                if (distb == null && row.getIstcTotqy() != null && row.getTesstkCo() != null) {
+                    distb = row.getIstcTotqy() - row.getTesstkCo();
+                }
+                row.setDistbStockCo(distb);
+
+                row.setRawJson(node.toString());
+
+                result.add(row);
+            }
+        } catch (Exception e) {
+            log.error("DART 주식수 응답 파싱 실패. json={}", json, e);
+            throw new CustomException(CrawlingErrorCode.JSON_PARSE_FAILED);
+        }
+        return result;
+    }
 }

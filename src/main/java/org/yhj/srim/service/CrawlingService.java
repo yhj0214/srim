@@ -14,6 +14,7 @@ import org.yhj.srim.repository.StockShareStatusRepository;
 import org.yhj.srim.repository.entity.Company;
 import org.yhj.srim.repository.entity.DartFsFiling;
 import org.yhj.srim.repository.entity.DartFsLine;
+import org.yhj.srim.repository.entity.StockShareStatus;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -74,6 +75,12 @@ public class CrawlingService {
                 .orElseThrow(() -> new IllegalArgumentException("Company not found. companyId=" + companyId));
 
         List<DartShareStatusRow> rows = dartClient.fetchShareStatus(corpCode, year);
+
+
+        for(DartShareStatusRow row : rows) {
+            log.debug("행 정보 : {}", row);
+        }
+
         if(rows == null || rows.isEmpty()) {
             log.debug("주식 수 정보가 없습니다. corpCode={}, year={}", corpCode, year);
             return;
@@ -81,6 +88,39 @@ public class CrawlingService {
 
         log.debug("DART 주식수 응답 {}건 - corpCode={}, year={}", rows.size(), corpCode, year);
 
+        List<StockShareStatus> entities = rows.stream()
+                .filter(row -> !"비고".equals(row.getSe()))
+                .map(row -> {
+
+                    Integer bsnsYear = row.getBsnsYear() != null ? row.getBsnsYear() : year;
+
+                    Long istc  = row.getIstcTotqy();
+                    Long self  = row.getTesstkCo();
+                    Long distb = row.getDistbStockCo();
+                    if (distb == null && istc != null && self != null) {
+                        distb = istc - self;
+                    }
+
+                    return StockShareStatus.builder()
+                            .company(company)
+                            .bsnsYear(bsnsYear)
+                            .settlementDate(row.getStlmDt())
+                            .se(row.getSe())
+                            .isuStockTotqy(row.getIsuStockTotqy())
+                            .istcTotqy(row.getIstcTotqy())
+                            .tesstkCo(row.getTesstkCo())
+                            .distbStockCo(distb)
+                            .build();
+                })
+                .toList();
+
+        for(StockShareStatus entity : entities) {
+            log.debug("저장할 주식수 정보: {}", entity);
+        }
+        shareStatusRepository.saveAll(entities);
+
+        log.debug("주식수 {}건 저장 완료 - corpCode={}, companyId={}, year={}",
+                entities.size(), corpCode, companyId, year);
 
     }
 

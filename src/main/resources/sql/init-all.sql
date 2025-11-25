@@ -465,3 +465,17 @@ INSERT INTO fin_metric_def (metric_code, name_kor, unit, display_order, descript
 -- JOIN stock_code sc ON sc.stock_id = c.stock_id AND sc.ticker_krx = '005930'
 -- JOIN fin_period p ON p.company_id = c.company_id AND p.fiscal_year = 2022 AND p.period_type = 'YEAR'
 -- JOIN fin_metric_def m ON m.metric_code IN ('SALES','OP_INC','NET_INC','OPM','DEBT_RATIO','ROE','ROA','EPS','BPS','PER','PBR');
+-- 추가: 회사채 수익률 데이터
+INSERT INTO bond_yield_curve (as_of, rating, tenor_months, yield_rate, source) VALUES
+    ('2024-11-06', 'BBB-', 60, 0.0450, 'KOFIA'),
+    ('2024-11-05', 'BBB-', 60, 0.0448, 'KOFIA'),
+    ('2024-11-04', 'BBB-', 60, 0.0452, 'KOFIA'),
+    ('2024-11-01', 'BBB-', 60, 0.0445, 'KOFIA'),
+    ('2024-10-31', 'BBB-', 60, 0.0440, 'KOFIA'),
+    -- 추가 등급/만기
+    ('2024-11-06', 'AAA', 60, 0.0320, 'KOFIA'),
+    ('2024-11-06', 'AA+', 60, 0.0350, 'KOFIA'),
+    ('2024-11-06', 'AA', 60, 0.0380, 'KOFIA'),
+    ('2024-11-06', 'A+', 60, 0.0410, 'KOFIA'),
+    ('2024-11-06', 'BBB+', 60, 0.0430, 'KOFIA'),
+    ('2024-11-06', 'KTB', 60, 0.0280, 'KRX');
