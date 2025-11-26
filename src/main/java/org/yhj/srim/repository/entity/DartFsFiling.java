@@ -17,7 +17,7 @@ public class DartFsFiling {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "fs_filing_id")
-    private Long id;
+    private Long fsFilingId;
 
     // DART corp_code
     @Column(name = "corp_code", length = 8, nullable = false)

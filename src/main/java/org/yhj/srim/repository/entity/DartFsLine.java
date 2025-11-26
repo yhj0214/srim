@@ -18,10 +18,12 @@ public class DartFsLine {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "fs_line_id")
-    private Long id;
+    private Long fsLineId;
 
-    @Column(name = "fs_filing_id", nullable = false)
-    private Long fsFilingId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "fs_filing_id")
+    private DartFsFiling filing;
+
 
     @Column(name = "company_id")
     private Long companyId;
@@ -83,9 +85,9 @@ public class DartFsLine {
         this.createdAt = LocalDateTime.now();
     }
 
-    public static DartFsLine fromRow(Long fsFilingId, Long companyId, DartFsRow row) {
+    public static DartFsLine fromRow(DartFsFiling fsFiling, Long companyId, DartFsRow row) {
         DartFsLine entity = new DartFsLine();
-        entity.fsFilingId = fsFilingId;
+        entity.filing = fsFiling;
         entity.companyId = companyId;
         entity.sjDiv = row.getSjDiv();
         entity.sjNm = row.getSjNm();

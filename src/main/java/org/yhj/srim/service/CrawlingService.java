@@ -56,7 +56,7 @@ public class CrawlingService {
         // Line 엔티티로 변환 + 저장
         List<DartFsLine> entities = rows.stream()
                 .map(row -> DartFsLine.fromRow(
-                        filing.getId(),
+                        filing,
                         companyId,
                         row
                 ))

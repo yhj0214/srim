@@ -178,6 +178,13 @@ public class DartClient {
             log.debug("RAW NODE: {}", listNode.toString());
 
             for (JsonNode node : listNode) {
+
+                String se = getText(node, "se");
+                if ("비고".equals(se)) {
+                    log.debug("비고 행 스킵: {}", node.toString());
+                    continue;
+                }
+
                 DartShareStatusRow row = new DartShareStatusRow();
 
                 // 공시 메타 정보
@@ -185,6 +192,8 @@ public class DartClient {
                 row.setCorpCls(getText(node, "corp_cls"));
                 row.setCorpCode(getText(node, "corp_code"));
                 row.setCorpName(getText(node, "corp_name"));
+
+                row.setSe(se);
 
                 // 사업연도
                 Integer bsnsYear = getInteger(node, "bsns_year");
@@ -197,8 +206,6 @@ public class DartClient {
                     stlmDt = LocalDate.parse(stlmDtStr.trim());
                 }
                 row.setStlmDt(stlmDt);
-
-                row.setSe(getText(node, "se"));
 
                 row.setIsuStockTotqy(parseLong(node, "isu_stock_totqy"));
                 row.setNowToIsuStockTotqy(parseLong(node, "now_to_isu_stock_totqy"));

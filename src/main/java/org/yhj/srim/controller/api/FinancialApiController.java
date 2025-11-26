@@ -25,20 +25,7 @@ public class FinancialApiController {
     public ApiResponse<FinancialTableDto> getAnnualTableByStockId(
             @PathVariable Long stockId,
             @RequestParam(defaultValue = "10") int limit) {
-        
-//        log.info("=== 연간 재무 테이블 API 호출 (stockId) ===");
-//        log.info("stockId: {}, {}년 데이터(limit)", stockId, limit);
-//
-//        try {
-//            FinancialTableDto table = financialService.getAnnualTableByStockId(stockId, limit);
-//            log.info("연간 재무 데이터 조회 성공: headers={}, rows={}",
-//                    table.getHeaders().size(), table.getRows().size());
-//            return ResponseEntity.ok(ApiResponse.success(table));
-//        } catch (Exception e) {
-//            log.error("연간 재무 테이블 조회 실패: stockId={}", stockId, e);
-//            return ResponseEntity.badRequest()
-//                    .body(ApiResponse.error("재무 데이터 조회에 실패했습니다: " + e.getMessage()));
-//        }
+
         FinancialTableDto result = financialFacadeService.getAnnualTable(stockId, limit);
 
         return ApiResponse.success(result);
