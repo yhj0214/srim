@@ -621,4 +621,111 @@ public class FinancialService {
         // scale과 RoundingMode 조정가능
         return numerator.divide(denominator, 8, RoundingMode.HALF_UP);
     }
+
+    @Transactional
+    public Map<String, BigDecimal> getOrBuildAnnualMetrics(Long companyId, int fiscalYear) {
+
+        // DB 조회
+        Map<String, BigDecimal> result = loadAnnualMetricsFromDb(companyId, fiscalYear);
+        if (!result.isEmpty()) {
+            log.debug("[FIN_METRIC] cached 사용 - companyId={}, year={}", companyId, fiscalYear);
+            return result;
+        }
+
+        // 없으면 계산
+        Map<String, BigDecimal> calculated = buildFinancialMetrics(companyId, fiscalYear);
+
+        if (calculated.isEmpty()) {
+            log.warn("[FIN_METRIC] 계산 결과 없음 - companyId={}, year={}", companyId, fiscalYear);
+            return calculated;
+        }
+
+        // 계산 결과 DB 저장
+        saveAnnualMetricsToDb(companyId, fiscalYear, calculated);
+
+        return calculated;
+    }
+
+    // ------------------ DB에서 연간 지표 로드 ------------------
+    @Transactional(readOnly = true)
+    public Map<String, BigDecimal> loadAnnualMetricsFromDb(Long companyId, int fiscalYear) {
+        Map<String, BigDecimal> result = new LinkedHashMap<>();
+
+        Optional<FinPeriod> optPeriod =
+                finPeriodRepository.findByCompany_CompanyIdAndPeriodTypeAndFiscalYearAndIsEstimate(
+                        companyId, "YEAR", fiscalYear, false
+                );
+
+        if (optPeriod.isEmpty()) {
+            return result;
+        }
+
+        FinPeriod period = optPeriod.get();
+
+        List<FinMetricValue> values =
+                finMetricValueRepository.findByCompanyIdAndPeriodId(companyId, period.getPeriodId());
+
+        for (FinMetricValue v : values) {
+            BigDecimal value = v.getValueNum();
+            if (value != null) {
+                result.put(v.getMetricCode(), value);
+            }
+        }
+
+        return result;
+    }
+
+    // ------------------ 연간 지표를 fin테이블에 저장 ------------------
+    @Transactional
+    public void saveAnnualMetricsToDb(Long companyId, int fiscalYear,
+                                      Map<String, BigDecimal> metrics) {
+
+        // fin_period 조회/생성
+        FinPeriod period = finPeriodRepository
+                .findByCompany_CompanyIdAndPeriodTypeAndFiscalYearAndIsEstimate(
+                        companyId, "YEAR", fiscalYear, false
+                )
+                .orElseGet(() -> {
+                    Company companyRef = companyRepository.getReferenceById(companyId);
+
+                    FinPeriod p = new FinPeriod();
+
+                    p.setCompany(companyRef);
+                    p.setPeriodType("YEAR");
+                    p.setFiscalYear(fiscalYear);
+                    p.setFiscalQuarter(null);
+                    p.setIsEstimate(false);
+                    p.setLabel(fiscalYear + "/12");
+                    p.setPeriodStart(null);
+                    p.setPeriodEnd(LocalDate.of(fiscalYear, 12, 31));
+                    return finPeriodRepository.save(p);
+                });
+
+        // metricCode → value 저장 (fin_metric_def에 정의된 것만)
+        for (Map.Entry<String, BigDecimal> entry : metrics.entrySet()) {
+            String metricCode = entry.getKey();
+            BigDecimal value = entry.getValue();
+
+            Optional<FinMetricDef> optDef = finMetricDefRepository.findById(metricCode);
+            if (optDef.isEmpty()) {
+                log.debug("[FIN_METRIC] fin_metric_def에 정의 안된 코드 스킵: {}", metricCode);
+                continue;
+            }
+
+            FinMetricValue fmv = finMetricValueRepository
+                    .findByCompanyIdAndPeriodIdAndMetricCode(companyId, period.getPeriodId(), metricCode)
+                    .orElseGet(FinMetricValue::new);
+
+            fmv.setCompanyId(companyId);
+            fmv.setPeriodId(period.getPeriodId());
+            fmv.setMetricCode(metricCode);
+            fmv.setValueNum(value);
+            fmv.setSource("DART"); // CK_FMV_SOURCE 에 맞춤
+
+            finMetricValueRepository.save(fmv);
+        }
+
+        log.info("[FIN_METRIC] 저장 완료 - companyId={}, year={}, metricCount={}",
+                companyId, fiscalYear, metrics.size());
+    }
 }

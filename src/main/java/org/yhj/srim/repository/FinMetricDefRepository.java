@@ -13,4 +13,6 @@ public interface FinMetricDefRepository extends JpaRepository<FinMetricDef, Stri
      * 표시 순서로 정렬하여 모든 지표 조회
      */
     List<FinMetricDef> findAllByOrderByDisplayOrder();
+
+    List<FinMetricDef> findAllByOrderByDisplayOrderAsc();
 }

@@ -7,7 +7,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.yhj.srim.client.DartClient;
 import org.yhj.srim.common.exception.CustomException;
 import org.yhj.srim.common.exception.code.StockErrorCode;
+import org.yhj.srim.repository.FinMetricDefRepository;
+import org.yhj.srim.repository.FinMetricValueRepository;
+import org.yhj.srim.repository.FinPeriodRepository;
 import org.yhj.srim.repository.entity.Company;
+import org.yhj.srim.repository.entity.FinMetricDef;
+import org.yhj.srim.repository.entity.FinMetricValue;
+import org.yhj.srim.repository.entity.FinPeriod;
 import org.yhj.srim.service.CrawlingService;
 import org.yhj.srim.service.FinancialService;
 import org.yhj.srim.service.dto.FinancialTableDto;
@@ -15,6 +21,7 @@ import org.yhj.srim.service.dto.FinancialTableDto;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -23,6 +30,9 @@ public class FinancialFacadeService {
 
     private final FinancialService financialService;
     private final CrawlingService crawlingService;
+    private final FinPeriodRepository finPeriodRepository;
+    private final FinMetricDefRepository finMetricDefRepository;
+    private final FinMetricValueRepository finMetricValueRepository;
 
     /**
      * 1. company 조회, 없을 시 생성
@@ -53,8 +63,98 @@ public class FinancialFacadeService {
         }
 
         // 저장된 값으로 DTO 생성
-        return loadMetricsAsDto(company, limit);
+        return buildAnnualTableDto(company, limit);
     }
+
+    private FinancialTableDto buildAnnualTableDto(Company company, int limit) {
+        Long companyId = company.getCompanyId();
+        int currentYear = LocalDate.now().getYear();
+        int startYear = currentYear - limit + 1;
+
+        for(int year = currentYear; year >= startYear; year--){
+            financialService.getOrBuildAnnualMetrics(companyId, year);
+        }
+
+        List<FinPeriod> periods = finPeriodRepository
+                .findByCompany_CompanyIdAndPeriodTypeAndFiscalYearBetweenAndIsEstimateOrderByFiscalYearDesc(
+                        companyId, "YEAR", startYear, currentYear, false
+                );
+
+        if (periods.isEmpty()) {
+            log.warn("FinPeriod 없음 - companyId={}, years={}~{}", companyId, startYear, currentYear);
+            return new FinancialTableDto(List.of(), List.of());
+        }
+
+        List<FinancialTableDto.PeriodHeaderDto> headers = periods.stream()
+                .map(p -> FinancialTableDto.PeriodHeaderDto.builder()
+                        .periodId(p.getPeriodId())
+                        .label(p.getLabel())              // ex) "2024/12"
+                        .fiscalYear(p.getFiscalYear())
+                        .fiscalQuarter(p.getFiscalQuarter())
+                        .isEstimate(p.getIsEstimate())
+                        .build())
+                .collect(Collectors.toList());
+
+        // periodId 리스트 추출
+        List<Long> periodIds = periods.stream()
+                .map(FinPeriod::getPeriodId)
+                .collect(Collectors.toList());
+
+        // 해당 기간들에 대한 fin_metric_value 조회
+        List<FinMetricValue> metricValues =
+                finMetricValueRepository.findByCompanyIdAndPeriodIdIn(companyId, periodIds);
+
+        // metricCode -> (periodId -> value) 맵 구성
+        Map<String, Map<Long, BigDecimal>> metricCodeToPeriodValueMap = new HashMap<>();
+
+        for (FinMetricValue v : metricValues) {
+            String metricCode = v.getMetricCode();
+            Long periodId = v.getPeriodId();
+            BigDecimal value = v.getValueNum();
+
+            metricCodeToPeriodValueMap
+                    .computeIfAbsent(metricCode, k -> new HashMap<>())
+                    .put(periodId, value);
+        }
+
+        // fin_metric_def 기준으로 행 구성
+        List<FinMetricDef> metricDefs = finMetricDefRepository.findAllByOrderByDisplayOrderAsc();
+
+        List<FinancialTableDto.MetricRowDto> rows = new ArrayList<>();
+
+        for (FinMetricDef def : metricDefs) {
+            String metricCode = def.getMetricCode();
+            String nameKor = def.getNameKor();
+            String unit = def.getUnit();
+
+            Map<Long, BigDecimal> periodValueMap =
+                    metricCodeToPeriodValueMap.getOrDefault(metricCode, Collections.emptyMap());
+
+            // DTO에서는 수정 가능하도록 새 HashMap으로 복사
+            Map<Long, BigDecimal> valueCopy = new LinkedHashMap<>();
+            for (Long periodId : periodIds) {
+                // 값이 없는 기간은 null 또는 아예 넣지 않을 수 있음
+                // 여기서는 있는 값만 넣고, 프론트에서 없는 키는 공백 처리하게
+                if (periodValueMap.containsKey(periodId)) {
+                    valueCopy.put(periodId, periodValueMap.get(periodId));
+                }
+            }
+
+            FinancialTableDto.MetricRowDto row = FinancialTableDto.MetricRowDto.builder()
+                    .metricCode(metricCode)
+                    .metricName(nameKor)
+                    .unit(unit)
+                    .values(valueCopy)
+                    .build();
+
+            rows.add(row);
+        }
+        return FinancialTableDto.builder()
+                .headers(headers)
+                .rows(rows)
+                .build();
+    }
+
 
     private void runFullPipeline(Company company, int limit) {
         String corpCode = company.getStockCode().getDartCorpCode();
@@ -69,17 +169,17 @@ public class FinancialFacadeService {
         log.info("전체 파이프라인 실행 - companyId={}, corpCode={}, year {}~{}",
                 companyId, corpCode, startYear, currentYear);
 
-        for (int year = currentYear; year >= startYear; year--) {
+        for (int year = currentYear-1; year >= startYear; year--) {
             log.debug("{}년 크롤링 및 계산 진행", year);
 
-            // 재무제표 크롤링 + dart_fs_line 저장
+            // 재무제표 크롤링 , dart_fs_filing + dart_fs_line DB저장
             crawlingService.crawlAndSaveAnnualFinancial(corpCode, companyId, year);
 
             // 주식수 크롤링 + dart_share_status 저장
             crawlingService.crawlAndSaveShareStatus(corpCode, companyId, year);
 
             // dart_fs_line 기반 -> fin_metric_value 저장
-            financialService.recalcAndSaveFinancialForYearFromDb(company, year);
+//            financialService.recalcAndSaveFinancialForYearFromDb(company, year);
         }
     }
     /**

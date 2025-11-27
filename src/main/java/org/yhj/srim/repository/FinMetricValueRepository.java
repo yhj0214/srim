@@ -40,4 +40,6 @@ public interface FinMetricValueRepository extends JpaRepository<FinMetricValue, 
             @Param("companyId") Long companyId,
             @Param("periodIds") List<Long> periodIds
     );
+
+    List<FinMetricValue> findByCompanyIdAndPeriodIdIn(Long companyId, List<Long> periodIds);
 }

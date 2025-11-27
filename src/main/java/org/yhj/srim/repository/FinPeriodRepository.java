@@ -51,4 +51,7 @@ public interface FinPeriodRepository extends JpaRepository<FinPeriod, Long> {
             Integer fiscalQuarter
     );
 
+    List<FinPeriod> findByCompany_CompanyIdAndPeriodTypeAndFiscalYearBetweenAndIsEstimateOrderByFiscalYearDesc(Long companyId, String year, int startYear, int currentYear, boolean b);
+
+    Optional<FinPeriod> findByCompany_CompanyIdAndPeriodTypeAndFiscalYearAndIsEstimate(Long companyId, String year, int fiscalYear, boolean b);
 }

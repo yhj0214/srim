@@ -37,21 +37,13 @@ public class CrawlingService {
         // 크롤링 결과
         List<DartFsRow> rows = dartClient.fetchAnnualFinancialStatements(corpCode, year);
 
-
-        // to-do, exception으로 변경
         if(rows.isEmpty()) {
-            log.debug("저장된 데이터가 없습니다.");
+            log.warn("{}년도에 크롤링된 데이터가 없습니다.", year);
             return 0;
         }
 
-        //
-        DartFsRow first = rows.get(0);
-        DartFsFiling filing = createOrGetFiling(corpCode, companyId, first);
-
-
-        for(DartFsRow row : rows) {
-            log.debug("행 정보 : {}", row);
-        }
+        DartFsRow meta = rows.get(0);
+        DartFsFiling filing = createOrGetFiling(corpCode, companyId, meta);
 
         // Line 엔티티로 변환 + 저장
         List<DartFsLine> entities = rows.stream()

@@ -55,6 +55,8 @@ public class DartClient {
                 + "&reprt_code=11011"
                 + "&fs_div=CFS"; // CFS-연결재무제표, OFS
 
+        log.debug("사업보고서 조회 url : {}", url);
+
         ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
         String body = response.getBody();
         log.debug(body);
@@ -116,37 +118,6 @@ public class DartClient {
         return result;
     }
 
-    private String getText(JsonNode node, String field) {
-        JsonNode v = node.get(field);
-        return (v == null || v.isNull()) ? null : v.asText();
-    }
-
-    private int getInt(JsonNode node, String field) {
-        JsonNode v = node.get(field);
-        if (v == null || v.isNull() || v.asText().isBlank()) return 0;
-        return v.asInt();
-    }
-    private Integer getInteger(JsonNode node, String field) {
-        JsonNode v = node.get(field);
-        if (v == null || v.isNull() || v.asText().isBlank()) return null;
-        return v.asInt();
-    }
-
-    private BigDecimal getBigDecimal(JsonNode node, String field) {
-        JsonNode v = node.get(field);
-        if (v == null || v.isNull()) return null;
-        String text = v.asText().replaceAll(",", "").trim();
-        if (text.isEmpty() || "-".equals(text)) return null;
-        return new BigDecimal(text);
-    }
-
-    private Long parseLong(JsonNode node, String field) {
-        JsonNode v = node.get(field);
-        if (v == null || v.isNull()) return null;
-        String text = v.asText().replaceAll(",", "").trim();
-        if (text.isEmpty() || "-".equals(text)) return null;
-        return Long.parseLong(text);
-    }
     /**
      * 특정 연도의 주식수(주식총수) 현황 조회.
      * @param corpCode : dart 코드
@@ -234,5 +205,40 @@ public class DartClient {
             throw new CustomException(CrawlingErrorCode.JSON_PARSE_FAILED);
         }
         return result;
+    }
+
+
+
+
+    private String getText(JsonNode node, String field) {
+        JsonNode v = node.get(field);
+        return (v == null || v.isNull()) ? null : v.asText();
+    }
+
+    private int getInt(JsonNode node, String field) {
+        JsonNode v = node.get(field);
+        if (v == null || v.isNull() || v.asText().isBlank()) return 0;
+        return v.asInt();
+    }
+    private Integer getInteger(JsonNode node, String field) {
+        JsonNode v = node.get(field);
+        if (v == null || v.isNull() || v.asText().isBlank()) return null;
+        return v.asInt();
+    }
+
+    private BigDecimal getBigDecimal(JsonNode node, String field) {
+        JsonNode v = node.get(field);
+        if (v == null || v.isNull()) return null;
+        String text = v.asText().replaceAll(",", "").trim();
+        if (text.isEmpty() || "-".equals(text)) return null;
+        return new BigDecimal(text);
+    }
+
+    private Long parseLong(JsonNode node, String field) {
+        JsonNode v = node.get(field);
+        if (v == null || v.isNull()) return null;
+        String text = v.asText().replaceAll(",", "").trim();
+        if (text.isEmpty() || "-".equals(text)) return null;
+        return Long.parseLong(text);
     }
 }
