@@ -356,6 +356,8 @@ INSERT INTO fin_metric_def (metric_code, name_kor, unit, display_order, descript
     ('SALES',           '매출액',       'KRW',  10,  '연결 기준 매출액'),
     ('OP_INC',          '영업이익',     'KRW',  20,  '영업이익'),
     ('NET_INC',         '당기순이익',   'KRW',  30,  '지배주주 기준 당기순이익'),
+    ('NET_INC_OWNER', '당기순이익(지배)', 'KRW', 31, '지배기업 소유주에게 귀속되는 당기순이익'),
+    ('NET_INC_NONCONT', '당기순이익(비지배)', 'KRW', 32, '비지배지분에 귀속되는 당기순이익'),
     ('OPM',             '영업이익률',   '%',    40,  '영업이익 / 매출액'),
     ('DEBT_RATIO',      '부채비율',     '%',    50,  '부채총계 / 자본총계'),
     ('ROE',             'ROE',          '%',    60,  '당기순이익 / 자본총계(지배주주지분)'),

@@ -559,142 +559,142 @@ public class DartCrawlingService {
      * - CIS/IS(손익/포괄손익) : SALES / OP_INC / NET_INC / NET_INC_OWNER / CONT_NET_INC / DISC_NET_INC
      */
     private String mapAccountToMetric(String sjDiv, String accountId, String accountNm) {
-        String id   = accountId != null ? accountId.trim() : "";
-        String name = accountNm != null ? accountNm.trim() : "";
-        String norm = normalizeAccountName(name);  // 예: "관계기업의자본변동" → 공백/특수문자 제거 등
-        String sj   = sjDiv != null ? sjDiv.trim().toUpperCase() : "";
-
-        // ============= 1) ID 기반 우선 매핑 =============
-
-        // 1-1) 재무상태표(BS): 자산/부채/자본
-        if ("BS".equals(sj)) {
-            switch (id) {
-                // 자산총계
-                case "ifrs-full_Assets":
-                case "ifrs_Assets":
-                    return "TOTAL_ASSETS";
-
-                // 부채총계
-                case "ifrs-full_Liabilities":
-                case "ifrs_Liabilities":
-                    return "TOTAL_LIABILITIES";
-
-                // 자본총계 (전체 Equity: 지배 + 비지배)
-                case "ifrs-full_Equity":
-                case "ifrs_Equity":
-                    return "TOTAL_EQUITY";
-
-                // 자본총계(지배주주지분)
-                case "ifrs-full_EquityAttributableToOwnersOfParent":
-                    return "TOTAL_EQUITY_OWNER";
-            }
-        }
-
-        // 1-2) 손익계산서/포괄손익계산서(CIS/IS): 매출/이익 계열
-        if ("CIS".equals(sj) || "IS".equals(sj)) {
-            switch (id) {
-                // 매출
-                case "ifrs-full_Revenue":
-                case "ifrs_Revenue":
-                case "ifrs-full_SalesRevenue":
-                    return "SALES";
-
-                // 영업이익
-                case "ifrs-full_OperatingIncomeLoss":
-                case "dart_OperatingIncomeLoss":
-                    return "OP_INC";
-
-                // 전체 당기순이익 (지배+비지배)
-                case "ifrs-full_ProfitLoss":
-                case "ifrs_ProfitLoss":
-                    return "NET_INC";
-
-                // 지배주주 귀속 당기순이익
-                case "ifrs-full_ProfitLossAttributableToOwnersOfParent":
-                    return "NET_INC_OWNER";
-
-                // 계속/중단 영업 당기순이익
-                case "ifrs-full_ProfitLossFromContinuingOperations":
-                    return "CONT_NET_INC";
-
-                case "ifrs-full_ProfitLossFromDiscontinuedOperations":
-                case "ifrs-full_IncomeFromDiscontinuedOperationsAttributableToOwnersOfParent":
-                    return "DISC_NET_INC";
-            }
-        }
-
-        // ============= 2) 이름 기반 보정 매핑 =============
-
-        // 2-1) BS: 자산/부채/자본 이름 기반 (ID가 없거나 특이 케이스용)
-        if ("BS".equals(sj)) {
-            // 자산총계 → TOTAL_ASSETS
-            if (norm.contains("자산총계") || norm.equals("자산")) {
-                return "TOTAL_ASSETS";
-            }
-
-            // 부채총계 → TOTAL_LIABILITIES
-            if (norm.contains("부채총계") || norm.equals("부채")) {
-                return "TOTAL_LIABILITIES";
-            }
-
-            // 자본총계(지배) / 지배기업 소유주 지분 → TOTAL_EQUITY_OWNER
-            if (name.equals("자본총계(지배)")
-                    || norm.contains("지배기업소유주지분")
-                    || norm.contains("지배기업소유주지분합계")) {
-                return "TOTAL_EQUITY_OWNER";
-            }
-
-            // 자본총계(전체) → TOTAL_EQUITY
-            if (name.equals("자본총계") || norm.equals("자본총계")) {
-                return "TOTAL_EQUITY";
-            }
-        }
-
-        // 2-2) CIS/IS: 매출/영업이익/당기순이익 이름 기반
-        if ("CIS".equals(sj) || "IS".equals(sj)) {
-
-            // --- 매출(매출액/영업수익) → SALES ---
-            if (!norm.contains("채권")   // 매출채권
-                    && !norm.contains("채무")
-                    && !norm.contains("원가")  // 매출원가
-                    && !norm.contains("총이익")) { // 매출총이익
-                if (norm.contains("매출") || norm.contains("영업수익") || norm.contains("revenue")) {
-                    return "SALES";
-                }
-            }
-
-            // --- 영업이익 → OP_INC ---
-            if (!norm.contains("계속영업") && !norm.contains("중단영업")) {
-                if (norm.equals("영업이익") ||
-                        norm.equals("영업손실") ||
-                        norm.equals("영업이익손실") ||
-                        norm.equals("영업이익및손실")) {
-                    return "OP_INC";
-                }
-            }
-
-            // --- 당기순이익(전체) → NET_INC ---
-            if (!norm.contains("귀속") && !norm.contains("지배기업") && !norm.contains("비지배지분")) {
-                if (norm.contains("당기순이익") ||
-                        norm.contains("당기순손익") ||
-                        norm.equals("순이익")       ||
-                        norm.equals("순손실")) {
-                    return "NET_INC";
-                }
-            }
-
-            // --- 당기순이익(지배) → NET_INC_OWNER ---
-            if (norm.contains("당기순이익지배")
-                    || norm.equals("당기순이익지배")
-                    || name.equals("당기순이익(지배)")) {
-                return "NET_INC_OWNER";
-            }
-
-            // ⚠ 여기엔 TOTAL_EQUITY / TOTAL_EQUITY_OWNER 매핑 넣지 말기
-            //   (CIS의 "관계기업의 자본변동" 같은 것을 막기 위해)
-        }
-
-        // ============= 3) 나머지는 아직 매핑 안 함 =============
+//        String id   = accountId != null ? accountId.trim() : "";
+//        String name = accountNm != null ? accountNm.trim() : "";
+//        String norm = normalizeAccountName(name);  // 예: "관계기업의자본변동" → 공백/특수문자 제거 등
+//        String sj   = sjDiv != null ? sjDiv.trim().toUpperCase() : "";
+//
+//        // ============= 1) ID 기반 우선 매핑 =============
+//
+//        // 1-1) 재무상태표(BS): 자산/부채/자본
+//        if ("BS".equals(sj)) {
+//            switch (id) {
+//                // 자산총계
+//                case "ifrs-full_Assets":
+//                case "ifrs_Assets":
+//                    return "TOTAL_ASSETS";
+//
+//                // 부채총계
+//                case "ifrs-full_Liabilities":
+//                case "ifrs_Liabilities":
+//                    return "TOTAL_LIABILITIES";
+//
+//                // 자본총계 (전체 Equity: 지배 + 비지배)
+//                case "ifrs-full_Equity":
+//                case "ifrs_Equity":
+//                    return "TOTAL_EQUITY";
+//
+//                // 자본총계(지배주주지분)
+//                case "ifrs-full_EquityAttributableToOwnersOfParent":
+//                    return "TOTAL_EQUITY_OWNER";
+//            }
+//        }
+//
+//        // 1-2) 손익계산서/포괄손익계산서(CIS/IS): 매출/이익 계열
+//        if ("CIS".equals(sj) || "IS".equals(sj)) {
+//            switch (id) {
+//                // 매출
+//                case "ifrs-full_Revenue":
+//                case "ifrs_Revenue":
+//                case "ifrs-full_SalesRevenue":
+//                    return "SALES";
+//
+//                // 영업이익
+//                case "ifrs-full_OperatingIncomeLoss":
+//                case "dart_OperatingIncomeLoss":
+//                    return "OP_INC";
+//
+//                // 전체 당기순이익 (지배+비지배)
+//                case "ifrs-full_ProfitLoss":
+//                case "ifrs_ProfitLoss":
+//                    return "NET_INC";
+//
+//                // 지배주주 귀속 당기순이익
+//                case "ifrs-full_ProfitLossAttributableToOwnersOfParent":
+//                    return "NET_INC_OWNER";
+//
+//                // 계속/중단 영업 당기순이익
+//                case "ifrs-full_ProfitLossFromContinuingOperations":
+//                    return "CONT_NET_INC";
+//
+//                case "ifrs-full_ProfitLossFromDiscontinuedOperations":
+//                case "ifrs-full_IncomeFromDiscontinuedOperationsAttributableToOwnersOfParent":
+//                    return "DISC_NET_INC";
+//            }
+//        }
+//
+//        // ============= 2) 이름 기반 보정 매핑 =============
+//
+//        // 2-1) BS: 자산/부채/자본 이름 기반 (ID가 없거나 특이 케이스용)
+//        if ("BS".equals(sj)) {
+//            // 자산총계 → TOTAL_ASSETS
+//            if (norm.contains("자산총계") || norm.equals("자산")) {
+//                return "TOTAL_ASSETS";
+//            }
+//
+//            // 부채총계 → TOTAL_LIABILITIES
+//            if (norm.contains("부채총계") || norm.equals("부채")) {
+//                return "TOTAL_LIABILITIES";
+//            }
+//
+//            // 자본총계(지배) / 지배기업 소유주 지분 → TOTAL_EQUITY_OWNER
+//            if (name.equals("자본총계(지배)")
+//                    || norm.contains("지배기업소유주지분")
+//                    || norm.contains("지배기업소유주지분합계")) {
+//                return "TOTAL_EQUITY_OWNER";
+//            }
+//
+//            // 자본총계(전체) → TOTAL_EQUITY
+//            if (name.equals("자본총계") || norm.equals("자본총계")) {
+//                return "TOTAL_EQUITY";
+//            }
+//        }
+//
+//        // 2-2) CIS/IS: 매출/영업이익/당기순이익 이름 기반
+//        if ("CIS".equals(sj) || "IS".equals(sj)) {
+//
+//            // --- 매출(매출액/영업수익) → SALES ---
+//            if (!norm.contains("채권")   // 매출채권
+//                    && !norm.contains("채무")
+//                    && !norm.contains("원가")  // 매출원가
+//                    && !norm.contains("총이익")) { // 매출총이익
+//                if (norm.contains("매출") || norm.contains("영업수익") || norm.contains("revenue")) {
+//                    return "SALES";
+//                }
+//            }
+//
+//            // --- 영업이익 → OP_INC ---
+//            if (!norm.contains("계속영업") && !norm.contains("중단영업")) {
+//                if (norm.equals("영업이익") ||
+//                        norm.equals("영업손실") ||
+//                        norm.equals("영업이익손실") ||
+//                        norm.equals("영업이익및손실")) {
+//                    return "OP_INC";
+//                }
+//            }
+//
+//            // --- 당기순이익(전체) → NET_INC ---
+//            if (!norm.contains("귀속") && !norm.contains("지배기업") && !norm.contains("비지배지분")) {
+//                if (norm.contains("당기순이익") ||
+//                        norm.contains("당기순손익") ||
+//                        norm.equals("순이익")       ||
+//                        norm.equals("순손실")) {
+//                    return "NET_INC";
+//                }
+//            }
+//
+//            // --- 당기순이익(지배) → NET_INC_OWNER ---
+//            if (norm.contains("당기순이익지배")
+//                    || norm.equals("당기순이익지배")
+//                    || name.equals("당기순이익(지배)")) {
+//                return "NET_INC_OWNER";
+//            }
+//
+//            // ⚠ 여기엔 TOTAL_EQUITY / TOTAL_EQUITY_OWNER 매핑 넣지 말기
+//            //   (CIS의 "관계기업의 자본변동" 같은 것을 막기 위해)
+//        }
+//
+//        // ============= 3) 나머지는 아직 매핑 안 함 =============
         return null;
     }
 

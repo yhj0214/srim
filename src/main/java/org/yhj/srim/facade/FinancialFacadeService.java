@@ -181,6 +181,8 @@ public class FinancialFacadeService {
             // dart_fs_line 기반 -> fin_metric_value 저장
 //            financialService.recalcAndSaveFinancialForYearFromDb(company, year);
         }
+
+        financialService.updateCompanyShareInfo(companyId);
     }
     /**
      * dart_fs_line 기반 계산 결과로 연간 테이블 DTO 생성

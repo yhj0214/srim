@@ -13,4 +13,6 @@ public interface StockShareStatusRepository extends JpaRepository<StockShareStat
     );
 
     Optional<StockShareStatus> findTopByCompany_CompanyIdAndSettlementDateLessThanEqualAndSeOrderBySettlementDateDesc(Long companyId, LocalDate baseDate, String 합계);
+
+    Optional<StockShareStatus> findTopByCompany_CompanyIdOrderByUpdatedAtDesc(Long companyId);
 }

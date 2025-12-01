@@ -2,13 +2,11 @@ package org.yhj.srim.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.yhj.srim.common.exception.CustomException;
 import org.yhj.srim.common.exception.code.StockErrorCode;
-import org.yhj.srim.controller.dto.CompanyMetaDto;
 import org.yhj.srim.repository.*;
 import org.yhj.srim.repository.entity.*;
 import org.yhj.srim.service.dto.FinancialTableDto;
@@ -32,6 +30,7 @@ public class FinancialService {
     private final CompanyRepository companyRepository;
     private final StockCodeRepository stockCodeRepository;
     private final DartFsLineRepository dartFsLineRepository;
+    private final StockShareStatusRepository stockShareStatusRepository;
 
     /**
      * stockId로 연간 재무 테이블 조회
@@ -366,32 +365,36 @@ public class FinancialService {
             return result;
         }
 
+        log.debug("==== {}년 조회된 재무제표 라인 수 : {}",currentYear, lines.size());
+
         for(DartFsLine line : lines) {
             String sjDiv = line.getSjDiv();                 // 재무제표 구분
             String accountId = line.getAccountId();         // 계정Id
             String accountNm = line.getAccountNm();         // 계정설명
-            String accountDetail = line.getAccountDetail();// 구성요소 [member] 등
+            String accountDetail = line.getAccountDetail(); // 구성요소 [member] 등
 
             BigDecimal currVal = line.getThstrmAmount();    // 당기금액
             BigDecimal prevVal = line.getFrmtrmAmount();    // 전기금액
 
+
+
             String metricCode = mapAccountToMetric(sjDiv, accountId, accountNm, accountDetail);
 
             if (metricCode == null) {
-                log.debug("[FS-DB][UNMAPPED] year={}, sjDiv={}, accountId={}, accountNm={}",
-                        currentYear, sjDiv, accountId, accountNm);
+                log.debug(" X [FS-DB][UNMAPPED] year={}, sjDiv={}, accountId={}, accountNm={}, accountDetail={}",
+                        currentYear, sjDiv, accountId, accountNm, accountDetail);
                 continue;
             }
 
+            log.debug(" O [FS-DB][UNMAPPED] year={}, sjDiv={}, accountId={}, accountNm={}, metricCode={}, accountDetail={}",
+                    currentYear, sjDiv, accountId, accountNm, metricCode, accountDetail);
             // 당기
             if (currVal != null) {
-                if ("NET_INC".equals(metricCode) && raw.containsKey("NET_INC")) {
-                    log.debug("[FS-DB][DUP] NET_INC : old={}, new={}, accountId={}, accountNm={}",
-                            raw.get("NET_INC"), currVal, accountId, accountNm);
-                } else if ("NET_INC_OWNER".equals(metricCode) && raw.containsKey("NET_INC_OWNER")) {
-                    log.debug("[FS-DB][DUP] NET_INC_OWNER : old={}, new={}, accountId={}, accountNm={}",
-                            raw.get("NET_INC_OWNER"), currVal, accountId, accountNm);
-                } else {
+                BigDecimal old = raw.get(metricCode);
+                if (old != null && old.compareTo(currVal) != 0) {
+                    log.debug("[FS-DB][DUP] metric={} old={} new={} (accountId={}, accountNm={})",
+                            metricCode, old, currVal, accountId, accountNm);
+                } else if (old == null) {
                     raw.put(metricCode, currVal);
                 }
             }
@@ -405,23 +408,22 @@ public class FinancialService {
         log.info("=== {}년 FS-DB RAW ({}개 지표) ===", currentYear, raw.size());
         raw.forEach((k, v) -> log.info("raw[{}] = {}", k, v));
 
-        // NET_INC(당기순이익) 없으면 CONT_NET_INC + DISC_NET_INC
-        if (!raw.containsKey("NET_INC")) {
-            BigDecimal cont = raw.getOrDefault("CONT_NET_INC", BigDecimal.ZERO);
-            BigDecimal disc = raw.getOrDefault("DISC_NET_INC", BigDecimal.ZERO);
+        // 지배/비지배 당기순이익
+        BigDecimal netIncOwnerRaw   = raw.get("NET_INC_OWNER");
+        BigDecimal netIncNonContRaw = raw.get("NET_INC_NONCONT");
 
-            if (cont.compareTo(BigDecimal.ZERO) != 0 ||
-                    disc.compareTo(BigDecimal.ZERO) != 0) {
-                BigDecimal netIncCalc = cont.add(disc);
-                raw.put("NET_INC", netIncCalc);
-                log.info(">>> FS-DB 계산된 NET_INC (당기순이익) = {}", netIncCalc);
-            }
+        // NET_INC(당기순이익) 없으면 CONT_NET_INC + DISC_NET_INC
+        if (!raw.containsKey("NET_INC") && netIncOwnerRaw != null && netIncNonContRaw != null) {
+            BigDecimal netIncCalc = netIncOwnerRaw.add(netIncNonContRaw);
+            raw.put("NET_INC", netIncCalc);
+            log.info(">>> FS-DB 계산된 NET_INC (지배+비지배 합산) = {}", netIncCalc);
         }
 
         BigDecimal sales             = raw.get("SALES");
         BigDecimal opInc             = raw.get("OP_INC");
         BigDecimal netInc            = raw.get("NET_INC");          // 전체 당기순이익
         BigDecimal netIncOwner       = raw.get("NET_INC_OWNER");    // 지배주주 당기순이익
+        BigDecimal netIncNonCont     = raw.get("NET_INC_NONCONT");  // 비지배 당기순이익
         BigDecimal totalAssets       = raw.get("TOTAL_ASSETS");
         BigDecimal totalLiab         = raw.get("TOTAL_LIABILITIES");
         BigDecimal equityTotalCurr   = raw.get("TOTAL_EQUITY");         // 전체 자본
@@ -436,6 +438,8 @@ public class FinancialService {
         putIfNotNull(result, "SALES",               sales);
         putIfNotNull(result, "OP_INC",              opInc);
         putIfNotNull(result, "NET_INC",             netInc);
+        putIfNotNull(result, "NET_INC_OWNER",       netIncOwner);
+        putIfNotNull(result, "NET_INC_NONCONT",     netIncNonCont);
         putIfNotNull(result, "TOTAL_EQUITY",        equityTotalCurr);
         putIfNotNull(result, "TOTAL_EQUITY_OWNER",  equityOwnerCurr);
         putIfNotNull(result, "EPS",                 eps);
@@ -510,8 +514,27 @@ public class FinancialService {
         String nm = accountNm != null ? accountNm.trim() : "";
         String detail = accountDetail != null ? accountDetail.trim() : "";
 
-        // 0) 자본변동표(SCE)는 일단 전체 스킵
         if ("SCE".equalsIgnoreCase(sj)) {
+
+            // 전체 당기순이익
+            if (id.equals("ifrs-full_ProfitLoss") && nm.equals("당기순이익") && detail.contains("연결재무제표")) {
+                // 전체 당기순이익
+                return "NET_INC";
+            }
+
+            // 지배주주 귀속 당기순이익
+            if (id.equals("ifrs-full_ProfitLoss") && nm.contains("당기순이익") && detail.contains("지배기업")) {
+                return "NET_INC_OWNER";
+            }
+
+            // 비지배주주 귀속 당기순이익
+            if (id.equals("ifrs-full_ProfitLoss") && nm.contains("당기순이익") && detail.contains("비지배")) {
+                return "NET_INC_NONCONT";
+            }
+
+            // 2018년 이전에는 ifrs_ProfitLoss id를 사용하였음. 이후 참고 데이터
+
+            // 그 외 SCE 항목은 무시
             return null;
         }
 
@@ -533,19 +556,6 @@ public class FinancialService {
                 return "OP_INC";
             }
 
-            // 전체 당기순이익
-            if (id.equals("ifrs-full_ProfitLoss")
-                    || id.equals("ifrs_ProfitLoss")
-                    || nm.contains("당기순이익")) {
-                return "NET_INC";
-            }
-
-            // 지배주주 당기순이익
-            if (id.equals("ifrs-full_ProfitLossAttributableToOwnersOfParent")
-                    || nm.contains("지배기업의 소유주에게 귀속되는 당기순이익")
-                    || nm.contains("지배주주지분 순이익")) {
-                return "NET_INC_OWNER";
-            }
 
             // EPS (기본주당순이익 등)
             if (id.contains("EarningsPerShare") || nm.contains("주당순이익")) {
@@ -555,6 +565,14 @@ public class FinancialService {
 
         // 2) 재무상태표 (BS 등)
         if ("BS".equalsIgnoreCase(sj) || "BIS".equalsIgnoreCase(sj)) {
+
+            // "부채와자본총계"는 자본으로 보지 않고 무시
+            // (자산총계와 같은 값)
+            if (id.equals("ifrs-full_EquityAndLiabilities")
+                    || nm.contains("부채와자본총계")) {
+                return null;
+            }
+
 
             // 자산총계
             if (id.equals("ifrs-full_Assets")
@@ -569,10 +587,14 @@ public class FinancialService {
             }
 
             // 자본총계 (지배 + 비지배 포함)
-            if (id.equals("ifrs-full_Equity")
-                    || nm.contains("자본총계")) {
+            if (id.equals("ifrs-full_Equity")) {
                 return "TOTAL_EQUITY";
             }
+            if ((id.isEmpty() || "-".equals(id)) && nm.equals("자본총계")) {
+                return "TOTAL_EQUITY";
+            }
+
+
 
             // 지배주주지분 / 지배기업 소유주 지분
             if (id.equals("ifrs-full_EquityAttributableToOwnersOfParent")
@@ -727,5 +749,26 @@ public class FinancialService {
 
         log.info("[FIN_METRIC] 저장 완료 - companyId={}, year={}, metricCount={}",
                 companyId, fiscalYear, metrics.size());
+    }
+
+    public void updateCompanyShareInfo(Long companyId) {
+
+        // to-do exception 수정
+        StockShareStatus latest = stockShareStatusRepository
+                .findTopByCompany_CompanyIdOrderByUpdatedAtDesc(companyId)
+                .orElseThrow(() -> new CustomException(StockErrorCode.STOCK_NOT_FOUND));
+
+        if (latest == null) {
+            log.info("최신 주식수 스냅샷이 없습니다. companyId={}", companyId);
+            return;
+        }
+
+        Company company = companyRepository.findById(companyId)
+                .orElseThrow(() -> new IllegalArgumentException("Company not found"));
+
+        company.setSharesOutstanding( latest.getDistbStockCo());
+
+        log.info("Company 주식수 정보 갱신 완료 - companyId={}, shares={}",
+                companyId, company.getSharesOutstanding());
     }
 }
