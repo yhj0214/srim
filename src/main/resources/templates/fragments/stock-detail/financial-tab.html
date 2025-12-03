@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+    <!-- 재무정보 탭 Fragment -->
+    <div th:fragment="financial-tab" class="tab-pane fade" id="financial">
+        <div class="card">
+            <div class="card-body">
+                <div id="financialTableContainer">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">로딩중...</span>
+                        </div>
+                        <p class="mt-3 text-muted">재무 데이터를 불러오는 중입니다...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

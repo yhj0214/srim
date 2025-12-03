@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: layout(~{::main})}">
+<main>
+    <!-- 종목 헤더 -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h2 class="mb-2" th:text="${stock.companyName}">삼성전자</h2>
+                    <p class="text-muted mb-2">
+                        <code th:text="${stock.tickerKrx}">005930</code>
+                        <span class="badge bg-primary ms-2" th:text="${stock.market}">KOSPI</span>
+                    </p>
+                    <p class="mb-0">
+                        <small class="text-muted">
+                            <i class="bi bi-building"></i> <span th:text="${stock.industry}">전기전자</span>
+                            <span th:if="${stock.region}">
+                                · <i class="bi bi-geo-alt"></i> <span th:text="${stock.region}">서울</span>
+                            </span>
+                        </small>
+                    </p>
+                </div>
+                <div class="col-md-4 text-md-end">
+                    <a th:href="@{/stocks}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left"></i> 목록으로
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 탭 네비게이션 -->
+    <ul class="nav nav-tabs mb-4" id="stockTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" 
+                    data-bs-target="#overview" type="button">
+                <i class="bi bi-info-circle"></i> 개요
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="chart-tab" data-bs-toggle="tab" 
+                    data-bs-target="#chart" type="button">
+                <i class="bi bi-graph-up"></i> 주가 그래프
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="financial-tab" data-bs-toggle="tab" 
+                    data-bs-target="#financial" type="button">
+                <i class="bi bi-table"></i> 재무정보
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="srim-tab" data-bs-toggle="tab" 
+                    data-bs-target="#srim" type="button">
+                <i class="bi bi-calculator"></i> S-RIM 평가
+            </button>
+        </li>
+    </ul>
+
+    <!-- 탭 컨텐츠 -->
+    <div class="tab-content" id="stockTabsContent">
+        <!-- 개요 탭 -->
+        <div class="tab-pane fade show active" id="overview">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-info-circle"></i> 기본 정보</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <table class="table table-sm">
+                                <tr>
+                                    <th width="40%">종목코드</th>
+                                    <td><code th:text="${stock.tickerKrx}">005930</code></td>
+                                </tr>
+                                <tr>
+                                    <th>회사명</th>
+                                    <td th:text="${stock.companyName}">삼성전자</td>
+                                </tr>
+                                <tr>
+                                    <th>시장</th>
+                                    <td>
+                                        <span class="badge bg-primary" th:text="${stock.market}">KOSPI</span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>업종</th>
+                                    <td th:text="${stock.industry}">전기전자</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <table class="table table-sm">
+                                <tr th:if="${stock.listingDate}">
+                                    <th width="40%">상장일</th>
+                                    <td th:text="${#temporals.format(stock.listingDate, 'yyyy년 MM월 dd일')}">1975년 06월 11일</td>
+                                </tr>
+                                <tr th:if="${stock.region}">
+                                    <th>지역</th>
+                                    <td th:text="${stock.region}">서울</td>
+                                </tr>
+                                <tr th:if="${stock.sector}">
+                                    <th>섹터</th>
+                                    <td th:text="${stock.sector}">IT</td>
+                                </tr>
+                                <tr th:if="${stock.sharesOutstanding}">
+                                    <th>상장주식수</th>
+                                    <td th:text="${#numbers.formatInteger(stock.sharesOutstanding, 0, 'COMMA')} + '주'">5,969,782,550주</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info mt-3" th:if="${stock.companyId == null}">
+                        <i class="bi bi-info-circle"></i> 
+                        이 종목의 상세 정보가 아직 등록되지 않았습니다. 
+                        <strong>재무정보 탭을 클릭하면 자동으로 데이터를 수집합니다.</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 주가 그래프 탭 -->
+        <div class="tab-pane fade" id="chart">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="bi bi-graph-up"></i> 주가 그래프</h5>
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="changePeriod(7)">1주일</button>
+                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="changePeriod(30)">1개월</button>
+                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="changePeriod(90)">3개월</button>
+                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="changePeriod(180)">6개월</button>
+                            <button type="button" class="btn btn-sm btn-outline-primary active" onclick="changePeriod(365)">1년</button>
+                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="changePeriod(1825)">5년</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="priceChartContainer">
+                        <div class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">로딩중...</span>
+                            </div>
+                            <p class="mt-3 text-muted">주가 데이터를 불러오는 중입니다...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 재무정보 탭 -->
+        <div class="tab-pane fade" id="financial">
+            <div class="card">
+                <div class="card-body">
+                    <div id="financialTableContainer">
+                        <div class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">로딩중...</span>
+                            </div>
+                            <p class="mt-3 text-muted">재무 데이터를 불러오는 중입니다...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- S-RIM 평가 탭 -->
+        <div class="tab-pane fade" id="srim">
+            <!-- 결과 표시 영역 -->
+            <div id="srimResultContainer">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">로딩중...</span>
+                    </div>
+                    <p class="mt-3 text-muted">S-RIM을 계산하는 중입니다...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        /* 재무제표 테이블 스타일 - 첫 번째 열 고정 */
+        .financial-table-wrapper {
+            position: relative;
+            overflow-x: auto;
+        }
+        
+        .financial-table {
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+        
+        .financial-table thead th:first-child,
+        .financial-table tbody td:first-child {
+            position: sticky;
+            left: 0;
+            z-index: 10;
+            background-color: #f8f9fa;
+            border-right: 2px solid #dee2e6;
+        }
+        
+        .financial-table thead th:first-child {
+            z-index: 11;
+        }
+    </style>
+
+    <script th:inline="javascript">
+        const stockId = /*[[${stock.stockId}]]*/ null;
+        const companyId = /*[[${stock.companyId}]]*/ null;
+        let currentPeriodType = 'annual';
+        let currentChartPeriod = 365; // 기본 1년
+        let financialDataLoaded = false;
+        let chartDataLoaded = false;
+        let srimDataLoaded = false;
+        let srimResult = null;
+        let financialData = null;
+        let priceChart = null;
+        let srimChart = null;
+
+        // 페이지 로드 시 이벤트 리스너 등록
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('=== 페이지 로드 완료 ===');
+            console.log('stockId:', stockId);
+            console.log('companyId:', companyId);
+            
+            // 페이지 로드 즉시 연간 재무제표 데이터 호출
+            loadFinancialData();
+            
+            // 주가 그래프 탭 클릭 이벤트
+            const chartTab = document.getElementById('chart-tab');
+            if (chartTab) {
+                chartTab.addEventListener('shown.bs.tab', function (event) {
+                    console.log('=== 주가 그래프 탭 표시됨 ===');
+                    if (!chartDataLoaded) {
+                        loadPriceChartData();
+                        chartDataLoaded = true;
+                    }
+                });
+            }
+            
+            // S-RIM 탭 클릭 이벤트
+            const srimTab = document.getElementById('srim-tab');
+            if (srimTab) {
+                srimTab.addEventListener('shown.bs.tab', function (event) {
+                    console.log('=== S-RIM 탭 표시됨 ===');
+                    loadSrimData();
+                });
+            }
+        });
+
+        // 페이지 로드 시 연간 재무제표 데이터 로드
+        function loadFinancialData() {
+            console.log('=== loadFinancialData 호출 (페이지 로드 시) ===');
+            
+            if (!stockId) {
+                showFinancialError('종목 정보가 없습니다.');
+                return;
+            }
+            
+            if (!financialDataLoaded) {
+                console.log('최초 로딩 - 연간 데이터 조회 시작');
+                loadAnnualFinancialData();
+                financialDataLoaded = true;
+            }
+        }
+
+        // 주가 그래프 데이터 로드
+        function loadPriceChartData() {
+            console.log('=== loadPriceChartData 호출 ===');
+            
+            if (!companyId) {
+                showPriceChartError('회사 정보가 아직 등록되지 않았습니다. 재무정보 탭에서 데이터를 먼저 조회해주세요.');
+                return;
+            }
+            
+            // 더미 데이터 생성
+            const dummyData = generateDummyChartData(currentChartPeriod);
+            renderPriceChart(dummyData);
+        }
+        
+        // 기간 변경
+        function changePeriod(days) {
+            console.log('=== 기간 변경:', days, '일 ===');
+            currentChartPeriod = days;
+            
+            // 버튼 활성화 상태 변경
+            document.querySelectorAll('#chart .btn-group button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // 차트 다시 로드
+            loadPriceChartData();
+        }
+        
+        // 더미 차트 데이터 생성
+        function generateDummyChartData(days) {
+            const priceData = [];
+            const today = new Date();
+            let basePrice = 50000;
+            
+            // 적정주가 기준값 (시작점)
+            let baseFairValue0 = 62000;   // 초과이익 지속
+            let baseFairValue10 = 57000;  // 10% 감소
+            let baseFairValue20 = 52000;  // 20% 감소
+            let baseFairValue30 = 47000;  // 30% 감소
+            let baseFairValue50 = 37000;  // 50% 감소
+            
+            // 요청한 기간만큼 데이터 생성
+            let tradingDays = 0;
+            let targetTradingDays = Math.floor(days * 0.7); // 주말 제외한 대략적인 거래일수
+            
+            for (let i = days; i >= 0 && tradingDays < targetTradingDays; i--) {
+                const date = new Date(today);
+                date.setDate(date.getDate() - i);
+                
+                // 주말 제외
+                if (date.getDay() === 0 || date.getDay() === 6) continue;
+                
+                tradingDays++;
+                
+                // 주가 랜덤 변동 (-3% ~ +3%)
+                const change = basePrice * (Math.random() * 0.06 - 0.03);
+                const close = basePrice + change;
+                const high = close * (1 + Math.random() * 0.02);
+                const low = close * (1 - Math.random() * 0.02);
+                const open = low + (high - low) * Math.random();
+                
+                // 적정주가도 느리게 변동 (-0.5% ~ +0.5%)
+                const fairChange = Math.random() * 0.01 - 0.005;
+                baseFairValue0 *= (1 + fairChange);
+                baseFairValue10 *= (1 + fairChange);
+                baseFairValue20 *= (1 + fairChange);
+                baseFairValue30 *= (1 + fairChange);
+                baseFairValue50 *= (1 + fairChange);
+                
+                priceData.push({
+                    date: date.toISOString().split('T')[0],
+                    open: Math.round(open),
+                    high: Math.round(high),
+                    low: Math.round(low),
+                    close: Math.round(close),
+                    volume: Math.floor(10000000 + Math.random() * 40000000),
+                    fairValues: {
+                        scenario0: Math.round(baseFairValue0),
+                        scenario10: Math.round(baseFairValue10),
+                        scenario20: Math.round(baseFairValue20),
+                        scenario30: Math.round(baseFairValue30),
+                        scenario50: Math.round(baseFairValue50)
+                    }
+                });
+                
+                basePrice = close;
+            }
+            
+            return {
+                priceData: priceData,
+                // 마지막 날짜의 적정주가 (현재 시점 기준)
+                scenarioData: {
+                    scenario0: Math.round(baseFairValue0),
+                    scenario10: Math.round(baseFairValue10),
+                    scenario20: Math.round(baseFairValue20),
+                    scenario30: Math.round(baseFairValue30),
+                    scenario50: Math.round(baseFairValue50)
+                }
+            };
+        }
+
+        // S-RIM 탭 클릭 시
+        function loadSrimData() {
+            console.log('=== loadSrimData 호출 ===');
+            
+            if (!companyId) {
+                showSrimError('회사 정보가 아직 등록되지 않았습니다. 재무정보 탭에서 데이터를 먼저 조회해주세요.');
+                return;
+            }
+            
+            if (!srimDataLoaded) {
+                calculateSrim();
+                srimDataLoaded = true;
+            }
+        }
+
+        // 주가 차트 렌더링
+        function renderPriceChart(data) {
+            const html = `
+                <!-- 기간 선택 버튼 -->
+                <div class="mb-3 d-flex justify-content-between align-items-center">
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="changePeriod(7)">1주</button>
+                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="changePeriod(30)">1개월</button>
+                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="changePeriod(90)">3개월</button>
+                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="changePeriod(180)">6개월</button>
+                        <button type="button" class="btn btn-outline-primary btn-sm active" onclick="changePeriod(365)">1년</button>
+                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="changePeriod(1095)">3년</button>
+                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="changePeriod(1825)">5년</button>
+                    </div>
+                    <div>
+                        <input type="date" class="form-control form-control-sm d-inline-block" id="startDate" style="width: 150px;">
+                        <span class="mx-2">~</span>
+                        <input type="date" class="form-control form-control-sm d-inline-block" id="endDate" style="width: 150px;">
+                        <button class="btn btn-primary btn-sm ms-2" onclick="applyCustomPeriod()">조회</button>
+                    </div>
+                </div>
+                
+                <div style="height: 500px;">
+                    <canvas id="stockPriceChart"></canvas>
+                </div>
+                
+                <!-- 시나리오 체크박스 -->
+                <div class="mt-3 p-3 bg-light rounded">
+                    <h6 class="mb-3">적정주가 표시</h6>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" id="scenario0" value="scenario0" onchange="toggleScenarioLine(this)">
+                        <label class="form-check-label" for="scenario0">초과이익 지속</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" id="scenario10" value="scenario10" onchange="toggleScenarioLine(this)">
+                        <label class="form-check-label" for="scenario10">10% 감소</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" id="scenario20" value="scenario20" onchange="toggleScenarioLine(this)">
+                        <label class="form-check-label" for="scenario20">20% 감소</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" id="scenario30" value="scenario30" onchange="toggleScenarioLine(this)">
+                        <label class="form-check-label" for="scenario30">30% 감소</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" id="scenario50" value="scenario50" onchange="toggleScenarioLine(this)">
+                        <label class="form-check-label" for="scenario50">50% 감소</label>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('priceChartContainer').innerHTML = html;
+            
+            // 날짜 입력 필드 초기화
+            const today = new Date();
+            const oneYearAgo = new Date(today);
+            oneYearAgo.setFullYear(today.getFullYear() - 1);
+            
+            document.getElementById('endDate').valueAsDate = today;
+            document.getElementById('startDate').valueAsDate = oneYearAgo;
+            
+            // 캔들스틱 차트 생성
+            createCandlestickChart(data);
+        }
+
+        // 캔들 차트 생성
+        function createCandlestickChart(data) {
+            const ctx = document.getElementById('stockPriceChart');
+            
+            if (priceChart) {
+                priceChart.destroy();
+            }
+
+            const dates = data.priceData.map(d => d.date);
+            
+            // 캔들스틱 데이터 준비
+            const candleData = data.priceData.map((d, i) => {
+                const isUp = d.close >= d.open;
+                return {
+                    x: i,
+                    y: [d.open, d.high, d.low, d.close],
+                    color: isUp ? 'rgba(255, 82, 82, 0.8)' : 'rgba(54, 162, 235, 0.8)',
+                    borderColor: isUp ? 'rgb(255, 82, 82)' : 'rgb(54, 162, 235)'
+                };
+            });
+
+            priceChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: dates,
+                    datasets: [{
+                        label: '주가',
+                        data: candleData.map(d => d.y[3]), // 종가
+                        backgroundColor: candleData.map(d => d.color),
+                        borderColor: candleData.map(d => d.borderColor),
+                        borderWidth: 1,
+                        barPercentage: 0.8,
+                        categoryPercentage: 0.9
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const dataIndex = context.dataIndex;
+                                    const priceInfo = data.priceData[dataIndex];
+                                    const change = priceInfo.close - priceInfo.open;
+                                    const changePercent = ((change / priceInfo.open) * 100).toFixed(2);
+                                    return [
+                                        `시가: ${priceInfo.open.toLocaleString()}원`,
+                                        `고가: ${priceInfo.high.toLocaleString()}원`,
+                                        `저가: ${priceInfo.low.toLocaleString()}원`,
+                                        `종가: ${priceInfo.close.toLocaleString()}원`,
+                                        `변동: ${change > 0 ? '+' : ''}${change.toLocaleString()}원 (${changePercent}%)`
+                                    ];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: true,
+                            ticks: {
+                                maxTicksLimit: 10,
+                                callback: function(value, index) {
+                                    // 날짜 표시 간격 조정
+                                    const date = dates[index];
+                                    if (index % Math.ceil(dates.length / 10) === 0) {
+                                        return date.substring(5); // MM-DD만 표시
+                                    }
+                                    return '';
+                                }
+                            }
+                        },
+                        y: {
+                            beginAtZero: false,
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toLocaleString() + '원';
+                                }
+                            }
+                        }
+                    }
+                },
+                plugins: [{
+                    // 캔들스틱 그리기 플러그인
+                    afterDatasetsDraw: function(chart) {
+                        const ctx = chart.ctx;
+                        const meta = chart.getDatasetMeta(0);
+                        
+                        meta.data.forEach((bar, index) => {
+                            const priceInfo = data.priceData[index];
+                            const isUp = priceInfo.close >= priceInfo.open;
+                            
+                            const x = bar.x;
+                            const yScale = chart.scales.y;
+                            const yOpen = yScale.getPixelForValue(priceInfo.open);
+                            const yClose = yScale.getPixelForValue(priceInfo.close);
+                            const yHigh = yScale.getPixelForValue(priceInfo.high);
+                            const yLow = yScale.getPixelForValue(priceInfo.low);
+                            
+                            const width = bar.width * 0.6;
+                            
+                            // 심지 그리기 (high-low)
+                            ctx.strokeStyle = isUp ? 'rgb(255, 82, 82)' : 'rgb(54, 162, 235)';
+                            ctx.lineWidth = 1;
+                            ctx.beginPath();
+                            ctx.moveTo(x, yHigh);
+                            ctx.lineTo(x, yLow);
+                            ctx.stroke();
+                            
+                            // 몸통 그리기 (open-close)
+                            ctx.fillStyle = isUp ? 'rgba(255, 82, 82, 0.8)' : 'rgba(54, 162, 235, 0.8)';
+                            ctx.strokeStyle = isUp ? 'rgb(255, 82, 82)' : 'rgb(54, 162, 235)';
+                            ctx.lineWidth = 1;
+                            
+                            const bodyHeight = Math.abs(yClose - yOpen);
+                            const bodyTop = Math.min(yOpen, yClose);
+                            
+                            ctx.fillRect(x - width/2, bodyTop, width, bodyHeight);
+                            ctx.strokeRect(x - width/2, bodyTop, width, bodyHeight);
+                        });
+                    }
+                }]
+            });
+            
+            // 차트 데이터를 전역 변수에 저장
+            window.chartData = data;
+        }
+
+        // 시나리오 라인 토글
+        function toggleScenarioLine(checkbox) {
+            if (!priceChart || !window.chartData) return;
+            
+            const scenario = checkbox.value;
+            const isChecked = checkbox.checked;
+            
+            if (isChecked) {
+                // 날짜별 적정주가 데이터 생성
+                const lineData = window.chartData.priceData.map(d => d.fairValues[scenario]);
+                
+                const colors = {
+                    scenario0: 'rgb(255, 99, 132)',
+                    scenario10: 'rgb(255, 159, 64)',
+                    scenario20: 'rgb(255, 205, 86)',
+                    scenario30: 'rgb(153, 102, 255)',
+                    scenario50: 'rgb(201, 203, 207)'
+                };
+                
+                const labels = {
+                    scenario0: '초과이익 지속',
+                    scenario10: '10% 감소',
+                    scenario20: '20% 감소',
+                    scenario30: '30% 감소',
+                    scenario50: '50% 감소'
+                };
+                
+                priceChart.data.datasets.push({
+                    label: labels[scenario],
+                    data: lineData,
+                    type: 'line',
+                    borderColor: colors[scenario],
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    pointRadius: 0,
+                    fill: false,
+                    order: 0 // 캔들 위에 그리기
+                });
+            } else {
+                // 라인 제거
+                const labels = {
+                    scenario0: '초과이익 지속',
+                    scenario10: '10% 감소',
+                    scenario20: '20% 감소',
+                    scenario30: '30% 감소',
+                    scenario50: '50% 감소'
+                };
+                
+                const index = priceChart.data.datasets.findIndex(ds => ds.label === labels[scenario]);
+                if (index > -1) {
+                    priceChart.data.datasets.splice(index, 1);
+                }
+            }
+            
+            priceChart.update();
+        }
+
+        // 연간 재무제표 데이터 로드
+        function loadAnnualFinancialData() {
+            console.log('=== loadAnnualFinancialData 호출 ===');
+            
+            if (!stockId) {
+                console.error('stockId가 없습니다');
+                showFinancialError('종목 정보가 없습니다.');
+                return;
+            }
+
+            currentPeriodType = 'annual';
+            showFinancialLoading();
+
+            const url = `/api/stocks/${stockId}/financial/annual`;
+            console.log('API 호출 URL:', url);
+            
+            fetch(url)
+                .then(response => {
+                    console.log('응답 상태:', response.status);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(result => {
+                    console.log('API 응답 데이터:', result);
+                    if (result.success) {
+                        financialData = result.data;
+                        renderFinancialTable(result.data);
+                    } else {
+                        showFinancialError(result.message || '재무 데이터를 불러올 수 없습니다.');
+                    }
+                })
+                .catch(error => {
+                    console.error('=== API 호출 에러 ===');
+                    console.error('Error:', error);
+                    showFinancialError('네트워크 오류가 발생했습니다: ' + error.message);
+                });
+        }
+
+        // S-RIM 계산
+        function calculateSrim() {
+            if (!companyId) {
+                showSrimError('회사 정보가 아직 등록되지 않았습니다. 재무정보 탭에서 데이터를 먼저 조회해주세요.');
+                return;
+            }
+
+            showSrimLoading();
+
+            const url = `/api/stocks/${companyId}/srim?basis=YEAR`;
+            console.log('S-RIM API 호출:', url);
+            
+            fetch(url)
+                .then(response => {
+                    console.log('S-RIM 응답 상태:', response.status);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(result => {
+                    console.log('S-RIM 응답:', result);
+                    if (result.success) {
+                        srimResult = result.data;
+                        renderSrimResult(srimResult);
+                    } else {
+                        showSrimError(result.message || 'S-RIM 계산에 실패했습니다.');
+                    }
+                })
+                .catch(error => {
+                    console.error('S-RIM Error:', error);
+                    showSrimError('네트워크 오류가 발생했습니다: ' + error.message);
+                });
+        }
+
+        // 재무 데이터에서 특정 지표 값 가져오기
+        function getFinancialMetric(metricName, periodIndex = 0) {
+            if (!financialData || !financialData.rows) return null;
+            
+            const row = financialData.rows.find(r => r.metricName === metricName);
+            if (!row) return null;
+            
+            const headers = [...financialData.headers].reverse();
+            if (periodIndex >= headers.length) return null;
+            
+            const periodId = headers[periodIndex].periodId;
+            return row.values[periodId];
+        }
+
+        // S-RIM 결과 렌더링
+        function renderSrimResult(data) {
+            console.log('=== renderSrimResult 호출 ===');
+            console.log('data:', data);
+            
+            try {
+                // 재무 데이터에서 지배주주지분 값 추출
+                const equity2022 = getFinancialMetric('지배주주지분', 2) || '???';
+                const equity2023 = getFinancialMetric('지배주주지분', 1) || '???';
+                const equity2024 = getFinancialMetric('지배주주지분', 0) || '???';
+                
+                const roe2022 = getFinancialMetric('ROE', 2) || '???';
+                const roe2023 = getFinancialMetric('ROE', 1) || '???';
+                const roe2024 = getFinancialMetric('ROE', 0) || '???';
+
+                const html = `
+                    <div class="row g-3">
+                        <!-- 왼쪽: 요약 정보 -->
+                        <div class="col-md-4">
+                            <div class="card h-100">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-center mb-4">
+                                        <h5 class="mb-0">적정주가 요약</h5>
+                                        <button class="btn btn-sm btn-primary" onclick="calculateSrim()">
+                                            <i class="bi bi-calculator"></i> 재계산
+                                        </button>
+                                    </div>
+                                    
+                                    <!-- 적정주가 섹션 -->
+                                    <div class="mb-4">
+                                        <h6 class="text-muted mb-3">적정주가</h6>
+                                        <div class="mb-2">
+                                            <small class="text-muted">적정주가 (초과이익 지속시)</small>
+                                            <h5 class="mb-0 text-primary">${formatNumber(data.scenarios[0].fairValuePerShare)}원</h5>
+                                        </div>
+                                        <div class="mb-2">
+                                            <small class="text-muted">적정주가 (10% 감소시)</small>
+                                            <h6 class="mb-0">${formatNumber(data.scenarios[1].fairValuePerShare)}원</h6>
+                                        </div>
+                                        <div class="mb-2">
+                                            <small class="text-muted">적정주가 (20% 감소시)</small>
+                                            <h6 class="mb-0">${formatNumber(data.scenarios[2].fairValuePerShare)}원</h6>
+                                        </div>
+                                        <div class="mb-2">
+                                            <small class="text-muted">적정주가 (30% 감소시)</small>
+                                            <h6 class="mb-0">${formatNumber(data.scenarios[3].fairValuePerShare)}원</h6>
+                                        </div>
+                                        <div class="mb-2">
+                                            <small class="text-muted">적정주가 (50% 감소시)</small>
+                                            <h6 class="mb-0">${formatNumber(data.scenarios[4].fairValuePerShare)}원</h6>
+                                        </div>
+                                        <div class="mt-3">
+                                            <small class="text-muted">적정주가 대비 괴리율</small>
+                                            <h6 class="text-primary mb-0">???%</h6>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 기본 정보 -->
+                                    <div class="border-top pt-3 mt-3 small">
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span class="text-muted">시가총액</span>
+                                            <span>???원</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span class="text-muted">발행 주식 수</span>
+                                            <span>${formatLargeNumber(data.sharesOutstanding)}</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span class="text-muted">지급 주식 수</span>
+                                            <span>???</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span class="text-muted">유통 주식 수</span>
+                                            <span>???</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 지배주주지분 -->
+                                    <div class="border-top pt-3 mt-3 small">
+                                        <h6 class="mb-3">지배주주지분 (연평균)</h6>
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span class="text-muted">2022/12</span>
+                                            <span>${equity2022 === '???' ? '???' : formatNumber(equity2022)}</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span class="text-muted">2023/12</span>
+                                            <span>${equity2023 === '???' ? '???' : formatNumber(equity2023)}</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span class="text-muted">2024/12</span>
+                                            <span>${equity2024 === '???' ? '???' : formatNumber(equity2024)}</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 3년 가중평균 ROE -->
+                                    <div class="border-top pt-3 mt-3 small">
+                                        <h6 class="mb-3">3년 가중평균 ROE (%)</h6>
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span class="text-muted">2022/12</span>
+                                            <span class="${roe2022 > 10 ? 'text-danger' : ''}">${roe2022 === '???' ? '???' : formatPercent(roe2022)}</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span class="text-muted">2023/12</span>
+                                            <span class="${roe2023 > 10 ? 'text-danger' : ''}">${roe2023 === '???' ? '???' : formatPercent(roe2023)}</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span class="text-muted">2024/12</span>
+                                            <span>${roe2024 === '???' ? '???' : formatPercent(roe2024)}</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- 회사채 수익률 -->
+                                    <div class="border-top pt-3 mt-3">
+                                        <div class="d-flex justify-content-between mb-1">
+                                            <span class="text-muted">회사채 수익률 (%)</span>
+                                            <span>${formatPercent(data.ke)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 오른쪽: 차트 -->
+                        <div class="col-md-8">
+                            <!-- 시나리오별 차트 -->
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">
+                                        <i class="bi bi-bar-chart"></i> 시나리오별 적정주가 비교
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <canvas id="srimChart" height="120"></canvas>
+                                </div>
+                            </div>
+                            
+                            <!-- 시나리오 비교 테이블 -->
+                            <div class="card mt-3">
+                                <div class="card-header">
+                                    <h6 class="mb-0">시나리오별 비교표</h6>
+                                </div>
+                                <div class="card-body p-0">
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-hover mb-0">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>시나리오</th>
+                                                    <th class="text-end">감소율</th>
+                                                    <th class="text-end">초과이익</th>
+                                                    <th class="text-end">기업가치</th>
+                                                    <th class="text-end">적정주가</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr>
+                                                    <td><strong>기준 (0%)</strong></td>
+                                                    <td class="text-end">0%</td>
+                                                    <td class="text-end">${formatBillion(data.scenarios[0].excessEarnings)}</td>
+                                                    <td class="text-end">${formatBillion(data.scenarios[0].enterpriseValue)}</td>
+                                                    <td class="text-end"><strong>${formatNumber(data.scenarios[0].fairValuePerShare)}원</strong></td>
+                                                </tr>
+                                                <tr>
+                                                    <td><strong>보수적 (-10%)</strong></td>
+                                                    <td class="text-end">-10%</td>
+                                                    <td class="text-end">${formatBillion(data.scenarios[1].excessEarnings)}</td>
+                                                    <td class="text-end">${formatBillion(data.scenarios[1].enterpriseValue)}</td>
+                                                    <td class="text-end"><strong>${formatNumber(data.scenarios[1].fairValuePerShare)}원</strong></td>
+                                                </tr>
+                                                <tr>
+                                                    <td><strong>매우 보수적 (-20%)</strong></td>
+                                                    <td class="text-end">-20%</td>
+                                                    <td class="text-end">${formatBillion(data.scenarios[2].excessEarnings)}</td>
+                                                    <td class="text-end">${formatBillion(data.scenarios[2].enterpriseValue)}</td>
+                                                    <td class="text-end"><strong>${formatNumber(data.scenarios[2].fairValuePerShare)}원</strong></td>
+                                                </tr>
+                                                <tr>
+                                                    <td><strong>비관적 (-30%)</strong></td>
+                                                    <td class="text-end">-30%</td>
+                                                    <td class="text-end">${formatBillion(data.scenarios[3].excessEarnings)}</td>
+                                                    <td class="text-end">${formatBillion(data.scenarios[3].enterpriseValue)}</td>
+                                                    <td class="text-end"><strong>${formatNumber(data.scenarios[3].fairValuePerShare)}원</strong></td>
+                                                </tr>
+                                                <tr>
+                                                    <td><strong>극단적 (-50%)</strong></td>
+                                                    <td class="text-end">-50%</td>
+                                                    <td class="text-end">${formatBillion(data.scenarios[4].excessEarnings)}</td>
+                                                    <td class="text-end">${formatBillion(data.scenarios[4].enterpriseValue)}</td>
+                                                    <td class="text-end"><strong>${formatNumber(data.scenarios[4].fairValuePerShare)}원</strong></td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 계산 방식 안내 -->
+                            <div class="alert alert-info mt-3">
+                                <small>
+                                    <i class="bi bi-info-circle"></i>
+                                    <strong>계산 방식:</strong> 
+                                    기업가치 = 자기자본 + (초과이익 / Ke), 
+                                    초과이익 = 자기자본 × (ROE - Ke) × (1 + 감소율)
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                document.getElementById('srimResultContainer').innerHTML = html;
+                
+                // 차트 렌더링
+                renderSrimChart(data);
+            } catch (error) {
+                console.error('renderSrimResult 에러:', error);
+                showSrimError('결과를 표시하는 중 오류가 발생했습니다: ' + error.message);
+            }
+        }
+
+        // S-RIM 차트 렌더링
+        function renderSrimChart(data) {
+            try {
+                const ctx = document.getElementById('srimChart');
+                
+                if (srimChart) {
+                    srimChart.destroy();
+                }
+
+                const labels = ['지속시', '10% 감소', '20% 감소', '30% 감소', '50% 감소'];
+                const values = data.scenarios.map(s => parseFloat(s.fairValuePerShare));
+
+                srimChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: '적정주가 (원)',
+                            data: values,
+                            backgroundColor: [
+                                'rgba(54, 162, 235, 0.8)',
+                                'rgba(75, 192, 192, 0.8)',
+                                'rgba(255, 206, 86, 0.8)',
+                                'rgba(255, 159, 64, 0.8)',
+                                'rgba(255, 99, 132, 0.8)'
+                            ],
+                            borderColor: [
+                                'rgba(54, 162, 235, 1)',
+                                'rgba(75, 192, 192, 1)',
+                                'rgba(255, 206, 86, 1)',
+                                'rgba(255, 159, 64, 1)',
+                                'rgba(255, 99, 132, 1)'
+                            ],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return '적정주가: ' + context.parsed.y.toLocaleString('ko-KR') + '원';
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: false,
+                                ticks: {
+                                    callback: function(value) {
+                                        return value.toLocaleString('ko-KR') + '원';
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('renderSrimChart 에러:', error);
+            }
+        }
+
+        // 숫자 포맷팅 함수들
+        function formatNumber(value) {
+            if (!value && value !== 0) return '-';
+            return parseFloat(value).toLocaleString('ko-KR', {maximumFractionDigits: 0});
+        }
+
+        function formatPercent(value) {
+            if (!value && value !== 0) return '-';
+            return (parseFloat(value)).toFixed(2) + '%';
+        }
+
+        function formatBillion(value) {
+            if (!value && value !== 0) return '-';
+            return (parseFloat(value) / 100000000).toLocaleString('ko-KR', {maximumFractionDigits: 0}) + '억원';
+        }
+
+        function formatLargeNumber(value) {
+            if (!value && value !== 0) return '-';
+            return parseFloat(value).toLocaleString('ko-KR', {maximumFractionDigits: 0});
+        }
+
+        // 로딩/에러 표시 함수들
+        function showFinancialLoading() {
+            document.getElementById('financialTableContainer').innerHTML = `
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">로딩중...</span>
+                    </div>
+                    <p class="mt-3 text-muted">재무 데이터를 불러오는 중입니다...</p>
+                    <p class="text-muted"><small>데이터가 없으면 자동으로 크롤링을 시작합니다.</small></p>
+                </div>
+            `;
+        }
+
+        function showFinancialError(message) {
+            document.getElementById('financialTableContainer').innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i> ${message}
+                </div>
+            `;
+        }
+
+        function showPriceChartLoading() {
+            document.getElementById('priceChartContainer').innerHTML = `
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">로딩중...</span>
+                    </div>
+                    <p class="mt-3 text-muted">주가 데이터를 불러오는 중입니다...</p>
+                </div>
+            `;
+        }
+
+        function showPriceChartError(message) {
+            document.getElementById('priceChartContainer').innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i> ${message}
+                </div>
+            `;
+        }
+
+        function showSrimLoading() {
+            document.getElementById('srimResultContainer').innerHTML = `
+                <div class="card">
+                    <div class="card-body text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">계산중...</span>
+                        </div>
+                        <p class="mt-3 text-muted">S-RIM을 계산하는 중입니다...</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        function showSrimError(message) {
+            document.getElementById('srimResultContainer').innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle"></i> ${message}
+                </div>
+            `;
+        }
+
+        // 재무 테이블 렌더링 (첫 번째 열 고정)
+        function renderFinancialTable(data) {
+            console.log('=== renderFinancialTable 호출 ===');
+            
+            if (!data.headers || data.headers.length === 0) {
+                showFinancialError('재무 데이터가 없습니다.');
+                return;
+            }
+
+            const reversedHeaders = [...data.headers].reverse();
+            
+            let html = '<div class="financial-table-wrapper">';
+            html += '<table class="table table-sm table-bordered financial-table">';
+            
+            // 헤더
+            html += '<thead class="table-light"><tr>';
+            html += '<th style="min-width: 200px; width: 200px; white-space: nowrap;">지표</th>';
+            reversedHeaders.forEach(header => {
+                html += `<th class="text-end" style="min-width: 150px; width: 150px; white-space: nowrap;">${header.label}${header.isEstimate ? '(E)' : ''}</th>`;
+            });
+            html += '</tr></thead>';
+            
+            // 데이터 행
+            html += '<tbody>';
+            data.rows.forEach(row => {
+                html += '<tr>';
+                html += `<td style="min-width: 200px; width: 200px; white-space: nowrap;"><strong>${row.metricName}</strong></td>`;
+                reversedHeaders.forEach(header => {
+                    const value = row.values[header.periodId];
+                    html += `<td class="text-end" style="min-width: 150px; width: 150px; white-space: nowrap;">${formatValue(value, row.unit)}</td>`;
+                });
+                html += '</tr>';
+            });
+            html += '</tbody></table></div>';
+
+            document.getElementById('financialTableContainer').innerHTML = html;
+            console.log('테이블 렌더링 완료');
+        }
+
+        // 값 포맷팅
+        function formatValue(value, unit) {
+            if (value == null) return '-';
+            
+            const num = parseFloat(value);
+            
+            if (unit === 'KRW' || unit === '원') {
+                return (num).toLocaleString('ko-KR', {maximumFractionDigits: 0}) + '억';
+            } else if (unit === '%') {
+                return (num).toFixed(2) + '%';
+            } else if (unit === '배') {
+                return num.toFixed(2) + '배';
+            } else {
+                return num.toLocaleString('ko-KR', {maximumFractionDigits: 2});
+            }
+        }
+    </script>
+</main>
+</html>

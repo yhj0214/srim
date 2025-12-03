@@ -6,11 +6,16 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.yhj.srim.controller.dto.ApiResponse;
 import org.yhj.srim.service.StockService;
+import org.yhj.srim.service.StockPriceService;
 import org.yhj.srim.service.dto.StockDto;
+import org.yhj.srim.service.dto.StockPriceDto;
+
+import java.time.LocalDate;
 
 @RestController
 @RequestMapping("/api/stocks")
@@ -19,6 +24,7 @@ import org.yhj.srim.service.dto.StockDto;
 public class StockApiController {
 
     private final StockService stockService;
+    private final StockPriceService stockPriceService;
 
     /**
      * 종목 검색 API
@@ -76,6 +82,34 @@ public class StockApiController {
             log.error("종목 조회 실패", e);
             return ResponseEntity.badRequest()
                     .body(ApiResponse.error("종목 조회에 실패했습니다: " + e.getMessage()));
+        }
+    }
+    
+    /**
+     * 주가 그래프 데이터 조회 API
+     * 
+     * @param companyId 회사 ID
+     * @param startDate 시작일 (optional, 기본값: 1년 전)
+     * @param endDate 종료일 (optional, 기본값: 오늘)
+     * @return 주가 데이터 및 시나리오별 적정주가
+     */
+    @GetMapping("/{companyId}/price-chart")
+    public ResponseEntity<ApiResponse<StockPriceDto>> getPriceChart(
+            @PathVariable Long companyId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        
+        try {
+            log.info("=== 주가 그래프 데이터 조회 API 호출 ===");
+            log.info("companyId: {}, startDate: {}, endDate: {}", companyId, startDate, endDate);
+            
+            StockPriceDto priceData = stockPriceService.getStockPriceData(companyId, startDate, endDate);
+            
+            return ResponseEntity.ok(ApiResponse.success(priceData));
+        } catch (Exception e) {
+            log.error("주가 그래프 데이터 조회 실패", e);
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("주가 그래프 데이터 조회에 실패했습니다: " + e.getMessage()));
         }
     }
 }

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+    <!-- 개요 탭 Fragment -->
+    <div th:fragment="overview-tab" class="tab-pane fade show active" id="overview">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-info-circle"></i> 기본 정보</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <table class="table table-sm">
+                            <tr>
+                                <th width="40%">종목코드</th>
+                                <td><code th:text="${stock.tickerKrx}">005930</code></td>
+                            </tr>
+                            <tr>
+                                <th>회사명</th>
+                                <td th:text="${stock.companyName}">삼성전자</td>
+                            </tr>
+                            <tr>
+                                <th>시장</th>
+                                <td>
+                                    <span class="badge bg-primary" th:text="${stock.market}">KOSPI</span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>업종</th>
+                                <td th:text="${stock.industry}">전기전자</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <table class="table table-sm">
+                            <tr th:if="${stock.listingDate}">
+                                <th width="40%">상장일</th>
+                                <td th:text="${#temporals.format(stock.listingDate, 'yyyy년 MM월 dd일')}">1975년 06월 11일</td>
+                            </tr>
+                            <tr th:if="${stock.region}">
+                                <th>지역</th>
+                                <td th:text="${stock.region}">서울</td>
+                            </tr>
+                            <tr th:if="${stock.sector}">
+                                <th>섹터</th>
+                                <td th:text="${stock.sector}">IT</td>
+                            </tr>
+                            <tr th:if="${stock.sharesOutstanding}">
+                                <th>상장주식수</th>
+                                <td th:text="${#numbers.formatInteger(stock.sharesOutstanding, 0, 'COMMA')} + '주'">5,969,782,550주</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="alert alert-info mt-3" th:if="${stock.companyId == null}">
+                    <i class="bi bi-info-circle"></i> 
+                    이 종목의 상세 정보가 아직 등록되지 않았습니다. 
+                    <strong>재무정보 탭을 클릭하면 자동으로 데이터를 수집합니다.</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
