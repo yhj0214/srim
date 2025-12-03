@@ -72,7 +72,7 @@ public class BpsCalculatorService {
             Long periodId = period.getPeriodId();
 
             // 지배주주자본 = TOTAL_EQUITY_OWNER
-            Optional<BigDecimal> equityOpt = findEquityOwner(companyId, periodId);
+            Optional<BigDecimal> equityOpt = findEquityOwner(companyId, period);
 
             // 주식 수 = stock_share_status or company
             Optional<BigDecimal> sharesOpt = findSharesForPeriod(companyId, period);
@@ -98,16 +98,16 @@ public class BpsCalculatorService {
                     RoundingMode.HALF_UP
             );
 
-            upsertBps(companyId, periodId, bps);
+            upsertBps(companyId, period, bps);
             updated++;
         }
 
         log.info("[BPS] calc done - companyId={}, basis={}, updated={}", companyId, basis, updated);
         return updated;
     }
-    private Optional<BigDecimal> findEquityOwner(Long companyId, Long periodId) {
+    private Optional<BigDecimal> findEquityOwner(Long companyId, FinPeriod period) {
         return finMetricValueRepository
-                .findByCompanyIdAndPeriodIdAndMetricCode(companyId, periodId, METRIC_EQUITY_OWNER)
+                .findByCompanyIdAndPeriodAndMetricCode(companyId, period, METRIC_EQUITY_OWNER)
                 .map(FinMetricValue::getValueNum);
     }
 
@@ -153,24 +153,15 @@ public class BpsCalculatorService {
 
 
     /**
-     * 특정 회사 + 기간 + 지표코드로 valueNum를 조회.
-     */
-    private Optional<BigDecimal> findMetric(Long companyId, Long periodId, String metricCode) {
-        return finMetricValueRepository
-                .findByCompanyIdAndPeriodIdAndMetricCode(companyId, periodId, metricCode)
-                .map(FinMetricValue::getValueNum);
-    }
-
-    /**
      * BPS 값을 fin_metric_value에 upsert (없으면 생성, 있으면 수정).
      */
-    private void upsertBps(Long companyId, Long periodId, BigDecimal bps) {
+    private void upsertBps(Long companyId, FinPeriod period, BigDecimal bps) {
         FinMetricValue bpsValue = finMetricValueRepository
-                .findByCompanyIdAndPeriodIdAndMetricCode(companyId, periodId, METRIC_BPS)
+                .findByCompanyIdAndPeriodAndMetricCode(companyId, period, METRIC_BPS)
                 .orElseGet(() ->
                         FinMetricValue.builder()
                                 .companyId(companyId)
-                                .periodId(periodId)
+                                .period(period)
                                 .metricCode(METRIC_BPS)
 //                                .source("CALC") // 계산값이라는 표시용, DB 변경 필요
                                 .source("MANUAL")

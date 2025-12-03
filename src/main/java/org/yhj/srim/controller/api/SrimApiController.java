@@ -29,11 +29,12 @@ public class SrimApiController {
     public ResponseEntity<ApiResponse<SrimResultDto>> calculate(
             @PathVariable Long companyId,
             @RequestParam(defaultValue = "YEAR") String basis,
+            @RequestParam(required = false) Integer year,
             @RequestParam(required = false) String rating,
             @RequestParam(required = false) Integer tenor) {
         
         try {
-            SrimResultDto result = srimService.calculate(companyId, basis, rating, tenor);
+            SrimResultDto result = srimService.calculate(companyId, basis,year, rating, tenor);
             return ResponseEntity.ok(ApiResponse.success(result));
         } catch (IllegalArgumentException e) {
             log.warn("S-RIM 계산 실패: {}", e.getMessage());

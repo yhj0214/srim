@@ -102,14 +102,14 @@ public class FinancialFacadeService {
 
         // 해당 기간들에 대한 fin_metric_value 조회
         List<FinMetricValue> metricValues =
-                finMetricValueRepository.findByCompanyIdAndPeriodIdIn(companyId, periodIds);
+                finMetricValueRepository.findByCompanyIdAndPeriod_PeriodIdIn(companyId, periodIds);
 
         // metricCode -> (periodId -> value) 맵 구성
         Map<String, Map<Long, BigDecimal>> metricCodeToPeriodValueMap = new HashMap<>();
 
         for (FinMetricValue v : metricValues) {
             String metricCode = v.getMetricCode();
-            Long periodId = v.getPeriodId();
+            Long periodId = v.getPeriod().getPeriodId();
             BigDecimal value = v.getValueNum();
 
             metricCodeToPeriodValueMap

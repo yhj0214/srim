@@ -19,9 +19,10 @@ public class SrimResultDto {
     private String basis;  // YEAR or QTR
     private String rating; // BBB-
     private Integer tenorMonths; // 60
+    private Integer year;
     
     // 중간 계산값
-    private BigDecimal equity;           // 자기자본 (BPS)
+    private BigDecimal equity;           // 자기자본 (지배주주지분)
     private BigDecimal roe;              // ROE (가중평균)
     private BigDecimal ke;               // 할인율 (요구수익률)
     private Long sharesOutstanding;      // 주식수

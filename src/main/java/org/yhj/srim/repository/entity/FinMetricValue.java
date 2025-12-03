@@ -27,9 +27,10 @@ public class FinMetricValue {
     @Comment("FK → company.company_id")
     private Long companyId;
 
-    @Column(name = "period_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "period_id", nullable = false)
     @Comment("FK → fin_period.period_id")
-    private Long periodId;
+    private FinPeriod period;
 
     @Column(name = "metric_code", length = 32, nullable = false)
     @Comment("FK → fin_metric_def.metric_code")

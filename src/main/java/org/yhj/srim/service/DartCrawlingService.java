@@ -340,7 +340,7 @@ public class DartCrawlingService {
         for (Map.Entry<String, BigDecimal> entry : financialData.entrySet()) {
             String metricCode = entry.getKey();
             BigDecimal value  = entry.getValue();
-            saveOrUpdateMetricValue(companyId, period.getPeriodId(), metricCode, value);
+            saveOrUpdateMetricValue(companyId, period, metricCode, value);
             yearSaved++;
         }
 
@@ -775,12 +775,12 @@ public class DartCrawlingService {
     /**
      * 지표 값 저장 또는 업데이트
      */
-    private void saveOrUpdateMetricValue(Long companyId, Long periodId, String metricCode, BigDecimal value) {
+    private void saveOrUpdateMetricValue(Long companyId, FinPeriod period, String metricCode, BigDecimal value) {
         log.debug("지표 값 저장 - company={}, period={}, metric={}, value={}",
-                companyId, periodId, metricCode, value);
+                companyId, period, metricCode, value);
 
         Optional<FinMetricValue> existing = finMetricValueRepository
-                .findByCompanyIdAndPeriodIdAndMetricCode(companyId, periodId, metricCode);
+                .findByCompanyIdAndPeriodAndMetricCode(companyId, period, metricCode);
 
         if (existing.isPresent()) {
             FinMetricValue metricValue = existing.get();
@@ -791,7 +791,7 @@ public class DartCrawlingService {
         } else {
             FinMetricValue metricValue = FinMetricValue.builder()
                     .companyId(companyId)
-                    .periodId(periodId)
+                    .period(period)
                     .metricCode(metricCode)
                     .valueNum(value)
                     .source("DART")

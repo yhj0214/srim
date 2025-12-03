@@ -30,10 +30,18 @@ public interface FinPeriodRepository extends JpaRepository<FinPeriod, Long> {
     List<FinPeriod> findQuarterlyPeriods(@Param("companyId") Long companyId);
 
     /**
-     * 회사의 최근 N개 연간 기간 조회
+     * 회사의 요청 연도 직전 최근 N개 연간 기간 조회
      */
-    @Query(value = "SELECT * FROM fin_period WHERE company_id = :companyId AND period_type = 'YEAR' ORDER BY fiscal_year DESC LIMIT :limit", nativeQuery = true)
-    List<FinPeriod> findRecentYearlyPeriods(@Param("companyId") Long companyId, @Param("limit") int limit);
+    @Query(value = """
+        SELECT * 
+        FROM fin_period 
+        WHERE company_id = :companyId 
+          AND period_type = 'YEAR' 
+          AND fiscal_year <= :baseYear
+        ORDER BY fiscal_year DESC 
+        LIMIT :limit
+        """, nativeQuery = true)
+    List<FinPeriod> findRecentYearlyPeriods(@Param("companyId") Long companyId,@Param("baseYear") int baseYear, @Param("limit") int limit);
 
     /**
      * 회사의 최근 N개 분기 기간 조회
@@ -54,4 +62,6 @@ public interface FinPeriodRepository extends JpaRepository<FinPeriod, Long> {
     List<FinPeriod> findByCompany_CompanyIdAndPeriodTypeAndFiscalYearBetweenAndIsEstimateOrderByFiscalYearDesc(Long companyId, String year, int startYear, int currentYear, boolean b);
 
     Optional<FinPeriod> findByCompany_CompanyIdAndPeriodTypeAndFiscalYearAndIsEstimate(Long companyId, String year, int fiscalYear, boolean b);
+
+    FinPeriod findByCompany_CompanyIdAndFiscalYear(Long companyId,int baseYear);
 }

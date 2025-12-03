@@ -92,7 +92,7 @@ public class FinancialService {
             String metricCode = entry.getKey();
             BigDecimal value  = entry.getValue();
 
-            saveOrUpdateMetricValue(companyId, period.getPeriodId(), metricCode, value);
+            saveOrUpdateMetricValue(companyId, period, metricCode, value);
             yearSaved++;
         }
 
@@ -134,12 +134,12 @@ public class FinancialService {
         return saved;
     }
 
-    private void saveOrUpdateMetricValue(Long companyId, Long periodId, String metricCode, BigDecimal value) {
+    private void saveOrUpdateMetricValue(Long companyId, FinPeriod period, String metricCode, BigDecimal value) {
         log.debug("지표 값 저장 - company={}, period={}, metric={}, value={}",
-                companyId, periodId, metricCode, value);
+                companyId, period, metricCode, value);
 
         Optional<FinMetricValue> existing = finMetricValueRepository
-                .findByCompanyIdAndPeriodIdAndMetricCode(companyId, periodId, metricCode);
+                .findByCompanyIdAndPeriodAndMetricCode(companyId, period, metricCode);
 
         if (existing.isPresent()) {
             FinMetricValue metricValue = existing.get();
@@ -150,7 +150,7 @@ public class FinancialService {
         } else {
             FinMetricValue metricValue = FinMetricValue.builder()
                     .companyId(companyId)
-                    .periodId(periodId)
+                    .period(period)
                     .metricCode(metricCode)
                     .valueNum(value)
                     .source("DART")
@@ -239,7 +239,7 @@ public class FinancialService {
 
         // 1) DB 조회
         List<FinPeriod> periods = switch (type) {
-            case ANNUAL -> finPeriodRepository.findRecentYearlyPeriods(companyId, limit);
+            case ANNUAL -> finPeriodRepository.findRecentYearlyPeriods(companyId,0, limit);
             case QUARTER -> finPeriodRepository.findRecentQuarterlyPeriods(companyId, limit);
         };
 
@@ -288,7 +288,7 @@ public class FinancialService {
         // 5. periodId + metricCode로 빠른 조회를 위한 맵 생성
         Map<String, BigDecimal> valueMap = allValues.stream()
                 .collect(Collectors.toMap(
-                        v -> v.getPeriodId() + "_" + v.getMetricCode(),
+                        v -> v.getPeriod().getPeriodId() + "_" + v.getMetricCode(),
                         FinMetricValue::getValueNum,
                         (v1, v2) -> v1  // 중복 시 첫 번째 값 사용
                 ));
@@ -331,7 +331,7 @@ public class FinancialService {
         List<FinPeriod> periods;
 
         if ("YEAR".equals(periodType)) {
-            periods = finPeriodRepository.findRecentYearlyPeriods(companyId, nth);
+            periods = finPeriodRepository.findRecentYearlyPeriods(companyId,0, nth);
         } else {
             periods = finPeriodRepository.findRecentQuarterlyPeriods(companyId, nth);
         }
@@ -343,7 +343,7 @@ public class FinancialService {
         Long periodId = periods.get(nth - 1).getPeriodId();
 
         return finMetricValueRepository
-                .findByCompanyIdAndPeriodIdAndMetricCode(companyId, periodId, metricCode)
+                .findByCompanyIdAndPeriodAndMetricCode(companyId, periods.get(nth-1), metricCode)
                 .map(FinMetricValue::getValueNum)
                 .orElse(null);
     }
@@ -685,7 +685,7 @@ public class FinancialService {
         FinPeriod period = optPeriod.get();
 
         List<FinMetricValue> values =
-                finMetricValueRepository.findByCompanyIdAndPeriodId(companyId, period.getPeriodId());
+                finMetricValueRepository.findByCompanyIdAndPeriod_PeriodId(companyId, period.getPeriodId());
 
         for (FinMetricValue v : values) {
             BigDecimal value = v.getValueNum();
@@ -735,11 +735,11 @@ public class FinancialService {
             }
 
             FinMetricValue fmv = finMetricValueRepository
-                    .findByCompanyIdAndPeriodIdAndMetricCode(companyId, period.getPeriodId(), metricCode)
+                    .findByCompanyIdAndPeriodAndMetricCode(companyId, period, metricCode)
                     .orElseGet(FinMetricValue::new);
 
             fmv.setCompanyId(companyId);
-            fmv.setPeriodId(period.getPeriodId());
+            fmv.setPeriod(period);
             fmv.setMetricCode(metricCode);
             fmv.setValueNum(value);
             fmv.setSource("DART"); // CK_FMV_SOURCE 에 맞춤
