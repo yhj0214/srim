@@ -10,6 +10,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.yhj.srim.controller.dto.ApiResponse;
+import org.yhj.srim.facade.PriceChartFacadeService;
 import org.yhj.srim.service.StockService;
 import org.yhj.srim.service.StockPriceService;
 import org.yhj.srim.service.dto.StockDto;
@@ -25,6 +26,7 @@ public class StockApiController {
 
     private final StockService stockService;
     private final StockPriceService stockPriceService;
+    private final PriceChartFacadeService priceChartFacadeService;
 
     /**
      * 종목 검색 API
@@ -103,7 +105,7 @@ public class StockApiController {
             log.info("=== 주가 그래프 데이터 조회 API 호출 ===");
             log.info("companyId: {}, startDate: {}, endDate: {}", companyId, startDate, endDate);
             
-            StockPriceDto priceData = stockPriceService.getStockPriceData(companyId, startDate, endDate);
+            StockPriceDto priceData = priceChartFacadeService.getPriceChart(companyId, startDate, endDate);
             
             return ResponseEntity.ok(ApiResponse.success(priceData));
         } catch (Exception e) {

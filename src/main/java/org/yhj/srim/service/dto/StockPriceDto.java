@@ -15,20 +15,9 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class StockPriceDto {
-    
-    /**
-     * 주가 데이터 목록
-     */
+
     private List<PriceData> priceData;
-    
-    /**
-     * 시나리오별 적정주가 데이터
-     */
-    private ScenarioData scenarioData;
-    
-    /**
-     * 일별 주가 데이터
-     */
+
     @Getter
     @Setter
     @NoArgsConstructor
@@ -41,38 +30,11 @@ public class StockPriceDto {
         private BigDecimal low;        // 저가
         private BigDecimal close;      // 종가
         private Long volume;           // 거래량
-        private FairValues fairValues; // 날짜별 적정주가
-    }
-    
-    /**
-     * 날짜별 적정주가 데이터
-     */
-    @Getter
-    @Setter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
-    public static class FairValues {
-        private BigDecimal scenario0;  // 초과이익 지속
-        private BigDecimal scenario10; // 10% 감소
-        private BigDecimal scenario20; // 20% 감소
-        private BigDecimal scenario30; // 30% 감소
-        private BigDecimal scenario50; // 50% 감소
-    }
-    
-    /**
-     * 시나리오별 적정주가 데이터
-     */
-    @Getter
-    @Setter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
-    public static class ScenarioData {
-        private BigDecimal scenario0;  // 초과이익 지속
-        private BigDecimal scenario10; // 10% 감소
-        private BigDecimal scenario20; // 20% 감소
-        private BigDecimal scenario30; // 30% 감소
-        private BigDecimal scenario50; // 50% 감소
+
+        private BigDecimal fvScenario0;   // 적정주가 (초과이익 지속)
+        private BigDecimal fvScenario10;  // 초과이익 10% 감소
+        private BigDecimal fvScenario20;  // 20% 감소
+        private BigDecimal fvScenario30;  // 30% 감소
+        private BigDecimal fvScenario50;  // 50% 감소
     }
 }

@@ -5,18 +5,19 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.yhj.srim.client.DartClient;
+import org.yhj.srim.client.NaverClient;
+import org.yhj.srim.client.dto.DaliyPrice;
 import org.yhj.srim.client.dto.DartFsRow;
 import org.yhj.srim.client.dto.DartShareStatusRow;
-import org.yhj.srim.repository.CompanyRepository;
-import org.yhj.srim.repository.DartFsFilingRepository;
-import org.yhj.srim.repository.DartFsLineRepository;
-import org.yhj.srim.repository.StockShareStatusRepository;
-import org.yhj.srim.repository.entity.Company;
-import org.yhj.srim.repository.entity.DartFsFiling;
-import org.yhj.srim.repository.entity.DartFsLine;
-import org.yhj.srim.repository.entity.StockShareStatus;
+import org.yhj.srim.common.exception.CustomException;
+import org.yhj.srim.common.exception.code.ErrorCode;
+import org.yhj.srim.common.exception.code.FinancialErrorCode;
+import org.yhj.srim.common.exception.code.StockErrorCode;
+import org.yhj.srim.repository.*;
+import org.yhj.srim.repository.entity.*;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -26,10 +27,13 @@ import java.util.Optional;
 public class CrawlingService {
 
     private final DartClient dartClient;
+    private final NaverClient naverClient;
     private final DartFsFilingRepository filingRepository;
     private final DartFsLineRepository lineRepository;
     private final StockShareStatusRepository shareStatusRepository;
     private final CompanyRepository companyRepository;
+    private final StockCodeRepository stockCodeRepository;
+    private final StockPriceRepository stockPriceRepository;
 
     @Transactional
     public int crawlAndSaveAnnualFinancial(String corpCode, Long companyId, int year) {
@@ -150,4 +154,34 @@ public class CrawlingService {
         return filingRepository.save(filing);
     }
 
+    public int crawlingStockPrice(Long companyId, LocalDate start, LocalDate end) {
+
+        Company company = companyRepository.findById(companyId)
+                .orElseThrow(() -> new CustomException(StockErrorCode.COMPANY_NOT_FOUND));
+
+        StockCode stockCode = company.getStockCode();
+
+        String tickerKrx = stockCode.getTickerKrx();
+
+        log.info("네이버 주가 크롤링 시작 - companyId={}, ticker={}, {} ~ {}",
+                companyId, tickerKrx, start, end);
+
+        List<DaliyPrice> daliyPrices = naverClient.fetchDailyPrices(tickerKrx, start, end);
+
+        List<StockPrice> entities = daliyPrices.stream()
+                .map(price -> StockPrice.builder()
+                        .company(company)
+                        .asOf(LocalDateTime.now())
+                        .price(price.getClose())
+                        .openPrice(price.getOpen())
+                        .highPrice(price.getHigh())
+                        .lowPrice(price.getLow())
+                        .volume(price.getVolume())
+                        .source(StockPrice.MarketSnapshotSource.NAVER)
+                        .build())
+                .toList();
+
+        stockPriceRepository.saveAll(entities);
+        return entities.size();
+    }
 }

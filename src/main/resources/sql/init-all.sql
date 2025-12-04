@@ -42,8 +42,8 @@ CREATE TABLE `company` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='회사 메타(상장주식수/액면가/통화 등)';
 
 /* 3) 시세 스냅샷 */
-CREATE TABLE `market_snapshot` (
-    `snapshot_id`    BIGINT         NOT NULL AUTO_INCREMENT COMMENT 'PK: 스냅샷 ID',
+CREATE TABLE `stock_price` (
+    `price_id`    BIGINT         NOT NULL AUTO_INCREMENT COMMENT 'PK: 스냅샷 ID',
     `company_id`     BIGINT         NOT NULL COMMENT 'FK → company.company_id',
     `as_of`          DATETIME       NOT NULL COMMENT '수집 시각(현지시간)',
     `price`          DECIMAL(18,2)  NULL COMMENT '현재가/종가(원)',
@@ -57,9 +57,8 @@ CREATE TABLE `market_snapshot` (
     `div_yield`      DECIMAL(10,4)  NULL COMMENT '현금배당수익률(소수, 0.045 = 4.5%)',
     `source`         VARCHAR(20)    NOT NULL COMMENT '수집원(NAVER/KRX/FNG/CSV/MANUAL)',
     `created_at`     DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '행 생성시각',
-    CONSTRAINT `PK_MARKET_SNAPSHOT` PRIMARY KEY (`snapshot_id`),
+    CONSTRAINT `PK_STOCK_PRICE` PRIMARY KEY (`price_id`),
     CONSTRAINT `FK_MS_COMPANY`      FOREIGN KEY (`company_id`) REFERENCES `company`(`company_id`),
-    CONSTRAINT `UN_MS_UNIQ`         UNIQUE (`company_id`, `as_of`, `source`),
     CONSTRAINT `CK_MS_SOURCE`       CHECK (`source` IN ('NAVER','KRX','FNG','CSV','MANUAL'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='시세 스냅샷(가격/시총/밸류 지표 히스토리)';
 
