@@ -516,19 +516,15 @@ public class FinancialService {
 
         if ("SCE".equalsIgnoreCase(sj)) {
 
-            // 전체 당기순이익
-            if (id.equals("ifrs-full_ProfitLoss") && nm.equals("당기순이익") && detail.contains("연결재무제표")) {
-                // 전체 당기순이익
-                return "NET_INC";
-            }
 
             // 지배주주 귀속 당기순이익
-            if (id.equals("ifrs-full_ProfitLoss") && nm.contains("당기순이익") && detail.contains("지배기업")) {
+            if (id.equals("ifrs-full_ProfitLoss") && (nm.equals("당기순이익") || nm.equals("당기순손실") || nm.equals("당기순손익")) && detail.contains("지배기업")) {
+
                 return "NET_INC_OWNER";
             }
 
             // 비지배주주 귀속 당기순이익
-            if (id.equals("ifrs-full_ProfitLoss") && nm.contains("당기순이익") && detail.contains("비지배")) {
+            if (id.equals("ifrs-full_ProfitLoss") && (nm.equals("당기순이익") || nm.equals("당기순손실") || nm.equals("당기순손익")) && detail.contains("비지배")) {
                 return "NET_INC_NONCONT";
             }
 
@@ -540,6 +536,12 @@ public class FinancialService {
 
         // 1) 손익계산서 / 포괄손익계산서 (CIS, IS 등)
         if ("CIS".equalsIgnoreCase(sj) || "IS".equalsIgnoreCase(sj)) {
+
+            // 전체 당기순이익
+            if (id.equals("ifrs-full_ProfitLoss") && (nm.equals("당기순이익") || nm.equals("당기순손실") || nm.equals("당기순손익"))) {
+                // 전체 당기순이익
+                return "NET_INC";
+            }
 
             // 매출액 / 영업수익
             if (id.equals("ifrs-full_Revenue")
@@ -753,10 +755,9 @@ public class FinancialService {
 
     public void updateCompanyShareInfo(Long companyId) {
 
-        // to-do exception 수정
         StockShareStatus latest = stockShareStatusRepository
                 .findTopByCompany_CompanyIdOrderByUpdatedAtDesc(companyId)
-                .orElseThrow(() -> new CustomException(StockErrorCode.STOCK_NOT_FOUND));
+                .orElse(null);
 
         if (latest == null) {
             log.info("최신 주식수 스냅샷이 없습니다. companyId={}", companyId);

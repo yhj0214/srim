@@ -6,6 +6,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.yhj.srim.controller.dto.ApiResponse;
 import org.yhj.srim.controller.dto.CrawlAllMarketsResult;
+import org.yhj.srim.facade.FinancialFacadeService;
+import org.yhj.srim.facade.ManagementFacade;
 import org.yhj.srim.service.DartCorpCodeSyncService;
 import org.yhj.srim.service.KrxStockCrawlingService;
 
@@ -23,6 +25,8 @@ public class KrxCrawlingApiController {
 
     private final KrxStockCrawlingService krxStockCrawlingService;
     private final DartCorpCodeSyncService dartCorpCodeSyncService;
+    private final FinancialFacadeService financialFacadeService;
+    private final ManagementFacade managementFacade;
 
     /**
      * 전체 시장 크롤링 (KOSPI + KOSDAQ)
@@ -31,11 +35,14 @@ public class KrxCrawlingApiController {
     @PostMapping("/all")
     public ApiResponse<CrawlAllMarketsResult> crawlAllMarkets() {
         log.info("전체 시장 크롤링 요청");
+        return ApiResponse.success(managementFacade.initializeAll());
+    }
 
-        int crawledCount = krxStockCrawlingService.crawlAllMarkets();
-        int mappedCount = dartCorpCodeSyncService.syncFromXml();
-
-        return ApiResponse.success(new CrawlAllMarketsResult(crawledCount, mappedCount));
+    @GetMapping("/stocks/{tickerKrx}")
+    public ApiResponse<Void> crawlingStockInfo(@PathVariable Long tickerKrx){
+        log.info("stickerKrx : {}", tickerKrx);
+        managementFacade.findStockInfo(tickerKrx);
+        return ApiResponse.success("요청에 성공하였습니다.", null);
     }
 
     /**

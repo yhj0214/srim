@@ -10,7 +10,7 @@
                     <p class="text-muted mb-0">등급별 만기별 채권 수익률 현황 (오늘 날짜 기준)</p>
                 </div>
                 <div>
-                    <button class="btn btn-primary" onclick="loadBondYieldData()">
+                    <button class="btn btn-primary" type="button" data-action="loadBondYieldData">
                         <i class="bi bi-arrow-clockwise"></i> 새로고침
                     </button>
                 </div>
@@ -76,8 +76,16 @@
 
     <script>
         // 페이지 로드 시 오늘 날짜 데이터 로드
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             loadBondYieldData();
+
+            // 새로고침 버튼 이벤트 (인라인 onclick 제거)
+            const refreshBtn = document.querySelector('button[data-action="loadBondYieldData"]');
+            if (refreshBtn) {
+                refreshBtn.addEventListener('click', function () {
+                    loadBondYieldData();
+                });
+            }
         });
 
         /**
@@ -85,7 +93,7 @@
          */
         async function loadBondYieldData() {
             const tbody = document.getElementById('bondYieldTableBody');
-            const button = document.querySelector('button[onclick="loadBondYieldData()"]');
+            const button = document.querySelector('button[data-action="loadBondYieldData"]');
             const originalHtml = button ? button.innerHTML : '';
             
             try {

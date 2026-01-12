@@ -42,7 +42,7 @@ public class StockShareStatus {
     @Comment("결산일(예: 2018-12-31)")
     private LocalDate settlementDate;
 
-    @Column(name = "se", length = 20, nullable = false)
+    @Column(name = "se", length = 100, nullable = false)
     @Comment("주식종류(보통주/우선주/합계 등)")
     private String se;
 

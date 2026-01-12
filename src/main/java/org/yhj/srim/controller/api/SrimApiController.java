@@ -8,6 +8,8 @@ import org.yhj.srim.controller.dto.ApiResponse;
 import org.yhj.srim.service.SrimService;
 import org.yhj.srim.service.dto.SrimResultDto;
 
+import java.time.LocalDate;
+
 @RestController
 @RequestMapping("/api/stocks/{companyId}/srim")
 @RequiredArgsConstructor
@@ -34,7 +36,7 @@ public class SrimApiController {
             @RequestParam(required = false) Integer tenor) {
         
         try {
-            SrimResultDto result = srimService.calculate(companyId, basis,year, rating, tenor);
+            SrimResultDto result = srimService.calculate(companyId, basis,year, rating, tenor, LocalDate.now());
             return ResponseEntity.ok(ApiResponse.success(result));
         } catch (IllegalArgumentException e) {
             log.warn("S-RIM 계산 실패: {}", e.getMessage());

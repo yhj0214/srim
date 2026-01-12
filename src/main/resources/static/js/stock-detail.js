@@ -1,350 +1,388 @@
 /**
- * 종목 상세 페이지 메인 로직 - 기존 HTML 보존 버전
+ * stock-detail.js
+ * - 페이지 오케스트레이션(로딩 정책/탭 wiring)만 담당
+ * - 공통 유틸(api/format/dom) 및 단일 상태(Store) 제공
+ *
+ * 주의: 템플릿에서 이 파일이 가장 먼저 로딩되므로(현재 stock-detail.html),
+ *       다른 모듈(stock-chart/financial/srim)은 여기서 만든 StockApp을 사용한다.
  */
 
-const StockDetail = {
-    stockId: null,
-    companyId: null,
-    financialData: null,
-    
-    init: function(stockId, companyId) {
-        this.stockId = stockId;
-        this.companyId = companyId;
-        
-        console.log('=== StockDetail 초기화 ===');
-        console.log('stockId:', this.stockId);
-        console.log('companyId:', this.companyId);
-        
-        this.showFullPageLoading();
-        this.startDataLoading();
-    },
-    
-    showFullPageLoading: function() {
-        console.log('🔄 전체 로딩 표시');
-        
-        // 탭 숨기기
-        const tabsContainer = document.querySelector('.nav-tabs');
-        if (tabsContainer) {
-            tabsContainer.style.display = 'none';
-        }
-        
-        // 기존 탭 컨텐츠 숨기기 (삭제하지 않음!)
-        const tabPanes = document.querySelectorAll('.tab-pane');
-        tabPanes.forEach(pane => {
-            pane.style.display = 'none';
-        });
-        
-        // 로딩 오버레이 추가
-        const tabContent = document.querySelector('.tab-content');
-        if (tabContent) {
-            let loadingOverlay = document.getElementById('loadingOverlay');
-            if (!loadingOverlay) {
-                loadingOverlay = document.createElement('div');
-                loadingOverlay.id = 'loadingOverlay';
-                loadingOverlay.style.cssText = 'position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: white; z-index: 9999; min-height: 500px;';
-                loadingOverlay.innerHTML = `
-                    <div class="d-flex flex-column justify-content-center align-items-center" style="min-height: 500px;">
-                        <div class="spinner-border text-primary" style="width: 4rem; height: 4rem;" role="status">
-                            <span class="visually-hidden">로딩중...</span>
-                        </div>
-                        <h4 class="mt-4 text-primary">데이터를 불러오는 중입니다...</h4>
-                        <p class="text-muted" id="fullPageLoadingStatus">재무정보 조회 및 크롤링 중...</p>
-                        <p class="text-muted"><small>최대 1-2분 정도 소요됩니다. 잠시만 기다려주세요.</small></p>
-                    </div>
-                `;
-                
-                tabContent.style.position = 'relative';
-                tabContent.appendChild(loadingOverlay);
-            }
-        }
-    },
-    
-    updateFullPageLoadingStatus: function(message) {
-        const statusEl = document.getElementById('fullPageLoadingStatus');
-        if (statusEl) {
-            statusEl.textContent = message;
-        }
-    },
-    
-    hideFullPageLoading: function() {
-        console.log('✅ 로딩 숨김, 기존 탭 표시');
-        
-        // 로딩 오버레이 제거
-        const loadingOverlay = document.getElementById('loadingOverlay');
-        if (loadingOverlay) {
-            loadingOverlay.remove();
-        }
-        
-        // 탭 표시
-        const tabsContainer = document.querySelector('.nav-tabs');
-        if (tabsContainer) {
-            tabsContainer.style.display = '';
-        }
-        
-        // 기존 탭 컨텐츠 표시
-        const tabPanes = document.querySelectorAll('.tab-pane');
-        tabPanes.forEach(pane => {
-            pane.style.display = '';
-        });
-        
-        console.log('✅ 컨테이너 확인:', {
-            financialTableContainer: !!document.getElementById('financialTableContainer'),
-            priceChartContainer: !!document.getElementById('priceChartContainer'),
-            srimResultContainer: !!document.getElementById('srimResultContainer')
-        });
-        
-        this.setupEventListeners();
-    },
-    
-    setupEventListeners: function() {
-        const financialTab = document.getElementById('financial-tab');
-        if (financialTab) {
-            financialTab.addEventListener('shown.bs.tab', () => {
-                console.log('=== 재무정보 탭 표시됨 ===');
-            });
-        }
-        
-        const chartTab = document.getElementById('chart-tab');
-        if (chartTab) {
-            chartTab.addEventListener('shown.bs.tab', () => {
-                console.log('=== 주가 그래프 탭 표시됨 ===');
-            });
-        }
-        
-        const srimTab = document.getElementById('srim-tab');
-        if (srimTab) {
-            srimTab.addEventListener('shown.bs.tab', () => {
-                console.log('=== S-RIM 탭 표시됨 ===');
-            });
-        }
-    },
-    
-    startDataLoading: function() {
-        console.log('=== 데이터 로드 프로세스 시작 ===');
-        
-        this.updateFullPageLoadingStatus('재무정보 조회 및 크롤링 중... (최대 1-2분 소요)');
-        
-        this.loadFinancialData()
-            .then((financialResult) => {
-                console.log('✅ 재무정보 로드 완료');
-                
-                // 재무정보 응답에서 companyId 추출
-                if (financialResult.companyId) {
-                    const oldCompanyId = this.companyId;
-                    this.companyId = financialResult.companyId;
-                    console.log('🔄 companyId 업데이트 (재무정보):', oldCompanyId, '→', this.companyId);
-                }
-                
-                return this.tryRefreshCompanyId();
-            })
-            .then(() => {
-                console.log('✅ 최종 companyId:', this.companyId);
-                
-                // 로딩 숨기고 기존 탭 표시
-                this.hideFullPageLoading();
-                
-                // 재무정보 렌더링
-                if (this.financialData) {
-                    console.log('📊 재무정보 렌더링 시작');
-                    StockFinancial.renderTable(this.financialData);
-                }
-                
-                this.updateFullPageLoadingStatus('주가 데이터 및 S-RIM 계산 중...');
-                
-                // 주가 & S-RIM 로드
-                return Promise.allSettled([
-                    this.loadChartData(),
-                    this.loadSrimData()
-                ]);
-            })
-            .then((results) => {
-                console.log('=== 모든 API 호출 완료 ===');
-                results.forEach((result, index) => {
-                    const name = index === 0 ? '주가 차트' : 'S-RIM';
-                    if (result.status === 'fulfilled') {
-                        console.log(`✅ ${name} 성공`);
-                    } else {
-                        console.warn(`⚠️ ${name} 실패:`, result.reason);
-                    }
-                });
-                
-                console.log('🎉 모든 데이터 로드 완료!');
-                
-                // 개요 탭 활성화
-                this.activateOverviewTab();
-            })
-            .catch(error => {
-                console.error('❌ 치명적 에러:', error);
-                this.hideFullPageLoading();
-                alert('데이터를 불러오는 중 오류가 발생했습니다: ' + error.message);
-            });
-    },
-    
-    tryRefreshCompanyId: function() {
-        return new Promise((resolve) => {
-            if (this.companyId) {
-                console.log('ℹ️ companyId 이미 있음, 재조회 스킵:', this.companyId);
-                resolve();
-                return;
-            }
-            
-            console.log('🔄 companyId 재조회 시도...');
-            
-            if (!this.stockId) {
-                console.warn('⚠️ stockId가 없어 companyId 재조회 불가');
-                resolve();
-                return;
-            }
-            
-            fetch(`/api/stocks/${this.stockId}`)
-                .then(response => {
-                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                    return response.json();
-                })
-                .then(result => {
-                    if (result.success && result.data?.companyId) {
-                        this.companyId = result.data.companyId;
-                        console.log('🔄 companyId 업데이트 (API):', this.companyId);
-                    }
-                    resolve();
-                })
-                .catch(error => {
-                    console.warn('⚠️ companyId 재조회 실패 (무시):', error.message);
-                    resolve();
-                });
-        });
-    },
-    
-    activateOverviewTab: function() {
-        const overviewTab = document.getElementById('overview-tab');
-        if (overviewTab && typeof bootstrap !== 'undefined') {
-            const tab = new bootstrap.Tab(overviewTab);
-            tab.show();
-        }
-    },
-    
-    loadFinancialData: function() {
-        return new Promise((resolve, reject) => {
-            if (!this.stockId) {
-                reject(new Error('stockId가 없습니다'));
-                return;
-            }
+(function (window, document) {
+  'use strict';
 
-            console.log('📊 재무정보 로드 중...');
+  /** -----------------------------
+   * StockApp (공통 유틸)
+   * ------------------------------*/
+  const StockApp = (window.StockApp = window.StockApp || {});
 
-            fetch(`/api/stocks/${this.stockId}/financial/annual`)
-                .then(response => {
-                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                    return response.json();
-                })
-                .then(result => {
-                    if (result.success) {
-                        this.financialData = result.data;
-                        console.log('✅ 재무 데이터 저장 완료');
-                        resolve(result.data);
-                    } else {
-                        reject(new Error(result.message || '재무 데이터 로드 실패'));
-                    }
-                })
-                .catch(error => {
-                    console.error('❌ 재무정보 로드 실패:', error);
-                    reject(error);
-                });
-        });
+  // DOM helper
+  StockApp.dom = {
+    qs(sel, root) {
+      return (root || document).querySelector(sel);
     },
-    
-    loadChartData: function() {
-        return new Promise((resolve, reject) => {
-            if (!this.companyId) {
-                console.warn('⚠️ companyId 없음, 주가 차트 스킵');
-                const container = document.getElementById('priceChartContainer');
-                if (container) {
-                    container.innerHTML = '<div class="alert alert-info">회사 정보가 등록되지 않아 주가 데이터를 조회할 수 없습니다.</div>';
-                }
-                resolve();
-                return;
-            }
-
-            console.log('📈 주가 차트 로드 중... (companyId:', this.companyId, ')');
-            
-            const endDate = new Date();
-            const startDate = new Date();
-            startDate.setFullYear(endDate.getFullYear() - 1);
-            
-            const url = `/api/stocks/${this.companyId}/price-chart?startDate=${startDate.toISOString().split('T')[0]}&endDate=${endDate.toISOString().split('T')[0]}`;
-            
-            fetch(url)
-                .then(response => {
-                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                    return response.json();
-                })
-                .then(result => {
-                    if (result.success) {
-                        console.log('✅ 주가 데이터 저장 완료');
-                        if (typeof StockChart !== 'undefined' && StockChart.render) {
-                            StockChart.render(result.data);
-                        }
-                        resolve(result.data);
-                    } else {
-                        throw new Error(result.message || '주가 데이터 로드 실패');
-                    }
-                })
-                .catch(error => {
-                    console.error('❌ 주가 차트 로드 실패:', error);
-                    const container = document.getElementById('priceChartContainer');
-                    if (container) {
-                        container.innerHTML = `<div class="alert alert-warning">${error.message}</div>`;
-                    }
-                    reject(error);
-                });
-        });
+    qsa(sel, root) {
+      return Array.from((root || document).querySelectorAll(sel));
     },
-    
-    loadSrimData: function() {
-        return new Promise((resolve, reject) => {
-            if (!this.companyId) {
-                console.warn('⚠️ companyId 없음, S-RIM 스킵');
-                const container = document.getElementById('srimResultContainer');
-                if (container) {
-                    container.innerHTML = '<div class="alert alert-info">회사 정보가 등록되지 않아 S-RIM을 계산할 수 없습니다.</div>';
-                }
-                resolve();
-                return;
-            }
-
-            console.log('🧮 S-RIM 계산 중... (companyId:', this.companyId, ')');
-            
-            fetch(`/api/stocks/${this.companyId}/srim?basis=YEAR`)
-                .then(response => {
-                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                    return response.json();
-                })
-                .then(result => {
-                    if (result.success) {
-                        console.log('✅ S-RIM 데이터 저장 완료');
-                        if (typeof StockSrim !== 'undefined' && StockSrim.renderResult) {
-                            StockSrim.renderResult(result.data);
-                        }
-                        resolve(result.data);
-                    } else {
-                        throw new Error(result.message || 'S-RIM 계산 실패');
-                    }
-                })
-                .catch(error => {
-                    console.error('❌ S-RIM 로드 실패:', error);
-                    const container = document.getElementById('srimResultContainer');
-                    if (container) {
-                        container.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
-                    }
-                    reject(error);
-                });
-        });
+    setHTML(el, html) {
+      if (el) el.innerHTML = html;
+    },
+    setText(el, text) {
+      if (el) el.textContent = text;
+    },
+    renderAlert(containerEl, type, message) {
+      if (!containerEl) return;
+      const icon =
+        type === 'danger'
+          ? 'bi-exclamation-triangle'
+          : type === 'warning'
+            ? 'bi-exclamation-triangle'
+            : type === 'info'
+              ? 'bi-info-circle'
+              : 'bi-check-circle';
+      containerEl.innerHTML = `
+        <div class="alert alert-${type}">
+          <i class="bi ${icon}"></i> ${StockApp.format.escapeHtml(message)}
+        </div>
+      `;
     }
-};
+  };
 
-document.addEventListener('DOMContentLoaded', function() {
-    const stockId = window.STOCK_ID;
-    const companyId = window.COMPANY_ID;
-    
-    StockDetail.init(stockId, companyId);
-});
+  // Format helper (표기/단위 규칙은 여기로 고정)
+  StockApp.format = {
+    escapeHtml(str) {
+      if (str == null) return '';
+      return String(str)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    },
+    number(value, opts) {
+      if (value == null || value === '') return '-';
+      const n = Number(value);
+      if (!Number.isFinite(n)) return '-';
+      const maximumFractionDigits = opts?.maximumFractionDigits ?? 0;
+      return n.toLocaleString('ko-KR', { maximumFractionDigits });
+    },
+    percent(value, fractionDigits = 2) {
+      if (value == null || value === '') return '-';
+      const n = Number(value);
+      if (!Number.isFinite(n)) return '-';
+      return n.toFixed(fractionDigits) + '%';
+    },
+    // 입력값이 '원' 단위라고 가정하고, 화면에서는 '억원'으로 표기
+    // (백엔드가 이미 억원 단위라면 이 함수를 쓰지 말고 number()+ '억' 등으로 분리)
+    krwToEokwon(value) {
+      if (value == null || value === '') return '-';
+      const n = Number(value);
+      if (!Number.isFinite(n)) return '-';
+      const eok = n / 100000000;
+      return eok.toLocaleString('ko-KR', { maximumFractionDigits: 0 }) + '억원';
+    },
+    // 값이 '억원' 단위(이미 스케일링된 값)일 때
+    eokwon(value) {
+      return this.number(value, { maximumFractionDigits: 0 }) + '억원';
+    },
+    ratio(value, fractionDigits = 2) {
+      if (value == null || value === '') return '-';
+      const n = Number(value);
+      if (!Number.isFinite(n)) return '-';
+      return n.toFixed(fractionDigits) + '배';
+    },
+    isoDate(d) {
+      // YYYY-MM-DD
+      const date = d instanceof Date ? d : new Date(d);
+      if (Number.isNaN(date.getTime())) return '';
+      return date.toISOString().split('T')[0];
+    }
+  };
+
+  // API helper (에러 표준화 + 타임아웃)
+  StockApp.api = {
+    async request(url, options) {
+      const timeoutMs = options?.timeoutMs ?? 20000;
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), timeoutMs);
+
+      try {
+        const resp = await fetch(url, { ...options, signal: controller.signal });
+        const contentType = resp.headers.get('content-type') || '';
+        const isJson = contentType.includes('application/json');
+        const payload = isJson ? await resp.json().catch(() => null) : await resp.text().catch(() => null);
+
+        if (!resp.ok) {
+          const message =
+            (payload && payload.message) ||
+            (typeof payload === 'string' ? payload : null) ||
+            `HTTP ${resp.status}`;
+          return { ok: false, status: resp.status, data: null, message };
+        }
+
+        return { ok: true, status: resp.status, data: payload, message: null };
+      } catch (e) {
+        const message = e?.name === 'AbortError' ? '요청 시간이 초과되었습니다.' : (e?.message || '네트워크 오류가 발생했습니다.');
+        return { ok: false, status: 0, data: null, message };
+      } finally {
+        clearTimeout(id);
+      }
+    },
+
+    getJSON(url, opts) {
+      return this.request(url, { method: 'GET', headers: { Accept: 'application/json' }, ...opts });
+    },
+
+    postJSON(url, body, opts) {
+      return this.request(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(body ?? {}),
+        ...opts
+      });
+    }
+  };
+
+  // 아주 작은 Store (단일 상태 + 구독)
+  StockApp.store = (function () {
+    let state = {
+      stockId: null,
+      companyId: null,
+      financial: { loaded: false, data: null, error: null },
+      chart: { loaded: false, data: null, error: null },
+      srim: { loaded: false, data: null, error: null }
+    };
+    const listeners = new Set();
+
+    function getState() {
+      return state;
+    }
+
+    function setState(patch) {
+      state = { ...state, ...patch };
+      listeners.forEach((fn) => {
+        try {
+          fn(state);
+        } catch (_) {
+          // ignore
+        }
+      });
+    }
+
+    function update(path, value) {
+      // shallow path: 'financial'|'chart'|'srim'
+      if (!['financial', 'chart', 'srim'].includes(path)) return;
+      state = { ...state, [path]: { ...state[path], ...value } };
+      listeners.forEach((fn) => {
+        try {
+          fn(state);
+        } catch (_) {
+          // ignore
+        }
+      });
+    }
+
+    function subscribe(fn) {
+      listeners.add(fn);
+      return () => listeners.delete(fn);
+    }
+
+    return { getState, setState, update, subscribe };
+  })();
+
+  /** -----------------------------
+   * StockDetail (오케스트레이터)
+   * ------------------------------*/
+  const StockDetail = (window.StockDetail = window.StockDetail || {});
+
+  Object.assign(StockDetail, {
+    init(stockId, companyId) {
+      StockApp.store.setState({ stockId, companyId });
+      // Lazy-load 정책:
+      // - 페이지 진입 시에는 추가 API 호출 없이(가능하면) 개요만 즉시 표시
+      // - 각 탭 클릭(shown.bs.tab) 시점에만 백엔드 요청을 보내 데이터 로드
+      // - 한 번 로드한 탭 데이터는 store에 캐시하여 재진입 시 재요청하지 않음(필요 시 새로고침 버튼으로 확장)
+
+      this.setupEventListeners();
+      this.renderInitialPlaceholders();
+
+      // companyId가 템플릿에서 내려오지 않는 케이스를 대비해 최소 1회 보정
+      // (단, 다른 탭 데이터 로드 시에도 재확인하므로 실패해도 치명적이지 않다.)
+      this.ensureCompanyIdResolved().catch(() => {
+        /* ignore */
+      });
+    },
+
+    getCompanyId() {
+      return StockApp.store.getState().companyId;
+    },
+
+    // (기존) startDataLoading 제거: 이제 탭 클릭 시점에만 요청한다.
+
+    async ensureCompanyIdResolved() {
+      const st = StockApp.store.getState();
+      if (st.companyId) return st.companyId;
+      if (!st.stockId) return null;
+
+      const res = await StockApp.api.getJSON(`/api/stocks/${st.stockId}`);
+      if (res.ok && res.data?.success && res.data?.data?.companyId) {
+        StockApp.store.setState({ companyId: res.data.data.companyId });
+        return res.data.data.companyId;
+      }
+      return null;
+    },
+
+    async ensureFinancialLoaded() {
+      const st = StockApp.store.getState();
+      if (st.financial.loaded) return st.financial.data;
+      if (!st.stockId) throw new Error('stockId가 없습니다');
+
+      // UI
+      if (window.StockFinancial?.showLoading) window.StockFinancial.showLoading();
+
+      const res = await StockApp.api.getJSON(`/api/stocks/${st.stockId}/financial/annual`, { timeoutMs: 120000 });
+      if (!res.ok) {
+        StockApp.store.update('financial', { loaded: false, error: res.message });
+        window.StockFinancial?.showError?.(res.message);
+        throw new Error(res.message);
+      }
+
+      if (!res.data?.success) {
+        const msg = res.data?.message || '재무 데이터 로드 실패';
+        StockApp.store.update('financial', { loaded: false, error: msg });
+        window.StockFinancial?.showError?.(msg);
+        throw new Error(msg);
+      }
+
+      StockApp.store.update('financial', { loaded: true, data: res.data.data, error: null });
+      // Financial 모듈에 data 주입
+      window.StockFinancial?.setData?.(res.data.data);
+      window.StockFinancial?.renderTable?.(res.data.data);
+      return res.data.data;
+    },
+
+    async ensureChartLoaded(startDate, endDate) {
+        const companyId = (await this.ensureCompanyIdResolved()) || StockApp.store.getState().companyId;
+        const container = document.getElementById('priceChartContainer');
+        if (!companyId) {
+            StockApp.dom.renderAlert(container, 'info', '회사 정보가 등록되지 않아 주가 데이터를 조회할 수 없습니다.');
+            return null;
+        }
+
+        let url = `/api/stocks/${companyId}/price-chart`;
+
+        // start/end가 들어온 경우에만 쿼리스트링 생성
+        if (startDate || endDate) {
+            const params = new URLSearchParams();
+            if (startDate) params.set('startDate', startDate);
+            if (endDate) params.set('endDate', endDate);
+            url += `?${params.toString()}`;
+        }
+      window.StockChart?.showLoading?.();
+      const res = await StockApp.api.getJSON(url, { timeoutMs: 30000 });
+      if (!res.ok) {
+        StockApp.store.update('chart', { loaded: false, error: res.message });
+        window.StockChart?.showError?.(res.message);
+        return null;
+      }
+
+      if (!res.data?.success) {
+        const msg = res.data?.message || '주가 데이터 로드 실패';
+        StockApp.store.update('chart', { loaded: false, error: msg });
+        window.StockChart?.showError?.(msg);
+        return null;
+      }
+
+      StockApp.store.update('chart', { loaded: true, data: res.data.data, error: null });
+      window.StockChart?.render?.(res.data.data, { companyId });
+      return res.data.data;
+    },
+
+    async ensureSrimLoaded() {
+      const companyId = (await this.ensureCompanyIdResolved()) || StockApp.store.getState().companyId;
+      const container = document.getElementById('srimResultContainer');
+      if (!companyId) {
+        StockApp.dom.renderAlert(container, 'info', '회사 정보가 등록되지 않아 S-RIM을 계산할 수 없습니다.');
+        return null;
+      }
+
+      window.StockSrim?.showLoading?.();
+      const res = await StockApp.api.getJSON(`/api/stocks/${companyId}/srim?basis=YEAR`, { timeoutMs: 30000 });
+      if (!res.ok) {
+        StockApp.store.update('srim', { loaded: false, error: res.message });
+        window.StockSrim?.showError?.(res.message);
+        return null;
+      }
+
+      if (!res.data?.success) {
+        const msg = res.data?.message || 'S-RIM 계산 실패';
+        StockApp.store.update('srim', { loaded: false, error: msg });
+        window.StockSrim?.showError?.(msg);
+        return null;
+      }
+
+      StockApp.store.update('srim', { loaded: true, data: res.data.data, error: null });
+      window.StockSrim?.renderResult?.(res.data.data);
+      return res.data.data;
+    },
+
+    _defaultStartDate() {
+      const end = new Date();
+      const start = new Date();
+      start.setFullYear(end.getFullYear() - 1);
+      return StockApp.format.isoDate(start);
+    },
+
+    renderInitialPlaceholders() {
+      // 탭 클릭 전에는 "탭을 선택하면 로드" 안내만 표시
+      const fin = document.getElementById('financialTableContainer');
+      if (fin) {
+        StockApp.dom.renderAlert(fin, 'info', '재무정보 탭을 열면 데이터를 불러옵니다.');
+      }
+
+      const chart = document.getElementById('priceChartContainer');
+      if (chart) {
+        StockApp.dom.renderAlert(chart, 'info', '주가 그래프 탭을 열면 데이터를 불러옵니다.');
+      }
+
+      const srim = document.getElementById('srimResultContainer');
+      if (srim) {
+        StockApp.dom.renderAlert(srim, 'info', 'S-RIM 평가 탭을 열면 계산 결과를 불러옵니다.');
+      }
+    },
+
+    setupEventListeners() {
+      // 탭 클릭(shown.bs.tab) 시점에만 백엔드 요청
+      const financialTab = document.getElementById('financial-tab');
+      financialTab?.addEventListener('shown.bs.tab', () => {
+        this.ensureFinancialLoaded().catch(() => {
+          /* tab 자체에서 에러 UI 처리 */
+        });
+      });
+
+      const chartTab = document.getElementById('chart-tab');
+      chartTab?.addEventListener('shown.bs.tab', () => {
+        // 기본 기간(1년)로 1회 로드
+        const st = StockApp.store.getState();
+        if (!st.chart.loaded) {
+            this.ensureChartLoaded().catch(() => {});
+        }
+      });
+
+      const srimTab = document.getElementById('srim-tab');
+      srimTab?.addEventListener('shown.bs.tab', () => {
+        this.ensureSrimLoaded().catch(() => {
+          /* ignore */
+        });
+      });
+    },
+
+    activateOverviewTab() {
+      const overviewTab = document.getElementById('overview-tab');
+      if (overviewTab && typeof bootstrap !== 'undefined') new bootstrap.Tab(overviewTab).show();
+    }
+  });
+
+  document.addEventListener('DOMContentLoaded', function () {
+    StockDetail.init(window.STOCK_ID, window.COMPANY_ID);
+  });
+})(window, document);

@@ -7,7 +7,7 @@
             <i class="bi bi-list-ul"></i> 종목 목록
         </h2>
         <div>
-            <button class="btn btn-success me-2" onclick="crawlKrxStocks()">
+            <button class="btn btn-success me-2" type="button" data-action="crawlKrxStocks">
                 <i class="bi bi-arrow-repeat"></i> KRX 크롤링
             </button>
             <span class="text-muted">
@@ -112,12 +112,20 @@
     </div>
 
     <script>
-        function crawlKrxStocks() {
+        (function () {
+            'use strict';
+
+            document.addEventListener('click', function (e) {
+                const btn = e.target.closest('button[data-action="crawlKrxStocks"]');
+                if (!btn) return;
+                crawlKrxStocks(btn);
+            });
+
+            function crawlKrxStocks(btn) {
             if (!confirm('KRX에서 상장법인 목록을 크롤링하시겠습니까?\n시간이 다소 걸릴 수 있습니다.')) {
                 return;
             }
 
-            const btn = event.target.closest('button');
             const originalHtml = btn.innerHTML;
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>크롤링 중...';
@@ -158,6 +166,8 @@
                 console.error('Error:', error);
             });
         }
+
+        })();
     </script>
 </main>
 </html>

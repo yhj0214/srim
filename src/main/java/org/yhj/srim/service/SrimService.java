@@ -9,10 +9,7 @@ import org.yhj.srim.common.exception.code.CommonErrorCode;
 import org.yhj.srim.common.exception.code.FinancialErrorCode;
 import org.yhj.srim.common.exception.code.StockErrorCode;
 import org.yhj.srim.repository.*;
-import org.yhj.srim.repository.entity.Company;
-import org.yhj.srim.repository.entity.FinMetricValue;
-import org.yhj.srim.repository.entity.FinPeriod;
-import org.yhj.srim.repository.entity.StockShareStatus;
+import org.yhj.srim.repository.entity.*;
 import org.yhj.srim.service.dto.SrimResultDto;
 
 import java.math.BigDecimal;
@@ -38,7 +35,7 @@ public class SrimService {
     private static final String DEFAULT_RATING = "BBB-";
     private static final short DEFAULT_TENOR_MONTHS = 60;
     private static final int DEFAULT_SCALE = 2;
-    private static final String SE = "보통주";
+    public static final String SE = "보통주";
     
     // 감소율 시나리오
     private static final BigDecimal[] REDUCTION_RATES = {
@@ -59,7 +56,7 @@ public class SrimService {
      * @param tenorMonths 만기 (기본 60개월)
      * @return S-RIM 계산 결과
      */
-    public SrimResultDto calculate(Long companyId, String basis,Integer year, String rating, Integer tenorMonths) {
+    public SrimResultDto calculate(Long companyId, String basis,Integer year, String rating, Integer tenorMonths, LocalDate date) {
         log.debug("S-RIM 계산 시작: companyId={}, basis={}, year={}, rating={}, tenor={}",
                 companyId, basis, year, rating, tenorMonths);
 
@@ -84,7 +81,7 @@ public class SrimService {
         log.debug("자기자본(지배주주지분) : {}", equityOwner);
 
         // 4. Ke (할인율) 조회 - 회사채 수익률
-        BigDecimal ke = getDiscountRate(rating, tenorMonths.shortValue());
+        BigDecimal ke = getDiscountRate(rating, tenorMonths.shortValue(), date);
         log.debug("Ke: {}", ke);
 
         // 5. 기본 초과이익 계산 (Equity * (ROE-ke))
@@ -163,26 +160,26 @@ public class SrimService {
     }
 
     // to-do ErrorCode 수정
-    private BigDecimal getEquityOwner(Long companyId, int baseYear) {
+    public BigDecimal getEquityOwner(Long companyId, int baseYear) {
         FinMetricValue value = finMetricValueRepository
                 .findYearlyMetricWithFetch(companyId, baseYear, METRIC_TOTAL_EQUITY_OWNER)
-                .orElseThrow(() -> new CustomException(CommonErrorCode.INVALID_INPUT));
+                .orElseThrow(() -> new CustomException(CommonErrorCode.NOT_FOUND3));
 
         return value.getValueNum();
     }
 
-    private Long getShareOutStanding(Long companyId, int baseYear, String se) {
+    public Long getShareOutStanding(Long companyId, int baseYear, String se) {
         log.debug("companyId : {}, baseYear : {}, basis : {}", companyId, baseYear, se);
-        Optional<StockShareStatus> status = stockShareStatusRepository
-                .findByCompany_CompanyIdAndBsnsYearAndSe(companyId, baseYear, se);
-        log.debug(" {}년도 주식 현황 : {}",baseYear, status);
-        return status.get().getDistbStockCo();
+        return stockShareStatusRepository
+                .findByCompany_CompanyIdAndBsnsYearAndSe(companyId, baseYear, se)
+                .map(StockShareStatus::getDistbStockCo)
+                .orElseThrow(() -> new CustomException(CommonErrorCode.NOT_FOUND2));
     }
 
     /**
      * ROE 가중평균 계산 (최근 3개, 가중치 3:2:1)
      */
-    private BigDecimal calculateWeightedAverageRoe(Long companyId, int baseYear, String basis) {
+    public BigDecimal calculateWeightedAverageRoe(Long companyId, int baseYear, String basis) {
         List<FinPeriod> periods;
         
         if ("YEAR".equals(basis)) {
@@ -251,11 +248,10 @@ public class SrimService {
     /**
      * 할인율(Ke) 조회 - 회사채 수익률
      */
-    private BigDecimal getDiscountRate(String rating, Short tenorMonths) {
-        return bondYieldCurveRepository.findFirstByRatingAndTenorMonthsOrderByAsOfDesc(rating, tenorMonths)
-                .map(bond -> bond.getYieldRate())
-                .orElseThrow(() -> new IllegalArgumentException(
-                        String.format("회사채 수익률 데이터가 없습니다. (rating=%s, tenor=%d)", rating, tenorMonths)
-                ));
+    private BigDecimal getDiscountRate(String rating, Short tenorMonths, LocalDate date) {
+        return bondYieldCurveRepository.findFirstByRatingAndTenorMonthsAndAsOfLessThanEqualOrderByAsOfDesc(
+                rating, tenorMonths, date
+        ).map(BondYieldCurve::getYieldRate)
+                .orElseThrow(() -> new CustomException(CommonErrorCode.NOT_FOUND));
     }
 }

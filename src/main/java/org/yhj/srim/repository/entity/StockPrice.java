@@ -5,6 +5,7 @@ import lombok.*;
 import org.hibernate.annotations.Comment;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Getter
@@ -12,7 +13,11 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 @Entity
-@Table(name = "stock_price")
+@Table(name = "stock_price",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_stock_price_company_date",
+                columnNames = {"company_id", "trade_date"}
+        ))
 public class StockPrice {
 
     @Id
@@ -26,8 +31,12 @@ public class StockPrice {
     @Comment("FK → company.company_id")
     private Company company;
 
-    @Column(name = "as_of", nullable = false)
-    @Comment("수집 시각(현지시간)")
+    @Column(name = "trade_date", nullable = false)
+    @Comment("거래일")
+    private LocalDate tradeDate;
+
+    @Column(name = "as_of")
+    @Comment("수집 시각(현지시간) - 이력 추적용")
     private LocalDateTime asOf;
 
     @Column(name = "price", precision = 18, scale = 2)
@@ -78,6 +87,9 @@ public class StockPrice {
     protected void onCreate(){
         if(this.createdAt == null){
             this.createdAt = LocalDateTime.now();
+        }
+        if(this.asOf == null){
+            this.asOf = LocalDateTime.now();
         }
     }
 

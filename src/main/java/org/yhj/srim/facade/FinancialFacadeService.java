@@ -4,42 +4,51 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.yhj.srim.client.DartClient;
+import org.yhj.srim.client.KisSpreadClient;
+import org.yhj.srim.client.dto.KisSpreadRow;
 import org.yhj.srim.common.exception.CustomException;
 import org.yhj.srim.common.exception.code.StockErrorCode;
-import org.yhj.srim.repository.FinMetricDefRepository;
-import org.yhj.srim.repository.FinMetricValueRepository;
-import org.yhj.srim.repository.FinPeriodRepository;
-import org.yhj.srim.repository.entity.Company;
-import org.yhj.srim.repository.entity.FinMetricDef;
-import org.yhj.srim.repository.entity.FinMetricValue;
-import org.yhj.srim.repository.entity.FinPeriod;
+import org.yhj.srim.controller.dto.CrawlAllMarketsResult;
+import org.yhj.srim.repository.*;
+import org.yhj.srim.repository.entity.*;
 import org.yhj.srim.service.CrawlingService;
+import org.yhj.srim.service.DartCorpCodeSyncService;
 import org.yhj.srim.service.FinancialService;
+import org.yhj.srim.service.KrxStockCrawlingService;
 import org.yhj.srim.service.dto.FinancialTableDto;
 
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
+
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class FinancialFacadeService {
 
+    private final KrxStockCrawlingService krxStockCrawlingService;
+    private final DartCorpCodeSyncService dartCorpCodeSyncService;
     private final FinancialService financialService;
     private final CrawlingService crawlingService;
     private final FinPeriodRepository finPeriodRepository;
     private final FinMetricDefRepository finMetricDefRepository;
     private final FinMetricValueRepository finMetricValueRepository;
+    private final CompanyRepository companyRepository;
+    private final StockCodeRepository stockCodeRepository;
+    private final KisSpreadClient kisSpreadClient;
+    private final BondYieldCurveRepository bondYieldCurveRepository;
+
+    private static final int CHUNK_DAYS = 50;
+    private static final String SOURCE = "KIS";
 
     /**
      * 1. company 조회, 없을 시 생성
      * 2. 재무제표, 주식 수 크롤링 및 저장
      * 3. 저장된 값들로 지표 계산 및 financialTableDto생성
      */
-    @Transactional
     public FinancialTableDto getAnnualTable(Long stockId, int limit) {
         Optional<Company> existingOpt = financialService.findCompanyByStockId(stockId);
 
@@ -59,6 +68,17 @@ public class FinancialFacadeService {
 
         // 신규 회사인 경우 전체 파이프라인 실행
         if (isNewCompany) {
+
+            StockCode stockCode = company.getStockCode();
+            String corpCode = (stockCode != null) ? stockCode.getDartCorpCode() : null;
+
+            if (corpCode == null || corpCode.length() != 8) {
+                log.warn(StockErrorCode.DART_CODE_NOT_FOUND.getMessage(), corpCode);
+                companyRepository.delete(company);
+                stockCodeRepository.delete(stockCode);
+                return null;
+            }
+
             runFullPipeline(company, limit);
         }
 
@@ -158,9 +178,7 @@ public class FinancialFacadeService {
 
     private void runFullPipeline(Company company, int limit) {
         String corpCode = company.getStockCode().getDartCorpCode();
-        if (corpCode == null || corpCode.length() != 8) {
-            throw new CustomException(StockErrorCode.DART_CODE_NOT_FOUND);
-        }
+
 
         Long companyId = company.getCompanyId();
         int currentYear = LocalDate.now().getYear();
@@ -179,7 +197,7 @@ public class FinancialFacadeService {
             crawlingService.crawlAndSaveShareStatus(corpCode, companyId, year);
 
             // dart_fs_line 기반 -> fin_metric_value 저장
-//            financialService.recalcAndSaveFinancialForYearFromDb(company, year);
+            financialService.recalcAndSaveFinancialForYearFromDb(company, year);
         }
 
         financialService.updateCompanyShareInfo(companyId);
@@ -273,16 +291,139 @@ public class FinancialFacadeService {
             case "QUICK_RATIO"        -> "유동비율";
             case "EPS"                -> "EPS";
             case "BPS"                -> "BPS";
-            default                   -> code; // 기본은 코드 그대로
+            default                   -> code;
         };
     }
 
     private String resolveMetricUnit(String code) {
-        // 단위는 너 설계에 맞게
+
         return switch (code) {
             case "ROE", "ROA", "OPM", "NET_MARGIN", "DEBT_RATIO", "QUICK_RATIO" -> "%";
             case "EPS", "BPS" -> "원/주";
             default -> "백만원";
         };
     }
+
+    public CrawlAllMarketsResult marketCrawling() {
+        int crawledCount = krxStockCrawlingService.crawlAllMarkets();
+        int mappedCount = dartCorpCodeSyncService.syncFromXml();
+        return new CrawlAllMarketsResult(crawledCount, mappedCount);
+    }
+
+    @Transactional
+    public void CrawlAndSaveBondYield(LocalDate startDate, LocalDate endDate) {
+
+        if (startDate == null || endDate == null) {
+            throw new IllegalArgumentException("startDate/endDate는 null일 수 없습니다.");
+        }
+        if (startDate.isAfter(endDate)) {
+            throw new IllegalArgumentException("startDate는 endDate보다 이후일 수 없습니다.");
+        }
+
+        int processedDays = 0;
+        int upsertCount = 0;
+        int skippedDays = 0;
+
+        for (LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
+
+            // 주말 스킵
+            DayOfWeek dow = date.getDayOfWeek();
+            if (dow == DayOfWeek.SATURDAY || dow == DayOfWeek.SUNDAY) {
+                skippedDays++;
+                continue;
+            }
+
+            List<KisSpreadRow> rows;
+            try {
+                rows = kisSpreadClient.fetchSpreadRows(date);
+            } catch (Exception e) {
+                log.warn("KIS 수익률 조회 실패 date={}", date, e);
+                continue;
+            }
+
+            if (rows == null || rows.isEmpty()) {
+                skippedDays++;
+                continue;
+            }
+
+            for (KisSpreadRow row : rows) {
+                String rating = normalizeRating(row.category());
+
+                // 만기별 upsert
+                upsertCount += upsertTenor(date, rating, (short) 3,  row.m3());
+                upsertCount += upsertTenor(date, rating, (short) 6,  row.m6());
+                upsertCount += upsertTenor(date, rating, (short) 9,  row.m9());
+                upsertCount += upsertTenor(date, rating, (short) 12, row.y1());
+                upsertCount += upsertTenor(date, rating, (short) 18, row.y1_6());
+                upsertCount += upsertTenor(date, rating, (short) 24, row.y2());
+                upsertCount += upsertTenor(date, rating, (short) 36, row.y3());
+                upsertCount += upsertTenor(date, rating, (short) 60, row.y5());
+            }
+
+            processedDays++;
+
+            if (processedDays % 50 == 0) {
+                log.info("BondYield progress processedDays={}, upserts={}, skippedDays={}",
+                        processedDays, upsertCount, skippedDays);
+            }
+        }
+
+        log.info("BondYield done processedDays={}, upserts={}, skippedDays={}, range={}~{}",
+                processedDays, upsertCount, skippedDays, startDate, endDate);
+    }
+
+    private int upsertTenor(LocalDate asOf, String rating, short tenorMonths, BigDecimal ratePercent) {
+        if (asOf == null || rating == null || rating.isBlank()) return 0;
+        if (ratePercent == null) return 0;
+
+        // 엔티티 주석: 0.0286 = 2.86%  → 퍼센트(2.86)를 소수로 저장
+        BigDecimal yieldRate = ratePercent.movePointLeft(2);
+
+        return bondYieldCurveRepository.upsert(asOf, rating, tenorMonths, yieldRate, SOURCE);
+    }
+
+    private List<BondYieldCurve> toEntities(LocalDate asOf, KisSpreadRow row) {
+
+        List<BondYieldCurve> result = new ArrayList<>(8);
+        String rating = normalizeRating(row.category());
+
+        addIfPresent(result, asOf, rating, (short) 3, row.m3());
+        addIfPresent(result, asOf, rating, (short) 6, row.m6());
+        addIfPresent(result, asOf, rating, (short) 9, row.m9());
+        addIfPresent(result, asOf, rating, (short) 12, row.y1());
+        addIfPresent(result, asOf, rating, (short) 18, row.y1_6());
+        addIfPresent(result, asOf, rating, (short) 24, row.y2());
+        addIfPresent(result, asOf, rating, (short) 36, row.y3());
+        addIfPresent(result, asOf, rating, (short) 60, row.y5());
+
+        return result;
+    }
+    private String normalizeRating(String category) {
+        if (category == null) return "UNKNOWN";
+        return category.trim();
+    }
+
+    private void addIfPresent(
+            List<BondYieldCurve> target,
+            LocalDate asOf,
+            String rating,
+            short tenorMonths,
+            BigDecimal yieldRate
+    ) {
+        if (yieldRate == null) return;
+
+        target.add(BondYieldCurve.builder()
+                .asOf(asOf)
+                .rating(rating)
+                .tenorMonths(tenorMonths)
+                .yieldRate(yieldRate)
+                .source(SOURCE)
+                .build());
+    }
+
+    private boolean isWeekend(LocalDate d) {
+        DayOfWeek w = d.getDayOfWeek();
+        return w == DayOfWeek.SATURDAY || w == DayOfWeek.SUNDAY;
+    }
+
 }

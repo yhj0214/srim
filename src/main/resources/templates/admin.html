@@ -52,18 +52,18 @@
             
             <div class="row g-3">
                 <div class="col-md-4">
-                    <button class="btn btn-success w-100" onclick="crawlMarket('all')">
+                    <button class="btn btn-success w-100" type="button" data-action="crawlMarket" data-market="all">
                         <i class="bi bi-arrow-repeat"></i> 전체 시장 크롤링
                     </button>
                     <small class="text-muted d-block mt-1">KOSPI + KOSDAQ</small>
                 </div>
                 <div class="col-md-4">
-                    <button class="btn btn-outline-success w-100" onclick="crawlMarket('KOSPI')">
+                    <button class="btn btn-outline-success w-100" type="button" data-action="crawlMarket" data-market="KOSPI">
                         <i class="bi bi-arrow-repeat"></i> KOSPI만 크롤링
                     </button>
                 </div>
                 <div class="col-md-4">
-                    <button class="btn btn-outline-success w-100" onclick="crawlMarket('KOSDAQ')">
+                    <button class="btn btn-outline-success w-100" type="button" data-action="crawlMarket" data-market="KOSDAQ">
                         <i class="bi bi-arrow-repeat"></i> KOSDAQ만 크롤링
                     </button>
                 </div>
@@ -121,6 +121,15 @@
     </div>
 
     <script>
+        (function () {
+        document.addEventListener('click', function (e) {
+            const btn = e.target.closest('button[data-action="crawlMarket"]');
+            if (!btn) return;
+            const market = btn.getAttribute('data-market');
+            if (!market) return;
+            crawlMarket(market);
+        });
+
         function crawlMarket(market) {
             const confirmMsg = market === 'all' 
                 ? 'KRX 전체 시장(KOSPI + KOSDAQ)을 크롤링하시겠습니까?\n시간이 다소 걸릴 수 있습니다.'
@@ -200,6 +209,7 @@
         function hideResult() {
             document.getElementById('crawlResult').style.display = 'none';
         }
+        })();
     </script>
 </main>
 </html>

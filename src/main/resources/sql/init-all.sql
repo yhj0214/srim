@@ -45,7 +45,8 @@ CREATE TABLE `company` (
 CREATE TABLE `stock_price` (
     `price_id`    BIGINT         NOT NULL AUTO_INCREMENT COMMENT 'PK: 스냅샷 ID',
     `company_id`     BIGINT         NOT NULL COMMENT 'FK → company.company_id',
-    `as_of`          DATETIME       NOT NULL COMMENT '수집 시각(현지시간)',
+    `as_of`          DATETIME       NULL COMMENT '수집 시각(현지시간)',
+    `trade_date`     DATE           NOT NULL COMMENT '거래일',
     `price`          DECIMAL(18,2)  NULL COMMENT '현재가/종가(원)',
     `open_price`     DECIMAL(18,2)  NULL COMMENT '시가(원)',
     `high_price`     DECIMAL(18,2)  NULL COMMENT '고가(원)',
@@ -171,7 +172,7 @@ CREATE TABLE `stock_share_status` (
       `company_id`       BIGINT       NOT NULL COMMENT 'FK: company.company_id',
       `bsns_year`        INT          NOT NULL COMMENT '사업연도(예: 2024)',
       `stlm_dt`          DATE         NOT NULL COMMENT '결산일(예: 2018-12-31)',
-      `se`               VARCHAR(20)  NOT NULL COMMENT '주식 종류(보통주/우선주/합계 등)',
+      `se`               VARCHAR(100)  NOT NULL COMMENT '주식 종류(보통주/우선주/합계 등)',
 
       `isu_stock_totqy`  BIGINT       NULL COMMENT '발행할 주식의 총수(정관상 한도)',
       `istc_totqy`       BIGINT       NULL COMMENT '발행주식의 총수(Ⅱ-Ⅲ, DART istc_totqy)',
@@ -241,7 +242,7 @@ CREATE TABLE `dart_fs_line` (
                                 `sj_div`             VARCHAR(4)    NOT NULL COMMENT '재무제표 양식 구분(BS/CIS/CF 등, sj_div)',
                                 `sj_nm`              VARCHAR(200)  NULL COMMENT '양식 명칭(재무상태표/포괄손익계산서/현금흐름표 등)',
 
-                                `account_id`         VARCHAR(200)  NOT NULL COMMENT '계정 ID(ifrs-full_Revenue 등, account_id)',
+                                `account_id`         VARCHAR(300)  NOT NULL COMMENT '계정 ID(ifrs-full_Revenue 등, account_id)',
                                 `account_nm`         VARCHAR(200)  NULL COMMENT '계정명(account_nm)',
                                 `account_detail`     VARCHAR(200)  NULL COMMENT '계정 세부 구분(account_detail)',
 
@@ -289,7 +290,7 @@ CREATE TABLE `dart_fs_line` (
  *   - 비즈니스 룰/매핑을 SQL로 관리하고 싶을 때 유용
  * =============================================================== */
 CREATE TABLE `fs_account_map` (
-      `account_id`   VARCHAR(200)  NOT NULL COMMENT 'DART account_id (ifrs-full_Revenue 등)',
+      `account_id`   VARCHAR(300)  NOT NULL COMMENT 'DART account_id (ifrs-full_Revenue 등)',
       `sj_div`       VARCHAR(4)    NOT NULL COMMENT '재무제표 양식 구분(BS/CIS/CF 등)',
       `metric_code`  VARCHAR(32)   NOT NULL COMMENT 'FK: fin_metric_def.metric_code',
       `priority`     TINYINT       NOT NULL DEFAULT 1 COMMENT '여러 매핑 존재 시 우선순위(1=기본)',
@@ -317,7 +318,7 @@ CREATE TABLE `fs_account_map` (
 CREATE TABLE `fs_required_account` (
        `id`           BIGINT        NOT NULL AUTO_INCREMENT COMMENT 'PK',
        `sj_div`       VARCHAR(4)    NOT NULL COMMENT '재무제표 양식(BS/CIS/CF 등)',
-       `account_id`   VARCHAR(200)  NOT NULL COMMENT '필수로 봐야 하는 DART account_id',
+       `account_id`   VARCHAR(300)  NOT NULL COMMENT '필수로 봐야 하는 DART account_id',
        `account_nm`   VARCHAR(200)  NULL COMMENT '계정명(설명용)',
        `is_required`  TINYINT(1)    NOT NULL DEFAULT 1 COMMENT '필수 여부(1=필수, 0=선택)',
        `notes`        VARCHAR(300)  NULL COMMENT '비고(적용 조건 등)',

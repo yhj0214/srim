@@ -84,40 +84,71 @@ public class CrawlingService {
 
         log.debug("DART 주식수 응답 {}건 - corpCode={}, year={}", rows.size(), corpCode, year);
 
-        List<StockShareStatus> entities = rows.stream()
-                .filter(row -> !"비고".equals(row.getSe()))
-                .map(row -> {
+        for (DartShareStatusRow row : rows) {
 
-                    Integer bsnsYear = row.getBsnsYear() != null ? row.getBsnsYear() : year;
+            // '비고' 행은 저장대상 아님
+            if ("비고".equals(row.getSe())) {
+                continue;
+            }
 
-                    Long istc  = row.getIstcTotqy();
-                    Long self  = row.getTesstkCo();
-                    Long distb = row.getDistbStockCo();
-                    if (distb == null && istc != null && self != null) {
-                        distb = istc - self;
-                    }
+            // 1) 사업연도 보정
+            Integer bsnsYear = (row.getBsnsYear() != null) ? row.getBsnsYear() : year;
+            String  se       = row.getSe();
 
-                    return StockShareStatus.builder()
-                            .company(company)
-                            .bsnsYear(bsnsYear)
-                            .settlementDate(row.getStlmDt())
-                            .se(row.getSe())
-                            .isuStockTotqy(row.getIsuStockTotqy())
-                            .istcTotqy(row.getIstcTotqy())
-                            .tesstkCo(row.getTesstkCo())
-                            .distbStockCo(distb)
-                            .build();
-                })
-                .toList();
+            // 2) 유통주식수 계산
+            Long istc  = row.getIstcTotqy();
+            Long self  = row.getTesstkCo();
+            Long distb = row.getDistbStockCo();
+            if (distb == null && istc != null && self != null) {
+                distb = istc - self;
+            }
 
-        for(StockShareStatus entity : entities) {
-            log.debug("저장할 주식수 정보: {}", entity);
+            // 3) 기존 데이터 조회 (companyId + bsnsYear + se)
+            Optional<StockShareStatus> existingOpt =
+                    shareStatusRepository.findByCompany_CompanyIdAndBsnsYearAndSe(companyId, bsnsYear, se);
+
+            StockShareStatus entity;
+
+            if (existingOpt.isPresent()) {
+                // ── 이미 존재 → 같은 ID로 UPDATE용 엔티티 생성
+                StockShareStatus existing = existingOpt.get();
+
+                entity = StockShareStatus.builder()
+                        .stockStatusId(existing.getStockStatusId()) // ★ ID 유지 → UPDATE
+                        .company(existing.getCompany())             // 또는 company
+                        .bsnsYear(bsnsYear)
+                        .settlementDate(row.getStlmDt())
+                        .se(se)
+                        .isuStockTotqy(row.getIsuStockTotqy())
+                        .istcTotqy(istc)
+                        .tesstkCo(self)
+                        .distbStockCo(distb)
+                        .build();
+
+                log.debug("기존 주식수 정보 업데이트 대상: {}", entity);
+
+            } else {
+                // ── 없는 경우 → 신규 INSERT
+                entity = StockShareStatus.builder()
+                        .company(company)
+                        .bsnsYear(bsnsYear)
+                        .settlementDate(row.getStlmDt())
+                        .se(se)
+                        .isuStockTotqy(row.getIsuStockTotqy())
+                        .istcTotqy(istc)
+                        .tesstkCo(self)
+                        .distbStockCo(distb)
+                        .build();
+
+                log.debug("신규 주식수 정보 생성: {}", entity);
+            }
+
+            // JPA: id 있으면 UPDATE, 없으면 INSERT
+            shareStatusRepository.save(entity);
         }
-        shareStatusRepository.saveAll(entities);
 
-        log.debug("주식수 {}건 저장 완료 - corpCode={}, companyId={}, year={}",
-                entities.size(), corpCode, companyId, year);
-
+        log.debug("주식수 저장/업데이트 완료 - corpCode={}, companyId={}, year={}",
+                corpCode, companyId, year);
     }
 
     private DartFsFiling createOrGetFiling(String corpCode, Long companyId, DartFsRow firstRow) {
@@ -171,7 +202,8 @@ public class CrawlingService {
         List<StockPrice> entities = daliyPrices.stream()
                 .map(price -> StockPrice.builder()
                         .company(company)
-                        .asOf(LocalDateTime.now())
+                        .tradeDate(price.getDate())  // 거래일 설정 (필수!)
+                        .asOf(LocalDateTime.now())   // 수집 시각
                         .price(price.getClose())
                         .openPrice(price.getOpen())
                         .highPrice(price.getHigh())
@@ -182,6 +214,8 @@ public class CrawlingService {
                 .toList();
 
         stockPriceRepository.saveAll(entities);
+
+        log.info("주가 수집 개수 : {}", entities.size());
         return entities.size();
     }
 }

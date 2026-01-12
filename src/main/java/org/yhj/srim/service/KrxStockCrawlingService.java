@@ -109,6 +109,7 @@ public class KrxStockCrawlingService {
 
             int savedCount = 0;
             for (StockCode stockCode : stockCodes) {
+                if(savedCount > 60) break;
                 try {
                     Optional<StockCode> existing = stockCodeRepository
                             .findByMarketAndTickerKrx(stockCode.getMarket(), stockCode.getTickerKrx());
@@ -381,8 +382,8 @@ public class KrxStockCrawlingService {
         
         try {
             total += crawlAndSaveStockList("KOSPI");
-            Thread.sleep(2000);
-            total += crawlAndSaveStockList("KOSDAQ");
+//            Thread.sleep(2000);
+//            total += crawlAndSaveStockList("KOSDAQ");
         } catch (Exception e) {
             log.error("크롤링 실패", e);
         }

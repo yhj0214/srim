@@ -41,6 +41,9 @@ public class NaverClient {
 
         int page = 1;
         boolean done = false;
+        final int MAX_PAGE = 1000;
+
+        LocalDate lastMinDate = null;
 
         while(!done) {
             String url = String.format(BASE_URL, tickerKrx, page);
@@ -54,6 +57,7 @@ public class NaverClient {
 
                 Elements rows = doc.select("table.type2 tr");
                 boolean hasDataInPage = false;
+                LocalDate pageMinDate = null; // 이 페이지에서 가장 오래된 날짜
 
                 for(Element row : rows){
                     Elements tds = row.select("td");
@@ -74,10 +78,15 @@ public class NaverClient {
 
                     LocalDate date = parseDate(dateText);
 
+                    if (pageMinDate == null || date.isBefore(pageMinDate)) {
+                        pageMinDate = date;
+                    }
+
                     if (date.isAfter(end)) continue;
+
                     if (date.isBefore(start)) {
                         done = true;
-                        continue;
+                        break; // 이 페이지 루프 종료
                     }
 
                     BigDecimal open  = parseDecimal(openText);
@@ -89,19 +98,34 @@ public class NaverClient {
                     result.add(new DaliyPrice(date, open, high, low, close, volume));
                 }
                 if (!hasDataInPage) {
+                    log.debug("더 이상 데이터가 없는 페이지(page={})입니다. 크롤링 종료.", page);
                     break;
                 }
 
+                if (pageMinDate != null && lastMinDate != null
+                        && !pageMinDate.isBefore(lastMinDate)) {
+                    log.debug("이전 페이지보다 더 오래된 데이터가 없어 반복이 감지되어 종료합니다. " +
+                            "page={}, pageMinDate={}, lastMinDate={}", page, pageMinDate, lastMinDate);
+                    break;
+                }
+                lastMinDate = pageMinDate;
+
                 if (done) {
+                    log.debug("요청 start 이전 날짜까지 도달하여 크롤링 종료. page={}", page);
                     break;
                 }
 
                 page++;
 
             } catch (Exception e){
-
+                log.error("네이버 일별 시세 크롤링 중 오류 발생 - code={}, page={}, msg={}",
+                        tickerKrx, page, e.getMessage(), e);
+                break;
             }
         }
+
+        log.info("네이버 일별 시세 크롤링 완료 - code={}, start={}, end={}, pages={}, count={}",
+                tickerKrx, start, end, page - 1, result.size());
 
         return result;
     }

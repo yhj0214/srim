@@ -34,7 +34,7 @@ public class DartFsLine {
     @Column(name = "sj_nm", length = 200)
     private String sjNm;
 
-    @Column(name = "account_id", length = 200, nullable = false)
+    @Column(name = "account_id", length = 300, nullable = false)
     private String accountId;
 
     @Column(name = "account_nm", length = 200)

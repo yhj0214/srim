@@ -65,6 +65,11 @@ dependencies {
     testAnnotationProcessor 'org.projectlombok:lombok:1.18.36'
 }
 
+test {
+    systemProperty "javax.net.ssl.trustStoreType", "Windows-ROOT"
+//    jvmArgs "-Djavax.net.debug=ssl,handshake,trustmanager"
+}
+
 tasks.named('test') {
     useJUnitPlatform()
 }
