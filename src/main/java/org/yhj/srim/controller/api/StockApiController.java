@@ -13,7 +13,6 @@ import org.yhj.srim.controller.dto.ApiResponse;
 import org.yhj.srim.facade.ManagementFacade;
 import org.yhj.srim.facade.PriceChartFacadeService;
 import org.yhj.srim.service.StockService;
-import org.yhj.srim.service.StockPriceService;
 import org.yhj.srim.service.dto.StockDto;
 import org.yhj.srim.service.dto.StockPriceDto;
 
@@ -26,7 +25,6 @@ import java.time.LocalDate;
 public class StockApiController {
 
     private final StockService stockService;
-    private final StockPriceService stockPriceService;
     private final PriceChartFacadeService priceChartFacadeService;
     private final ManagementFacade managementFacade;
 

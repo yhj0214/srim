@@ -32,13 +32,6 @@ public class HomeViewController {
         return "bond-yields";
     }
 
-    /**
-     * S-RIM 적정가 계산 페이지
-     */
-    @GetMapping("/srim")
-    public String srim() {
-        return "srim";
-    }
 
     @GetMapping("/admin")
     public String admin(){

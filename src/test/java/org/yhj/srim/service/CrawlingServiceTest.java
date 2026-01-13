@@ -35,8 +35,7 @@ class CrawlingServiceTest {
 
     @MockitoBean
     NaverClient naverClient;
-    @Autowired
-    private StockPriceService stockPriceService;
+    
     @Autowired
     private StockPriceRepository stockPriceRepository;
 
