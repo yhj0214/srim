@@ -1,4 +1,4 @@
-package org.yhj.srim.service;
+package org.yhj.srim.service.crawl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,21 +11,20 @@ import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.yhj.srim.common.exception.CustomException;
+import org.yhj.srim.common.exception.code.CrawlingErrorCode;
+import org.yhj.srim.common.exception.code.ErrorCode;
 import org.yhj.srim.repository.StockCodeRepository;
 import org.yhj.srim.repository.entity.StockCode;
+import org.yhj.srim.service.crawl.dto.StockCodeDraft;
 
 import java.io.IOException;
-import java.nio.charset.Charset;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /**
  * KRX 상장법인목록 크롤링 서비스
@@ -41,35 +40,12 @@ public class KrxStockCrawlingService {
     private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
 
     // https://kind.krx.co.kr/corpgeneral/corpList.do?method=download&searchType=13&currentPageSize=5000&pageIndex=1&marketType=stockMkt&OrderMode=3&orderStat=D&fiscalYearEnd=all&location=all
-    @Transactional
     @Retryable(maxAttempts = 3, backoff = @Backoff(delay = 2000))
-    public int crawlAndSaveStockList(String marketType) {
+    public List<StockCodeDraft> fetchStockList(String marketType) {
+
+        String fullUrl = buildUrl(marketType);
+
         try {
-            log.info("KRX 상장법인 목록 크롤링 시작 - 시장구분: {}", marketType != null ? marketType : "전체");
-
-            String searchType = "13";
-            String marketTypeParam = "";
-            if ("KOSPI".equalsIgnoreCase(marketType)) {
-                marketTypeParam = "&marketType=stockMkt";
-            } else if ("KOSDAQ".equalsIgnoreCase(marketType)) {
-                marketTypeParam = "&marketType=kosdaqMkt";
-            }
-
-            // URL에 파라미터를 직접 포함시켜서 전체 데이터 요청
-            // method=download&searchType=13&currentPageSize=5000&pageIndex=1&marketType=stockMkt&OrderMode=3&orderStat=D&fiscalYearEnd=all&location=all
-            String fullUrl = KRX_CORP_LIST_URL
-                    + "?method=download"
-                    + "&searchType=" + searchType
-                    + "&currentPageSize=5000"    // 전체 데이터 요청
-                    + "&pageIndex=1"
-                    + marketTypeParam
-                    + "&OrderMode=3"
-                    + "&orderStat=D"
-                    + "&fiscalYearEnd=all"
-                    + "&location=all";
-
-            log.info("요청 URL: {}", fullUrl);
-
             Connection.Response response = Jsoup.connect(fullUrl)
                     .method(Connection.Method.GET)
                     .userAgent(USER_AGENT)
@@ -81,72 +57,57 @@ public class KrxStockCrawlingService {
                     .maxBodySize(0)   // 무제한 크기 허용
                     .execute();
 
-            // EUC-KR 인코딩 처리
+
             byte[] bodyBytes = response.bodyAsBytes();
             String content = new String(bodyBytes, "EUC-KR");
             String contentType = response.contentType();
 
-            log.info("응답 길이: {}", content.length());
-            log.info("응답 컨텐츠 타입: {}", contentType);
-            log.info("응답 내용 첫 500자:");
-            log.info(content.substring(0, Math.min(500, content.length())));
-
-            List<StockCode> stockCodes;
-
-            // HTML인지 CSV인지 판단
-            if (content.trim().startsWith("<") || content.contains("<html") || content.contains("<table")) {
-                log.info("HTML 형식으로 판단, HTML 파싱 시도");
-                stockCodes = parseHtmlData(content, marketType);
-            } else {
-                log.info("CSV 형식으로 판단, CSV 파싱 시도");
-                stockCodes = parseCsvData(content, marketType);
-            }
-
-            if (stockCodes.isEmpty()) {
-                log.warn("크롤링된 데이터가 없습니다.");
-                return 0;
-            }
-
-            int savedCount = 0;
-            for (StockCode stockCode : stockCodes) {
-                if(savedCount > 60) break;
-                try {
-                    Optional<StockCode> existing = stockCodeRepository
-                            .findByMarketAndTickerKrx(stockCode.getMarket(), stockCode.getTickerKrx());
-
-                    if (existing.isPresent()) {
-                        StockCode existingStock = existing.get();
-                        existingStock.setCompanyName(stockCode.getCompanyName());
-                        existingStock.setIndustry(stockCode.getIndustry());
-                        existingStock.setListingDate(stockCode.getListingDate());
-                        existingStock.setRegion(stockCode.getRegion());
-                        stockCodeRepository.save(existingStock);
-                    } else {
-                        stockCodeRepository.save(stockCode);
-                    }
-
-                    savedCount++;
-
-                } catch (Exception e) {
-                    log.error("종목 저장 실패: {}", stockCode.getCompanyName(), e);
-                }
-            }
-
-            log.info("KRX 크롤링 완료 - {} 건 처리", savedCount);
-            return savedCount;
-
+            if(looksHtml(content)) return parseHtmlData(content, marketType);
+            return parseCsvData(content, marketType);
         } catch (IOException e) {
             log.error("KRX 크롤링 실패", e);
-            throw new RuntimeException("KRX 서버 연결 실패: " + e.getMessage(), e);
+            throw new CustomException(CrawlingErrorCode.KRX_REQUEST_FAILED);
         }
+
+
     }
 
+    private boolean looksHtml(String content) {
+        String t = content.trim();
+        return t.startsWith("<") || t.contains("<html") || t.contains("<table");
+    }
+
+    private String buildUrl(String marketType) {
+
+        String searchType = "13";
+        String marketTypeParam = "";
+        if ("KOSPI".equalsIgnoreCase(marketType)) {
+            marketTypeParam = "&marketType=stockMkt";
+        } else if ("KOSDAQ".equalsIgnoreCase(marketType)) {
+            marketTypeParam = "&marketType=kosdaqMkt";
+        }
+
+        // URL에 파라미터를 직접 포함시켜서 전체 데이터 요청
+        // method=download&searchType=13&currentPageSize=5000&pageIndex=1&marketType=stockMkt&OrderMode=3&orderStat=D&fiscalYearEnd=all&location=all
+        String fullUrl = KRX_CORP_LIST_URL
+                + "?method=download"
+                + "&searchType=" + searchType
+                + "&currentPageSize=5000"    // 전체 데이터 요청
+                + "&pageIndex=1"
+                + marketTypeParam
+                + "&OrderMode=3"
+                + "&orderStat=D"
+                + "&fiscalYearEnd=all"
+                + "&location=all";
+
+        return fullUrl;
+    }
 
     /**
      * HTML 테이블 파싱
      */
-    private List<StockCode> parseHtmlData(String htmlContent, String defaultMarket) {
-        List<StockCode> stockCodes = new ArrayList<>();
+    private List<StockCodeDraft> parseHtmlData(String htmlContent, String defaultMarket) {
+        List<StockCodeDraft> stockCodes = new ArrayList<>();
 
         try {
             Document doc = Jsoup.parse(htmlContent);
@@ -204,8 +165,8 @@ public class KrxStockCrawlingService {
                     if (market == null) {
                         market = "KOSPI";
                     }
-                    
-                    StockCode stockCode = StockCode.builder()
+
+                    StockCodeDraft stockCodeDraft = StockCodeDraft.builder()
                             .tickerKrx(tickerKrx)
                             .companyName(companyName)
                             .industry(industry)
@@ -216,7 +177,7 @@ public class KrxStockCrawlingService {
                             .market(market)
                             .build();
                     
-                    stockCodes.add(stockCode);
+                    stockCodes.add(stockCodeDraft);
                     
                 } catch (Exception e) {
                     log.debug("행 파싱 실패: {}", row.text(), e);
@@ -235,8 +196,8 @@ public class KrxStockCrawlingService {
     /**
      * CSV 데이터 파싱
      */
-    private List<StockCode> parseCsvData(String csvContent, String defaultMarket) {
-        List<StockCode> stockCodes = new ArrayList<>();
+    private List<StockCodeDraft> parseCsvData(String csvContent, String defaultMarket) {
+        List<StockCodeDraft> stockCodes = new ArrayList<>();
 
         try {
             String[] lines = csvContent.split("\n");
@@ -261,7 +222,7 @@ public class KrxStockCrawlingService {
                 if (line.isEmpty()) continue;
 
                 try {
-                    StockCode stockCode = parseCsvLine(line, defaultMarket);
+                    StockCodeDraft stockCode = parseCsvLine(line, defaultMarket);
                     if (stockCode != null) {
                         stockCodes.add(stockCode);
                     }
@@ -279,7 +240,7 @@ public class KrxStockCrawlingService {
         return stockCodes;
     }
 
-    private StockCode parseCsvLine(String line, String defaultMarket) {
+    private StockCodeDraft parseCsvLine(String line, String defaultMarket) {
         List<String> columns = parseCsvColumns(line);
 
         if (columns.size() < 3) {
@@ -301,7 +262,7 @@ public class KrxStockCrawlingService {
 
         String market = defaultMarket != null ? defaultMarket : "KOSPI";
 
-        return StockCode.builder()
+        return StockCodeDraft.builder()
                 .tickerKrx(tickerKrx)
                 .companyName(companyName)
                 .industry(industry)
@@ -374,22 +335,6 @@ public class KrxStockCrawlingService {
         return null;
     }
 
-    @Transactional
-    public int crawlAllMarkets() {
-        log.info("전체 시장 크롤링 시작");
-        
-        int total = 0;
-        
-        try {
-            total += crawlAndSaveStockList("KOSPI");
-//            Thread.sleep(2000);
-//            total += crawlAndSaveStockList("KOSDAQ");
-        } catch (Exception e) {
-            log.error("크롤링 실패", e);
-        }
-
-        return total;
-    }
 
     @Transactional(readOnly = true)
     public Map<String, Long> getStockCountByMarket() {

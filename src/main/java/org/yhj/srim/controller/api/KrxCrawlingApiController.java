@@ -6,10 +6,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.yhj.srim.controller.dto.ApiResponse;
 import org.yhj.srim.controller.dto.CrawlAllMarketsResult;
-import org.yhj.srim.facade.FinancialFacadeService;
-import org.yhj.srim.facade.ManagementFacade;
-import org.yhj.srim.service.DartCorpCodeSyncService;
-import org.yhj.srim.service.KrxStockCrawlingService;
+import org.yhj.srim.service.facade.ManagementFacade;
+import org.yhj.srim.service.crawl.KrxStockCrawlingService;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -24,8 +22,6 @@ import java.util.Map;
 public class KrxCrawlingApiController {
 
     private final KrxStockCrawlingService krxStockCrawlingService;
-    private final DartCorpCodeSyncService dartCorpCodeSyncService;
-    private final FinancialFacadeService financialFacadeService;
     private final ManagementFacade managementFacade;
 
     /**
@@ -38,38 +34,19 @@ public class KrxCrawlingApiController {
         return ApiResponse.success(managementFacade.initializeAll());
     }
 
+    @PostMapping("/all/step1")
+    public ApiResponse<CrawlAllMarketsResult> crawlAllMarketsStep1() {
+        log.info("전체 시장 크롤링 요청 (STEP1)");
+        return ApiResponse.success(managementFacade.step1MarketSync());
+    }
+
     @GetMapping("/stocks/{tickerKrx}")
-    public ApiResponse<Void> crawlingStockInfo(@PathVariable Long tickerKrx){
+    public ApiResponse<Void> crawlingStockInfo(@PathVariable String tickerKrx){
         log.info("stickerKrx : {}", tickerKrx);
         managementFacade.findStockInfo(tickerKrx);
         return ApiResponse.success("요청에 성공하였습니다.", null);
     }
 
-    /**
-     * 특정 시장 크롤링
-     * POST /api/crawling/krx?market=KOSPI
-     */
-    @PostMapping
-    public ResponseEntity<ApiResponse<Map<String, Object>>> crawlMarket(
-            @RequestParam(required = false) String market) {
-        try {
-            log.info("시장 크롤링 요청 - market: {}", market);
-            
-            int count = krxStockCrawlingService.crawlAndSaveStockList(market);
-            
-            Map<String, Object> result = new HashMap<>();
-            result.put("market", market != null ? market : "전체");
-            result.put("count", count);
-            result.put("message", "크롤링이 완료되었습니다.");
-            
-            return ResponseEntity.ok(ApiResponse.success(result));
-            
-        } catch (Exception e) {
-            log.error("크롤링 실패", e);
-            return ResponseEntity.internalServerError()
-                    .body(ApiResponse.error("크롤링 중 오류가 발생했습니다: " + e.getMessage()));
-        }
-    }
 
     /**
      * 시장별 종목 수 조회

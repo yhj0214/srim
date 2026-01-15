@@ -14,6 +14,7 @@ import org.yhj.srim.repository.StockPriceRepository;
 import org.yhj.srim.repository.entity.Company;
 import org.yhj.srim.repository.entity.StockCode;
 import org.yhj.srim.repository.entity.StockPrice;
+import org.yhj.srim.service.crawl.CrawlingService;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
