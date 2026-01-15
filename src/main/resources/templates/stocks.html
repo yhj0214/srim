@@ -1,173 +1,103 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: layout(~{::main})}">
-<main>
-    <!-- 페이지 헤더 -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>
-            <i class="bi bi-list-ul"></i> 종목 목록
-        </h2>
-        <div>
-            <button class="btn btn-success me-2" type="button" data-action="crawlKrxStocks">
-                <i class="bi bi-arrow-repeat"></i> KRX 크롤링
-            </button>
-            <span class="text-muted">
-                총 <strong th:text="${stocks.totalElements}">0</strong>개 종목
-            </span>
-        </div>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+    th:replace="~{layout :: layout(~{::section})}">
+
+<body>
+<section class="page" data-page="stocks">
+    <h1 class="page__title">종목 목록</h1>
+
+    <!-- 검색 -->
+    <form class="searchInline" th:action="@{/stocks}" method="get">
+        <input
+            class="searchInline__input"
+            type="text"
+            name="q"
+            th:value="${keyword}"
+            placeholder="회사명 또는 종목코드 검색"
+            autocomplete="off"
+        />
+
+        <button class="searchInline__btn" type="submit">검색</button>
+    </form>
+
+    <!-- 결과 요약 -->
+    <p class="muted" th:if="${stocks != null}">
+        총 <span class="badge" th:text="${stocks.totalElements}">0</span>개 (현재 <span th:text="${stocks.number + 1}">1</span> / <span th:text="${stocks.totalPages}">1</span> 페이지)
+    </p>
+
+    <!-- 테이블 -->
+    <div class="tableWrap" th:if="${stocks != null && stocks.content != null && !stocks.content.isEmpty()}">
+        <table class="table">
+            <thead>
+            <tr>
+                <th>회사명</th>
+                <th>종목코드</th>
+                <th>시장</th>
+                <th class="hideSm">업종</th>
+                <th class="hideSm">상장일</th>
+            </tr>
+            </thead>
+
+            <tbody>
+            <tr th:each="s : ${stocks.content}">
+                <td>
+                    <a class="link"
+                       th:href="@{/stocks/{key}(key=${s.market + '-' + s.tickerKrx})}"
+                       th:text="${s.companyName}">
+                        회사명
+                    </a>
+                </td>
+                <td th:text="${s.tickerKrx}">000000</td>
+                <td th:text="${s.market}">KOSPI</td>
+                <td class="hideSm" th:text="${s.industry}">업종</td>
+                <td class="hideSm" th:text="${s.listingDate}">2024-01-01</td>
+            </tr>
+            </tbody>
+        </table>
     </div>
 
-    <!-- 검색 폼 -->
-    <div class="card mb-4">
-        <div class="card-body">
-            <form action="/stocks" method="get" class="row g-3">
-                <div class="col-md-10">
-                    <input type="text" 
-                           class="form-control" 
-                           name="q" 
-                           th:value="${keyword}"
-                           placeholder="종목명 또는 종목코드 검색...">
-                </div>
-                <div class="col-md-2">
-                    <button type="submit" class="btn btn-primary w-100">
-                        <i class="bi bi-search"></i> 검색
-                    </button>
-                </div>
-            </form>
-        </div>
+    <p class="empty" th:if="${stocks == null || stocks.content == null || stocks.content.isEmpty()}">
+        조회된 종목이 없습니다.
+    </p>
+
+    <!-- 페이징 -->
+    <div class="pager" th:if="${stocks != null && stocks.totalPages > 1}"
+         th:with="
+          current=${stocks.number},
+          total=${stocks.totalPages},
+          size=${stocks.size},
+          blockSize=${T(java.lang.Integer).valueOf(5)},
+          start=${T(java.lang.Math).floorDiv(current, blockSize) * blockSize},
+          tmpEnd=${start + blockSize - 1},
+          end=${tmpEnd < total - 1 ? tmpEnd : total - 1}
+        ">
+
+        <!-- 이전 페이지 -->
+        <a class="pager__btn"
+           th:if="${stocks.hasPrevious()}"
+           th:href="@{/stocks(page=${current - 1}, size=${size}, q=${keyword})}">
+            이전
+        </a>
+        <span class="pager__btn pager__btn--disabled" th:if="${!stocks.hasPrevious()}">이전</span>
+
+        <!-- 페이지 번호(5개) -->
+        <a class="pager__num"
+           th:each="p : ${#numbers.sequence(start, end)}"
+           th:classappend="${p == current} ? ' is-active' : ''"
+           th:text="${p + 1}"
+           th:href="@{/stocks(page=${p}, size=${size}, q=${keyword})}">
+            1
+        </a>
+
+        <!-- 다음 페이지 -->
+        <a class="pager__btn"
+           th:if="${stocks.hasNext()}"
+           th:href="@{/stocks(page=${current + 1}, size=${size}, q=${keyword})}">
+            다음
+        </a>
+        <span class="pager__btn pager__btn--disabled" th:if="${!stocks.hasNext()}">다음</span>
     </div>
 
-    <!-- 종목 목록 테이블 -->
-    <div class="card">
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead class="table-light">
-                        <tr>
-                            <th>종목코드</th>
-                            <th>회사명</th>
-                            <th>시장</th>
-                            <th>업종</th>
-                            <th>상장일</th>
-                            <th>액션</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr th:each="stock : ${stocks.content}">
-                            <td>
-                                <code th:text="${stock.tickerKrx}">005930</code>
-                            </td>
-                            <td>
-                                <strong th:text="${stock.companyName}">삼성전자</strong>
-                            </td>
-                            <td>
-                                <span class="badge bg-primary" th:text="${stock.market}">KOSPI</span>
-                            </td>
-                            <td th:text="${stock.industry}">전기전자</td>
-                            <td th:text="${stock.listingDate != null ? #temporals.format(stock.listingDate, 'yyyy-MM-dd') : '-'}">1975-06-11</td>
-                            <td>
-                                <a th:href="@{'/stocks/' + ${stock.market} + '-' + ${stock.tickerKrx}}" 
-                                   class="btn btn-sm btn-outline-primary">
-                                    <i class="bi bi-eye"></i> 상세
-                                </a>
-                            </td>
-                        </tr>
-                        <tr th:if="${stocks.empty}">
-                            <td colspan="6" class="text-center text-muted py-4">
-                                <i class="bi bi-inbox display-4"></i>
-                                <p class="mt-3">검색 결과가 없습니다.</p>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- 페이징 -->
-            <nav th:if="${stocks.totalPages > 1}">
-                <ul class="pagination justify-content-center">
-                    <li class="page-item" th:classappend="${stocks.first} ? 'disabled'">
-                        <a class="page-link" 
-                           th:href="@{/stocks(q=${keyword}, page=${currentPage - 1})}">
-                            이전
-                        </a>
-                    </li>
-                    
-                    <li class="page-item" 
-                        th:each="i : ${#numbers.sequence(0, stocks.totalPages - 1)}"
-                        th:if="${i >= currentPage - 2 && i <= currentPage + 2}"
-                        th:classappend="${i == currentPage} ? 'active'">
-                        <a class="page-link" 
-                           th:href="@{/stocks(q=${keyword}, page=${i})}"
-                           th:text="${i + 1}">1</a>
-                    </li>
-                    
-                    <li class="page-item" th:classappend="${stocks.last} ? 'disabled'">
-                        <a class="page-link" 
-                           th:href="@{/stocks(q=${keyword}, page=${currentPage + 1})}">
-                            다음
-                        </a>
-                    </li>
-                </ul>
-            </nav>
-        </div>
-    </div>
-
-    <script>
-        (function () {
-            'use strict';
-
-            document.addEventListener('click', function (e) {
-                const btn = e.target.closest('button[data-action="crawlKrxStocks"]');
-                if (!btn) return;
-                crawlKrxStocks(btn);
-            });
-
-            function crawlKrxStocks(btn) {
-            if (!confirm('KRX에서 상장법인 목록을 크롤링하시겠습니까?\n시간이 다소 걸릴 수 있습니다.')) {
-                return;
-            }
-
-            const originalHtml = btn.innerHTML;
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>크롤링 중...';
-
-            fetch('/api/crawling/krx/all', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            })
-            .then(response => response.json())
-            .then(result => {
-                btn.disabled = false;
-                btn.innerHTML = originalHtml;
-
-                if (result.success) {
-                    const data = result.data || {};
-
-                    // 안전하게 값 꺼내기 (totalCount 대비도 남겨둠)
-                    const crawledCount = data.crawledCount ?? data.totalCount ?? 0;
-                    const mappedCount  = data.mappedCount ?? 0;
-
-                    alert(
-                        '크롤링이 완료되었습니다.\n'
-                        + '총 ' + crawledCount + '건의 데이터를 크롤링하였습니다.\n'
-                        + 'DART 상 ' + mappedCount + '건의 데이터가 매핑되었습니다.'
-                    );
-
-                    location.reload();
-                } else {
-                    alert('크롤링 실패: ' + result.message);
-                }
-            })
-            .catch(error => {
-                btn.disabled = false;
-                btn.innerHTML = originalHtml;
-                alert('네트워크 오류가 발생했습니다.');
-                console.error('Error:', error);
-            });
-        }
-
-        })();
-    </script>
-</main>
+</section>
+</body>
 </html>

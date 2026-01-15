@@ -1,91 +1,49 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" th:replace="~{layout :: layout(~{::main})}">
-<main>
-    <!-- 종목 헤더 -->
-    <div class="card mb-4">
-        <div class="card-body">
-            <div class="row align-items-center">
-                <div class="col-md-8">
-                    <h2 class="mb-2" th:text="${stock.companyName}">삼성전자</h2>
-                    <p class="text-muted mb-2">
-                        <code th:text="${stock.tickerKrx}">005930</code>
-                        <span class="badge bg-primary ms-2" th:text="${stock.market}">KOSPI</span>
-                    </p>
-                    <p class="mb-0">
-                        <small class="text-muted">
-                            <i class="bi bi-building"></i> <span th:text="${stock.industry}">전기전자</span>
-                            <span th:if="${stock.region}">
-                                · <i class="bi bi-geo-alt"></i> <span th:text="${stock.region}">서울</span>
-                            </span>
-                        </small>
-                    </p>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout :: layout(~{::section})}">
+
+    <body>
+        <section class="page" data-page="stock-detail"
+                 th:attr="data-market=${stock.market},
+                        data-ticker=${stock.tickerKrx},
+                        data-stock-id=${stock.stockId},
+                        data-company-id=${stock.companyId}">
+            <div class="detailHead">
+                <div>
+                    <h1 class="page__title" th:text="${stock.companyName}">회사명</h1>
+                    <div class="detailHead__meta">
+                        <span class="code" th:text="${stock.tickerKrx}">000000</span>
+                        <span class="badge" th:text="${stock.market}">KOSPI</span>
+                        <span class="muted" th:text="${stock.industry}">업종</span>
+                        <span class="muted" th:text="${stock.region}">지역</span>
+                    </div>
                 </div>
-                <div class="col-md-4 text-md-end">
-                    <a th:href="@{/stocks}" class="btn btn-outline-secondary">
-                        <i class="bi bi-arrow-left"></i> 목록으로
-                    </a>
+                <a class="btnOutline" th:href="@{/stocks(q=${param.q}, page=${param.page}, size=${param.size})}">← 목록으로</a>
+            </div>
+
+
+            <div class="tabs" role="tablist">
+                <button class="tab is-active" data-tab="srim" type="button">S-RIM</button>
+                <button class="tab" data-tab="financial" type="button">재무정보</button>
+                <button class="tab" data-tab="chart" type="button">그래프</button>
+            </div>
+
+            <div class="tabPanels">
+                <div class="tabPanel" data-panel="chart" hidden>
+                    <p class="muted">차트는 다음 단계에서 연결합니다.</p>
+                </div>
+
+                <div class="tabPanel" data-panel="financial" hidden>
+                    <p class="muted">재무정보는 다음 단계에서 연결합니다.</p>
+                </div>
+
+                <div class="tabPanel" data-panel="srim">
+                    <div id="srimResultContainer">
+                        <!-- JS가 여기다 렌더 -->
+                    </div>
                 </div>
             </div>
-        </div>
-    </div>
 
-    <!-- 탭 네비게이션 -->
-    <ul class="nav nav-tabs mb-4" id="stockTabs" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" 
-                    data-bs-target="#overview" type="button">
-                <i class="bi bi-info-circle"></i> 개요
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="chart-tab" data-bs-toggle="tab" 
-                    data-bs-target="#chart" type="button">
-                <i class="bi bi-graph-up"></i> 주가 그래프
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="financial-tab" data-bs-toggle="tab" 
-                    data-bs-target="#financial" type="button">
-                <i class="bi bi-table"></i> 재무정보
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="srim-tab" data-bs-toggle="tab" 
-                    data-bs-target="#srim" type="button">
-                <i class="bi bi-calculator"></i> S-RIM 평가
-            </button>
-        </li>
-    </ul>
-
-    <!-- 탭 컨텐츠 -->
-    <div class="tab-content" id="stockTabsContent">
-        <!-- 개요 탭 -->
-        <div th:replace="~{fragments/stock-detail/overview-tab :: overview-tab}"></div>
-
-        <!-- 주가 그래프 탭 -->
-        <div th:replace="~{fragments/stock-detail/chart-tab :: chart-tab}"></div>
-
-        <!-- 재무정보 탭 -->
-        <div th:replace="~{fragments/stock-detail/financial-tab :: financial-tab}"></div>
-
-        <!-- S-RIM 평가 탭 -->
-        <div th:replace="~{fragments/stock-detail/srim-tab :: srim-tab}"></div>
-    </div>
-
-    <!-- 공통 스타일 -->
-    <div th:replace="~{fragments/stock-detail/styles :: styles}"></div>
-
-    <!-- JavaScript 변수 전달 -->
-    <script th:inline="javascript">
-        // Thymeleaf 변수를 JavaScript 전역 변수로 전달
-        window.STOCK_ID = /*[[${stock.stockId}]]*/ null;
-        window.COMPANY_ID = /*[[${stock.companyId}]]*/ null;
-    </script>
-
-    <!-- JavaScript 파일들 -->
-    <script th:src="@{/js/stock-detail.js}"></script>
-    <script th:src="@{/js/stock-chart.js}"></script>
-    <script th:src="@{/js/stock-financial.js}"></script>
-    <script th:src="@{/js/stock-srim.js}"></script>
-</main>
+        </section>
+    </body>
 </html>
