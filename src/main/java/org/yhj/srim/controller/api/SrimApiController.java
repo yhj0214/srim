@@ -5,7 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.yhj.srim.controller.dto.ApiResponse;
-import org.yhj.srim.service.SrimService;
+import org.yhj.srim.service.domain.SrimService;
 import org.yhj.srim.service.dto.SrimResultDto;
 
 import java.time.LocalDate;

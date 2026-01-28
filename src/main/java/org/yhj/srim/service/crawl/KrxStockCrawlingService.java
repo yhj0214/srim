@@ -138,7 +138,7 @@ public class KrxStockCrawlingService {
                     
                     String companyName = cols.get(0).text().trim();
                     String marketFromData = cols.get(1).text().trim();  // 시장구분
-                    String tickerKrx = extractNumericCode(cols.get(2).text().trim());
+                    String tickerKrx = normalizeTicker(cols.get(2).text().trim());
                     String industry = cols.size() > 3 ? cols.get(3).text().trim() : null;
                     
                     if (tickerKrx.isEmpty() || companyName.isEmpty()) {
@@ -248,7 +248,7 @@ public class KrxStockCrawlingService {
         }
 
         String companyName = columns.get(0).trim();
-        String tickerKrx = extractNumericCode(columns.get(1).trim());
+        String tickerKrx = normalizeTicker(columns.get(1).trim());
         String industry = columns.size() > 2 ? columns.get(2).trim() : null;
         
         if (tickerKrx.isEmpty() || companyName.isEmpty()) {
@@ -293,8 +293,11 @@ public class KrxStockCrawlingService {
         return columns;
     }
 
-    private String extractNumericCode(String code) {
-        return code != null ? code.replaceAll("[^0-9]", "") : "";
+
+    private String normalizeTicker(String code) {
+        if (code == null) return "";
+        // 필요 최소: 공백/nbsp만 정리하고 원문 보존
+        return code.replace("\u00A0", " ").trim();
     }
 
     private LocalDate parseDate(String dateStr) {

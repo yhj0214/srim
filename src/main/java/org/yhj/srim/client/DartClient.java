@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
@@ -26,7 +27,6 @@ import java.util.List;
  * - 주식총수 크롤링
  */
 @Component
-@RequiredArgsConstructor
 @Slf4j
 public class DartClient {
 
@@ -34,11 +34,18 @@ public class DartClient {
     private static final String DART_FS_URL = "https://opendart.fss.or.kr/api/fnlttSinglAcntAll.json";
     private static final String DART_SHARE_URL = "https://opendart.fss.or.kr/api/stockTotqySttus.json";
 
-    @Value("${dart.api.key}")
-    private String apiKey;
+    private final String apiKey;
+    private final RestTemplate restTemplate;
+    private final ObjectMapper objectMapper;
 
-    private final RestTemplate restTemplate = new RestTemplate();
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    public DartClient(@Value("${dart.api.key}") String apiKey,
+                      @Qualifier("dartRestTemplate") RestTemplate restTemplate,
+                      ObjectMapper objectMapper) {
+        this.apiKey = apiKey;
+        this.restTemplate = restTemplate;
+        this.objectMapper = objectMapper;
+    }
+
 
 
     /**
@@ -71,12 +78,6 @@ public class DartClient {
             JsonNode listNode = root.get("list");
             if (listNode == null || !listNode.isArray()) {
                 return result;
-            }
-            for (JsonNode node : listNode) {
-                log.debug("RAW NODE: {}", node.toString());
-                log.debug("NODE account_id={}, account_nm={}",
-                        getText(node, "account_id"),
-                        getText(node, "account_nm"));
             }
             for (JsonNode node : listNode) {
                 DartFsRow row = new DartFsRow();
@@ -130,10 +131,10 @@ public class DartClient {
                 + "&corp_code=" + corpCode
                 + "&bsns_year=" + year
                 + "&reprt_code=11011";
-
+        log.debug("DART 주식수 현황 조회 url : {}", url);
         ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
         String body = response.getBody();
-
+        log.debug("주식현황 파싱 전 data : {}", body);
         return parseShareResponse(body);
     }
     private List<DartShareStatusRow> parseShareResponse(String json) {
@@ -208,37 +209,75 @@ public class DartClient {
     }
 
 
+    private boolean isNullLike(String s) {
+        if (s == null) return true;
+        String t = s.trim();
+        if (t.isEmpty()) return true;
+
+        // [ADD] null/대시류/NA 류 방어
+        String upper = t.toUpperCase();
+        return "-".equals(t)
+                || "—".equals(t)
+                || "–".equals(t)
+                || "NULL".equals(upper)
+                || "N/A".equals(upper);
+    }
+
+    private String normalizeNumberText(String raw) {
+        if (raw == null) return null;
+        String t = raw.trim();
+        if (isNullLike(t)) return null;
+
+        t = t.replace(",", "");
+
+        // 괄호 음수: (123) -> -123
+        if (t.startsWith("(") && t.endsWith(")")) {
+            t = "-" + t.substring(1, t.length() - 1).trim();
+        }
+
+        return t;
+    }
 
 
     private String getText(JsonNode node, String field) {
         JsonNode v = node.get(field);
-        return (v == null || v.isNull()) ? null : v.asText();
+        if (v == null || v.isNull()) return null;
+
+        String t = v.asText();
+        return isNullLike(t) ? null : t;
     }
 
     private int getInt(JsonNode node, String field) {
         JsonNode v = node.get(field);
-        if (v == null || v.isNull() || v.asText().isBlank()) return 0;
-        return v.asInt();
+        if (v == null || v.isNull()) return 0;
+
+        String t = normalizeNumberText(v.asText());
+        if (t == null) return 0;
+        return Integer.parseInt(t);
     }
     private Integer getInteger(JsonNode node, String field) {
         JsonNode v = node.get(field);
-        if (v == null || v.isNull() || v.asText().isBlank()) return null;
-        return v.asInt();
+        if (v == null || v.isNull()) return null;
+
+        String t = normalizeNumberText(v.asText());
+        if (t == null) return null;
+        return Integer.valueOf(t);
     }
 
     private BigDecimal getBigDecimal(JsonNode node, String field) {
         JsonNode v = node.get(field);
         if (v == null || v.isNull()) return null;
-        String text = v.asText().replaceAll(",", "").trim();
-        if (text.isEmpty() || "-".equals(text)) return null;
-        return new BigDecimal(text);
+
+        String t = normalizeNumberText(v.asText());
+        if (t == null) return null;
+        return new BigDecimal(t);
     }
 
     private Long parseLong(JsonNode node, String field) {
         JsonNode v = node.get(field);
         if (v == null || v.isNull()) return null;
-        String text = v.asText().replaceAll(",", "").trim();
-        if (text.isEmpty() || "-".equals(text)) return null;
-        return Long.parseLong(text);
+        String t = normalizeNumberText(v.asText());
+        if (t == null) return null;
+        return Long.parseLong(t);
     }
 }

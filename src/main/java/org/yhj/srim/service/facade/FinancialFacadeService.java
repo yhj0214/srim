@@ -1,20 +1,24 @@
-package org.yhj.srim.facade;
+package org.yhj.srim.service.facade;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.yhj.srim.client.KisSpreadClient;
+import org.yhj.srim.client.dto.DartFsRow;
+import org.yhj.srim.client.dto.DartShareStatusRow;
 import org.yhj.srim.client.dto.KisSpreadRow;
 import org.yhj.srim.common.exception.CustomException;
 import org.yhj.srim.common.exception.code.StockErrorCode;
 import org.yhj.srim.controller.dto.CrawlAllMarketsResult;
 import org.yhj.srim.repository.*;
 import org.yhj.srim.repository.entity.*;
-import org.yhj.srim.service.CrawlingService;
-import org.yhj.srim.service.DartCorpCodeSyncService;
-import org.yhj.srim.service.FinancialService;
-import org.yhj.srim.service.KrxStockCrawlingService;
+import org.yhj.srim.service.crawl.CrawlingService;
+import org.yhj.srim.service.crawl.dto.StockCodeDraft;
+import org.yhj.srim.service.domain.DartCorpCodeSyncService;
+import org.yhj.srim.service.domain.FinancialService;
+import org.yhj.srim.service.crawl.KrxStockCrawlingService;
+import org.yhj.srim.service.domain.StockService;
 import org.yhj.srim.service.dto.FinancialTableDto;
 
 import java.math.BigDecimal;
@@ -30,15 +34,15 @@ import java.util.stream.Collectors;
 public class FinancialFacadeService {
 
     private final KrxStockCrawlingService krxStockCrawlingService;
+    private final CrawlingService crawlingService;
+    private final KisSpreadClient kisSpreadClient;
+    private final StockService stockService;
+
     private final DartCorpCodeSyncService dartCorpCodeSyncService;
     private final FinancialService financialService;
-    private final CrawlingService crawlingService;
     private final FinPeriodRepository finPeriodRepository;
     private final FinMetricDefRepository finMetricDefRepository;
     private final FinMetricValueRepository finMetricValueRepository;
-    private final CompanyRepository companyRepository;
-    private final StockCodeRepository stockCodeRepository;
-    private final KisSpreadClient kisSpreadClient;
     private final BondYieldCurveRepository bondYieldCurveRepository;
 
     private static final int CHUNK_DAYS = 50;
@@ -49,42 +53,28 @@ public class FinancialFacadeService {
      * 2. 재무제표, 주식 수 크롤링 및 저장
      * 3. 저장된 값들로 지표 계산 및 financialTableDto생성
      */
-    public FinancialTableDto getAnnualTable(Long stockId, int limit) {
-        Optional<Company> existingOpt = financialService.findCompanyByStockId(stockId);
+    public Company crawlAnnualTable(Long stockId, int limit) {
 
-        Company company;
-        boolean isNewCompany = false;
+        return financialService.findCompanyByStockId(stockId)
+                .orElseGet(() ->{
 
-        if (existingOpt.isPresent()) {
-            // 기존 회사
-            company = existingOpt.get();
-            log.info("기존 Company, 저장된 데이터로 조회만 실행 - companyId={}", company.getCompanyId());
-        } else {
-            // 신규 회사
-            company = financialService.getOrCreateCompany(stockId);
-            isNewCompany = true;
-            log.info("신규 Company, 전체 크롤링 및 저장 실행 - companyId={}", company.getCompanyId());
-        }
+                    Company company = financialService.createCompany(stockId);
+                    log.info("신규 company 생성 : stockId = {}, companyId = {}", stockId, company.getCompanyId());
 
-        // 신규 회사인 경우 전체 파이프라인 실행
-        if (isNewCompany) {
-
-            StockCode stockCode = company.getStockCode();
-            String corpCode = (stockCode != null) ? stockCode.getDartCorpCode() : null;
-
-            if (corpCode == null || corpCode.length() != 8) {
-                log.warn(StockErrorCode.DART_CODE_NOT_FOUND.getMessage(), corpCode);
-                companyRepository.delete(company);
-                stockCodeRepository.delete(stockCode);
-                return null;
-            }
-
-            runFullPipeline(company, limit);
-        }
-
-        // 저장된 값으로 DTO 생성
-        return buildAnnualTableDto(company, limit);
+                    initializeCompanyData(company, limit);
+                    return company;
+                });
     }
+
+    public FinancialTableDto getAnnualTableDbOnly(Long stockId, int limit) {
+        Company company = financialService.findCompanyByStockId(stockId)
+                .orElseThrow(() -> new CustomException(StockErrorCode.COMPANY_NOT_FOUND));
+
+        FinancialTableDto dto = buildAnnualTableDto(company, limit);
+
+        return dto;
+    }
+
 
     private FinancialTableDto buildAnnualTableDto(Company company, int limit) {
         Long companyId = company.getCompanyId();
@@ -176,11 +166,11 @@ public class FinancialFacadeService {
     }
 
 
-    private void runFullPipeline(Company company, int limit) {
+    // 데이터가 있는 경우 Skip, Delete&Insert, Upsert
+    private void initializeCompanyData(Company company, int limit) {
         String corpCode = company.getStockCode().getDartCorpCode();
-
-
         Long companyId = company.getCompanyId();
+
         int currentYear = LocalDate.now().getYear();
         int startYear   = currentYear - limit + 1;
 
@@ -191,12 +181,19 @@ public class FinancialFacadeService {
             log.debug("{}년 크롤링 및 계산 진행", year);
 
             // 재무제표 크롤링 , dart_fs_filing + dart_fs_line DB저장
-            crawlingService.crawlAndSaveAnnualFinancial(corpCode, companyId, year);
+//            crawlingService.crawlAndSaveAnnualFinancial(corpCode, companyId, year);
+            // 재무제표 크롤링
+            List<DartFsRow> fsRows = crawlingService.crawlAnnualFinancial(corpCode, year);
+            // 재무제표 정보 저장 Line, Filing
+            if(!fsRows.isEmpty()) financialService.replaceAnnualFinancial(corpCode, companyId, fsRows);
 
             // 주식수 크롤링 + dart_share_status 저장
-            crawlingService.crawlAndSaveShareStatus(corpCode, companyId, year);
+//            crawlingService.crawlAndSaveShareStatus(corpCode, companyId, year);
+            List<DartShareStatusRow> shareStatusRows = crawlingService.crawlShareStatus(company, year);
+            stockService.replaceShareStatus(company, year,shareStatusRows);
 
-            // dart_fs_line 기반 -> fin_metric_value 저장
+
+            // dart_fs_line 기반 -> fin_metric_value 저장 (필요 데이터 가공)
             financialService.recalcAndSaveFinancialForYearFromDb(company, year);
         }
 
@@ -304,10 +301,18 @@ public class FinancialFacadeService {
         };
     }
 
+    @Transactional
     public CrawlAllMarketsResult marketCrawling() {
-        int crawledCount = krxStockCrawlingService.crawlAllMarkets();
+        // 크롤링 및 데이터 추출
+        List<StockCodeDraft> stockCodeDrafts = krxStockCrawlingService.fetchStockList("KOSPI");
+
+        // 추출 데이터 저장 StockCode로 변환 및 저장
+        int saved = stockService.saveStockDrafts(stockCodeDrafts);
+
+        // xml파일의 corp_code, corp_name, stock_code 별도 테이블 저장
+        // 별도 테이블과 stockcode테이블을 조인하여 stockcode 데이블 갱신
         int mappedCount = dartCorpCodeSyncService.syncFromXml();
-        return new CrawlAllMarketsResult(crawledCount, mappedCount);
+        return new CrawlAllMarketsResult(saved, mappedCount);
     }
 
     @Transactional

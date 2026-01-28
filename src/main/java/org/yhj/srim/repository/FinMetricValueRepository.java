@@ -54,4 +54,6 @@ public interface FinMetricValueRepository extends JpaRepository<FinMetricValue, 
         and v.metricCode = :metricCode
     """)
     Optional<FinMetricValue> findYearlyMetricWithFetch(@Param("companyId") Long companyId,@Param("baseYear") int baseYear, @Param("metricCode") String metricCode);
+
+    long deleteByCompanyIdAndPeriod_PeriodId(Long companyId, Long periodId);
 }

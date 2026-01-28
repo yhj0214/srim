@@ -1,15 +1,17 @@
-package org.yhj.srim.service;
+package org.yhj.srim.service.domain;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.yhj.srim.client.dto.DartFsRow;
 import org.yhj.srim.common.exception.CustomException;
 import org.yhj.srim.common.exception.code.StockErrorCode;
 import org.yhj.srim.repository.*;
 import org.yhj.srim.repository.entity.*;
 import org.yhj.srim.service.dto.FinancialTableDto;
+import org.yhj.srim.service.dto.FsRawBundle;
 import org.yhj.srim.service.dto.PeriodType;
 
 import java.math.BigDecimal;
@@ -31,11 +33,11 @@ public class FinancialService {
     private final StockCodeRepository stockCodeRepository;
     private final DartFsLineRepository dartFsLineRepository;
     private final StockShareStatusRepository stockShareStatusRepository;
+    private final DartFsFilingRepository filingRepository;
 
     /**
      * stockId로 연간 재무 테이블 조회
      */
-    // to-do 리팩토링 완료 후 삭제
     @Transactional
     public FinancialTableDto getAnnualTableByStockId(Long stockId, int limit) {
         log.info("=== getAnnualTableByStockId 호출 ===");
@@ -74,11 +76,6 @@ public class FinancialService {
 
         Map<String, BigDecimal> financialData = buildFinancialMetrics(companyId, year);
 
-        log.info("=== [FS-DB] {}년 재무 데이터 ({}개 지표) ===", year, financialData.size());
-        financialData.forEach((key, value) ->
-                log.info(" key='{}', value={}", key, value)
-        );
-
         if (financialData.isEmpty()) {
             log.warn("[FS-DB] {}년 재무 데이터 없음 (companyId={})", year, companyId);
             return 0;
@@ -87,19 +84,45 @@ public class FinancialService {
         //   - 연간정보는 월에 12, isEstimate=false
         FinPeriod period = saveOrUpdatePeriod(companyId, year, 12, false);
 
-        int yearSaved = 0;
-        for (Map.Entry<String, BigDecimal> entry : financialData.entrySet()) {
-            String metricCode = entry.getKey();
-            BigDecimal value  = entry.getValue();
 
-            saveOrUpdateMetricValue(companyId, period, metricCode, value);
-            yearSaved++;
-        }
+
+        int inserted = replaceMetricValues(companyId, period, financialData, "DART");
+
+//        int yearSaved = 0;
+//        for (Map.Entry<String, BigDecimal> entry : financialData.entrySet()) {
+//            String metricCode = entry.getKey();
+//            BigDecimal value  = entry.getValue();
+//
+//            saveOrUpdateMetricValue(companyId, period, metricCode, value);
+//            yearSaved++;
+//        }
 
         log.info("[FS-DB] {}년 재무 데이터 저장 완료 - {}건 (companyId={})",
-                year, yearSaved, companyId);
+                year, inserted, companyId);
 
-        return yearSaved;
+        return inserted;
+    }
+
+    private int replaceMetricValues(Long companyId, FinPeriod period, Map<String, BigDecimal> metrics, String dart) {
+        if(metrics == null || metrics.isEmpty()) return 0;
+
+        long deleted = finMetricValueRepository.deleteByCompanyIdAndPeriod_PeriodId(companyId, period.getPeriodId());
+
+        List<FinMetricValue> entities = metrics.entrySet().stream()
+                .filter(e -> e.getValue() != null)
+                .filter(e -> e.getKey() != null && !e.getKey().isBlank())
+                .map(entry -> FinMetricValue.builder()
+                        .companyId(companyId)
+                        .period(period)
+                        .metricCode(entry.getKey())
+                        .valueNum(entry.getValue())
+                        .source(dart)
+                        .build())
+                .collect(Collectors.toList());
+
+        finMetricValueRepository.saveAll(entities);
+
+        return entities.size();
     }
 
     private FinPeriod saveOrUpdatePeriod(Long companyId, int fiscalYear, int fiscalMonth, boolean isQuarter) {
@@ -227,6 +250,28 @@ public class FinancialService {
                 });
     }
 
+    @Transactional
+    public Company createCompany(Long stockId) {
+        log.info("=== createCompany : stockId = {} ===", stockId);
+        StockCode stockCode = stockCodeRepository.findById(stockId)
+                .orElseThrow(() -> new CustomException(StockErrorCode.STOCK_NOT_FOUND));
+
+        String corpCode = stockCode.getDartCorpCode();
+        if(corpCode == null || corpCode.length() != 8) {
+            throw new CustomException(StockErrorCode.DART_CORP_CODE_INVALID);
+        }
+
+        Company company = Company.builder()
+                .stockCode(stockCode)
+                .currency("KRW")
+                .build();
+
+        Company saved = companyRepository.save(company);
+        log.info("새 Company 생성: companyId={}, ticker={}", saved.getCompanyId(), stockCode.getTickerKrx());
+
+        return saved;
+    }
+
     /**
      * 연간, 분기 재무 테이블 조회 - DB 우선, 없으면 크롤링
      */
@@ -348,11 +393,60 @@ public class FinancialService {
                 .orElse(null);
     }
 
-    /**
-     * DB에 저장된 dart 재무제표(dart_fs_line) 기반으로
-     * 한 해 주요 값들을 추출 및 계산
-     */
     public Map<String, BigDecimal> buildFinancialMetrics(Long companyId, int currentYear) {
+
+        Map<String, BigDecimal> result = new LinkedHashMap<>();
+
+        List<DartFsLine> lines = dartFsLineRepository.findByFiling_CompanyIdAndFiling_BsnsYear(companyId, currentYear);
+
+        if (lines.isEmpty()) {
+            log.warn("buildFinancialMetrics - 재무제표 라인 데이터가 없습니다. companyId={}, year={}", companyId, currentYear);
+            return result;
+        }
+
+        log.debug("==== {}년 조회된 재무제표 라인 수 : {}", currentYear, lines.size());
+
+        return null;
+    }
+
+    private FsRawBundle collectRawBundle(List<DartFsLine> lines, int year) {
+
+        Map<String, BigDecimal> curr = new LinkedHashMap<>();
+        Map<String, BigDecimal> prev = new LinkedHashMap<>();
+
+
+        for(DartFsLine line : lines) {
+            String sjDiv = line.getSjDiv();                 // 재무제표 구분
+            String accountId = line.getAccountId();         // 계정Id
+            String accountNm = line.getAccountNm();         // 계정설명
+            String accountDetail = line.getAccountDetail(); // 구성요소 [member] 등
+
+            BigDecimal currVal = line.getThstrmAmount();    // 당기금액
+            BigDecimal prevVal = line.getFrmtrmAmount();    // 전기금액
+
+            String metricCode = mapAccountToMetric(sjDiv, accountId, accountNm, accountDetail);
+
+            if (metricCode == null) {
+                log.debug(" X [FS-DB][UNMAPPED] year={}, sjDiv={}, accountId={}, accountNm={}, accountDetail={}",
+                        year, sjDiv, accountId, accountNm, accountDetail);
+                continue;
+            }
+
+            log.debug(" O [FS-DB][MAPPED] year={}, sjDiv={}, accountId={}, accountNm={}, metricCode={}, accountDetail={}",
+                    year, sjDiv, accountId, accountNm, metricCode, accountDetail);
+
+        }
+
+        return new FsRawBundle(curr, prev);
+    }
+
+
+
+        /**
+         * DB에 저장된 dart 재무제표(dart_fs_line) 기반으로
+         * 한 해 주요 값들을 추출 및 계산
+         */
+    public Map<String, BigDecimal> buildFinancialMetricsBackup(Long companyId, int currentYear) {
 
         Map<String, BigDecimal> raw = new LinkedHashMap<>();
         Map<String, BigDecimal> prevRaw = new LinkedHashMap<>();
@@ -375,8 +469,6 @@ public class FinancialService {
 
             BigDecimal currVal = line.getThstrmAmount();    // 당기금액
             BigDecimal prevVal = line.getFrmtrmAmount();    // 전기금액
-
-
 
             String metricCode = mapAccountToMetric(sjDiv, accountId, accountNm, accountDetail);
 
@@ -407,17 +499,6 @@ public class FinancialService {
         }
         log.info("=== {}년 FS-DB RAW ({}개 지표) ===", currentYear, raw.size());
         raw.forEach((k, v) -> log.info("raw[{}] = {}", k, v));
-
-        // 지배/비지배 당기순이익
-        BigDecimal netIncOwnerRaw   = raw.get("NET_INC_OWNER");
-        BigDecimal netIncNonContRaw = raw.get("NET_INC_NONCONT");
-
-        // NET_INC(당기순이익) 없으면 CONT_NET_INC + DISC_NET_INC
-        if (!raw.containsKey("NET_INC") && netIncOwnerRaw != null && netIncNonContRaw != null) {
-            BigDecimal netIncCalc = netIncOwnerRaw.add(netIncNonContRaw);
-            raw.put("NET_INC", netIncCalc);
-            log.info(">>> FS-DB 계산된 NET_INC (지배+비지배 합산) = {}", netIncCalc);
-        }
 
         BigDecimal sales             = raw.get("SALES");
         BigDecimal opInc             = raw.get("OP_INC");
@@ -505,6 +586,161 @@ public class FinancialService {
     }
 
     private String mapAccountToMetric(String sjDiv, String accountId, String accountNm, String accountDetail) {
+        if(isBlank(accountId) && isBlank(accountNm)) return null;
+
+        FsKey key = FsKey.of(trimOrEmptyStr(sjDiv), trimOrEmptyStr(accountId),
+                trimOrEmptyStr(accountNm), trimOrEmptyStr(accountDetail));
+
+        // SCE 자본변동표
+        String m = mapSce(key);
+        if(m != null) return m;
+
+        // IS/CIS 손익게산서
+        m = mapIncomeStatement(key);
+        if(m != null) return m;
+
+        // BS/BIS 재무상태표
+        m = mapBlanceSheet(key);
+        if(m != null) return m;
+
+
+        return null;
+    }
+
+    private String mapBlanceSheet(FsKey key) {
+        if(!"BS".equalsIgnoreCase(key.sj) && !"BIS".equalsIgnoreCase(key.sj)) return null;
+
+        // "부채와자본총계"는 자본으로 보지 않고 무시
+        // (자산총계와 같은 값)
+        if (key.id.equals("ifrs-full_EquityAndLiabilities")
+                || key.nm.contains("부채와자본총계")) {
+            return null;
+        }
+
+
+        // 자산총계
+        if (key.id.equals("ifrs-full_Assets")
+                || key.nm.contains("자산총계")) {
+            return "TOTAL_ASSETS";
+        }
+
+        // 부채총계
+        if (key.id.equals("ifrs-full_Liabilities")
+                || key.nm.contains("부채총계")) {
+            return "TOTAL_LIABILITIES";
+        }
+
+        // 자본총계 (지배 + 비지배 포함)
+        if (key.id.equals("ifrs-full_Equity")) {
+            return "TOTAL_EQUITY";
+        }
+        if ((key.id.isEmpty() || "-".equals(key.id)) && key.nm.equals("자본총계")) {
+            return "TOTAL_EQUITY";
+        }
+
+
+
+        // 지배주주지분 / 지배기업 소유주 지분
+        if (key.id.equals("ifrs-full_EquityAttributableToOwnersOfParent")
+                || key.nm.contains("지배기업의 소유주에게 귀속되는 자본")
+                || key.nm.contains("지배주주지분")) {
+            return "TOTAL_EQUITY_OWNER";
+        }
+
+        // 유동자산
+        if (key.id.equals("ifrs-full_CurrentAssets")
+                || key.nm.contains("유동자산")) {
+            return "CURRENT_ASSETS";
+        }
+
+        // 유동부채
+        if (key.id.equals("ifrs-full_CurrentLiabilities")
+                || key.nm.contains("유동부채")) {
+            return "CURRENT_LIABILITIES";
+        }
+
+        // BPS (주당순자산) - BS나 기타 주당지표에서 나올 수 있음
+        if (key.id.contains("EquityPerShare") || key.nm.contains("주당순자산")) {
+            return "BPS";
+        }
+
+        return null;
+    }
+
+    private String mapIncomeStatement(FsKey key) {
+        if(!"IS".equalsIgnoreCase(key.sj) && !"CIS".equalsIgnoreCase(key.sj)) return null;
+
+        // 전체 당기순이익
+        if (key.id.equals("ifrs-full_ProfitLoss")
+                && (key.nm.equals("당기순이익") || key.nm.equals("당기순손실") || key.nm.equals("당기순손익"))) {
+            // 전체 당기순이익
+            return "NET_INC";
+        }
+
+        // 매출액 / 영업수익
+        if (key.id.equals("ifrs-full_Revenue")
+                || key.id.equals("ifrs_Revenue")
+                || key.nm.contains("매출액")
+                || key.nm.contains("영업수익")) {
+            return "SALES";
+        }
+
+        // 영업이익
+        if (key.id.equals("ifrs-full_ProfitLossFromOperatingActivities")
+                || key.id.equals("ifrs_ProfitLossFromOperatingActivities")
+                || key.nm.contains("영업이익")) {
+            return "OP_INC";
+        }
+
+
+        // EPS (기본주당순이익 등)
+        if (key.id.contains("EarningsPerShare") || key.nm.contains("주당순이익")) {
+            return "EPS";
+        }
+        return null;
+    }
+
+    private String mapSce(FsKey key) {
+        if(!"SCE".equalsIgnoreCase(key.sj)) return null;
+
+        // 지배주주 귀속 당기순이익
+        if (key.id.equals("ifrs-full_ProfitLoss")
+                && (key.nm.equals("당기순이익") || key.nm.equals("당기순손실") || key.nm.equals("당기순손익"))
+                && key.detail.contains("지배기업")) {
+
+            return "NET_INC_OWNER";
+        }
+
+        // 비지배주주 귀속 당기순이익
+        if (key.id.equals("ifrs-full_ProfitLoss")
+                && (key.nm.equals("당기순이익") || key.nm.equals("당기순손실") || key.nm.equals("당기순손익"))
+                && key.detail.contains("비지배")) {
+            return "NET_INC_NONCONT";
+        }
+
+        // 2018년 이전에는 ifrs_ProfitLoss id를 사용하였음. 이후 참고 데이터
+
+        // 그 외 SCE 항목은 무시
+        return null;
+
+    }
+
+    private record FsKey(String sj, String id, String nm, String detail){
+
+        public static FsKey of(String sjDiv, String accountId, String accountNm, String accountDetail){
+            return new FsKey(sjDiv, accountId, accountNm, accountDetail);
+        }
+    }
+
+    private static String trimOrEmptyStr(String s){
+        return s == null ? "" : s.trim();
+    }
+
+    private boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
+    }
+
+    private String mapAccountToMetricBackup(String sjDiv, String accountId, String accountNm, String accountDetail) {
         if (accountId == null && accountNm == null) {
             return null;
         }
@@ -772,4 +1008,61 @@ public class FinancialService {
         log.info("Company 주식수 정보 갱신 완료 - companyId={}, shares={}",
                 companyId, company.getSharesOutstanding());
     }
+
+    @Transactional
+    public void replaceAnnualFinancial(String corpCode, Long companyId, List<DartFsRow> rows) {
+
+        if(rows.isEmpty()) return;
+
+        DartFsRow meta = rows.get(0);
+        DartFsFiling filing = getOrCreateFiling(corpCode, companyId, meta);
+
+        dartFsLineRepository.deleteByFiling_FsFilingId(filing.getFsFilingId());
+
+
+        // Line 엔티티로 변환 + 저장
+        List<DartFsLine> entities = rows.stream()
+                .map(row -> DartFsLine.fromRow(filing, companyId, row))
+                .toList();
+
+        dartFsLineRepository.saveAll(entities);
+    }
+
+    private DartFsFiling getOrCreateFiling(String corpCode, Long companyId, DartFsRow firstRow) {
+        String rceptNo = firstRow.getRceptNo();
+        String reprtCode = firstRow.getReprtCode();
+        String fsDiv = firstRow.getFsDiv();
+
+        // to-do dart접수번호기준 조회 고려할것
+        Optional<DartFsFiling> existingOpt = filingRepository.findByRceptNoAndReprtCodeAndFsDiv(rceptNo, reprtCode, fsDiv);
+
+        if(existingOpt.isPresent()) {
+            DartFsFiling existing = existingOpt.get();
+            return existing;
+        }
+
+        LocalDate rceptDt = null;
+        String rceptDtStr = firstRow.getRceptDt(); // "20230320" 같은 형식이라고 가정
+        if (rceptDtStr != null && rceptDtStr.length() == 8) {
+            int yyyy = Integer.parseInt(rceptDtStr.substring(0, 4));
+            int mm   = Integer.parseInt(rceptDtStr.substring(4, 6));
+            int dd   = Integer.parseInt(rceptDtStr.substring(6, 8));
+            rceptDt = LocalDate.of(yyyy, mm, dd);
+        }
+
+        DartFsFiling filing = DartFsFiling.builder()
+                .corpCode(corpCode)
+                .companyId(companyId)
+                .rceptNo(rceptNo)
+                .reprtCode(reprtCode)
+                .bsnsYear(firstRow.getBsnsYear())
+                .fsDiv(fsDiv)
+                .reportTp("연간")
+                .currency(firstRow.getCurrency())
+                .rceptDt(rceptDt)
+                .build();
+
+        return filingRepository.save(filing);
+    }
+
 }

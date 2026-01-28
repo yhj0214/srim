@@ -1,4 +1,4 @@
-package org.yhj.srim.service;
+package org.yhj.srim.service.crawl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -62,6 +62,30 @@ public class CrawlingService {
         return entities.size();
     }
 
+    public List<DartFsRow> crawlAnnualFinancial(String corpCode, int year) {
+
+        List<DartFsRow> rows = dartClient.fetchAnnualFinancialStatements(corpCode, year);
+
+
+        if(rows.isEmpty()) {
+            log.warn("{}년도에 크롤링된 데이터가 없습니다.", year);
+        }
+
+        return rows;
+    }
+
+
+    /**
+     * Dart 주식수(발행/자기/유통) 현황 크롤링 후 반환
+     * @param company
+     * @param year
+     * @return
+     */
+    public List<DartShareStatusRow> crawlShareStatus(Company company, int year) {
+        String corpCode = company.getStockCode().getDartCorpCode();
+        return dartClient.fetchShareStatus(corpCode, year);
+    }
+
     /**
      * DART 주식수(발행/자기/유통) 현황 크롤링 후 DB에 저장/업데이트
      */
@@ -73,9 +97,6 @@ public class CrawlingService {
         List<DartShareStatusRow> rows = dartClient.fetchShareStatus(corpCode, year);
 
 
-        for(DartShareStatusRow row : rows) {
-            log.debug("행 정보 : {}", row);
-        }
 
         if(rows == null || rows.isEmpty()) {
             log.debug("주식 수 정보가 없습니다. corpCode={}, year={}", corpCode, year);
@@ -185,6 +206,7 @@ public class CrawlingService {
         return filingRepository.save(filing);
     }
 
+    @Transactional
     public int crawlingStockPrice(Long companyId, LocalDate start, LocalDate end) {
 
         Company company = companyRepository.findById(companyId)
@@ -218,4 +240,5 @@ public class CrawlingService {
         log.info("주가 수집 개수 : {}", entities.size());
         return entities.size();
     }
+
 }

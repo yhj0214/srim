@@ -5,7 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.yhj.srim.service.StockService;
+import org.yhj.srim.service.domain.StockService;
 
 @Controller
 @RequiredArgsConstructor
@@ -14,15 +14,24 @@ public class HomeViewController {
 
     private final StockService stockService;
 
+    @GetMapping("/")
+    public String home(Model model) {
+        model.addAttribute("title", "Home");
+        model.addAttribute("totalStocks", stockService.count());
+
+        return "index";
+    }
+
+
     /**
      * 홈 페이지 (검색창)
      */
-    @GetMapping("/")
-    public String home(Model model) {
-        long totalStocks = stockService.count();
-        model.addAttribute("totalStocks", totalStocks);
-        return "index";
-    }
+//    @GetMapping("/")
+//    public String home(Model model) {
+//        long totalStocks = stockService.count();
+//        model.addAttribute("totalStocks", totalStocks);
+//        return "index";
+//    }
 
     /**
      * 회사채 수익률 페이지

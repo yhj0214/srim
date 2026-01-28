@@ -10,7 +10,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriUtils;
-import org.yhj.srim.service.StockService;
+import org.yhj.srim.service.domain.StockService;
 import org.yhj.srim.service.dto.StockDto;
 
 import java.nio.charset.StandardCharsets;

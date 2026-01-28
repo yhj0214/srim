@@ -1,6 +1,8 @@
 package org.yhj.srim.client.dto;
 
 import lombok.*;
+import org.yhj.srim.repository.entity.Company;
+import org.yhj.srim.repository.entity.StockShareStatus;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -39,4 +41,23 @@ public class DartShareStatusRow {
 
     // 디버깅용
     private String rawJson;
+
+    public StockShareStatus toEntity(Company company, Integer bsnsYear, DartShareStatusRow row) {
+        Long istc = row.getIstcTotqy();
+        Long self = row.getTesstkCo();
+        Long distb = row.getDistbStockCo();
+
+
+        return StockShareStatus.create(
+                company,
+                bsnsYear,
+                row.getStlmDt(),
+                row.getSe(),
+                row.getIsuStockTotqy(),
+                istc,
+                self,
+                distb
+        );
+
+    }
 }

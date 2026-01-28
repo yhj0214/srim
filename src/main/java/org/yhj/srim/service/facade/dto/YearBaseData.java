@@ -1,4 +1,4 @@
-package org.yhj.srim.facade.dto;
+package org.yhj.srim.service.facade.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

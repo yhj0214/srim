@@ -1,4 +1,4 @@
-package org.yhj.srim.service;
+package org.yhj.srim.service.domain;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -6,8 +6,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.yhj.srim.common.exception.CustomException;
 import org.yhj.srim.common.exception.code.CommonErrorCode;
-import org.yhj.srim.common.exception.code.FinancialErrorCode;
-import org.yhj.srim.common.exception.code.StockErrorCode;
 import org.yhj.srim.repository.*;
 import org.yhj.srim.repository.entity.*;
 import org.yhj.srim.service.dto.SrimResultDto;
@@ -17,7 +15,6 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor

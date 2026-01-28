@@ -33,7 +33,12 @@ dependencies {
 
     // Database
     runtimeOnly 'com.mysql:mysql-connector-j'
-    
+    implementation 'com.querydsl:querydsl-jpa:5.0.0:jakarta'
+
+    annotationProcessor "com.querydsl:querydsl-apt:5.0.0:jakarta"
+    annotationProcessor "jakarta.annotation:jakarta.annotation-api"
+    annotationProcessor "jakarta.persistence:jakarta.persistence-api"
+
     // Apache POI for Excel processing
     implementation 'org.apache.poi:poi:5.2.3'
     implementation 'org.apache.poi:poi-ooxml:5.2.3'
@@ -65,11 +70,21 @@ dependencies {
     testAnnotationProcessor 'org.projectlombok:lombok:1.18.36'
 }
 
-test {
-    systemProperty "javax.net.ssl.trustStoreType", "Windows-ROOT"
-//    jvmArgs "-Djavax.net.debug=ssl,handshake,trustmanager"
+def generated = 'build/generated/sources/annotationProcessor/java/main'
+
+sourceSets {
+    main.java.srcDirs += [ generated ]
 }
 
-tasks.named('test') {
-    useJUnitPlatform()
+tasks.withType(JavaCompile) {
+    options.annotationProcessorGeneratedSourcesDirectory = file(generated)
+}
+
+test {
+    // 다트 서버 연결 시 문제 발생하여 추가
+    systemProperty "javax.net.ssl.trustStoreType", "Windows-ROOT"
+//    jvmArgs "-Djavax.net.debug=ssl,handshake,trustmanager"
+    useJUnitPlatform{
+        excludeTags "manual"
+    }
 }

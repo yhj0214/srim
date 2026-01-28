@@ -3,6 +3,7 @@ package org.yhj.srim.repository.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.Comment;
+import org.yhj.srim.service.crawl.dto.StockCodeDraft;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -74,6 +75,19 @@ public class StockCode {
     @Column(name = "updated_at", nullable = false)
     @Comment("행 수정시각")
     private LocalDateTime updatedAt;
+
+    public static StockCode of(StockCodeDraft d) {
+        return StockCode.builder()
+                .tickerKrx(d.getTickerKrx())
+                .companyName(d.getCompanyName() != null ? d.getCompanyName().trim() : "")
+                .industry(d.getIndustry() != null ? d.getIndustry().trim() : "")
+                .listingDate(d.getListingDate())
+                .fiscalYearEndMonth(d.getFiscalYearEndMonth() != null ? d.getFiscalYearEndMonth() : null)
+                .homepageUrl(d.getHomepageUrl() != null ? d.getHomepageUrl().trim() : "")
+                .region(d.getRegion() != null ? d.getRegion().trim() : null)
+                .market(d.getMarket())
+                .build();
+    }
 
     @PrePersist
     protected void onCreate() {

@@ -25,8 +25,10 @@ public class KrxCrawlingApiController {
     private final ManagementFacade managementFacade;
 
     /**
-     * 전체 시장 크롤링 (KOSPI + KOSDAQ)
+     * 전체 시장 크롤링 (KOSPI) 및 데이터 초기화 전체 로직 진행
      * GET /api/crawling/krx/all
+     * - 기업 조회 로직
+     * - 재무제표 및 전체 데이터 크롤링
      */
     @PostMapping("/all")
     public ApiResponse<CrawlAllMarketsResult> crawlAllMarkets() {
@@ -34,16 +36,32 @@ public class KrxCrawlingApiController {
         return ApiResponse.success(managementFacade.initializeAll());
     }
 
+    /**
+     * 기업 조회로직
+     * @return
+     */
     @PostMapping("/all/step1")
     public ApiResponse<CrawlAllMarketsResult> crawlAllMarketsStep1() {
         log.info("전체 시장 크롤링 요청 (STEP1)");
         return ApiResponse.success(managementFacade.step1MarketSync());
     }
 
+    /**
+     * 데이터 조회 로직
+     * 재무제표 및 전체 데이터 크롤링
+     */
+    @PostMapping("/all/step2")
+    public ApiResponse<Void> crawlAllMarketsStep2() {
+        log.info("전체 시장 크롤링 요청 (STEP2)");
+        managementFacade.step2CorpSync();
+        return ApiResponse.success(null);
+    }
+
+
     @GetMapping("/stocks/{tickerKrx}")
     public ApiResponse<Void> crawlingStockInfo(@PathVariable String tickerKrx){
         log.info("stickerKrx : {}", tickerKrx);
-        managementFacade.findStockInfo(tickerKrx);
+        managementFacade.findStockInfoByStickerKrx(tickerKrx);
         return ApiResponse.success("요청에 성공하였습니다.", null);
     }
 

@@ -1,9 +1,7 @@
 package org.yhj.srim.service.crawl.dto;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
+import org.yhj.srim.repository.entity.StockCode;
 
 import java.time.LocalDate;
 
@@ -12,6 +10,7 @@ import java.time.LocalDate;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
+@ToString
 public class StockCodeDraft {
     private String market;
     private String tickerKrx;
@@ -21,5 +20,6 @@ public class StockCodeDraft {
     private String region;
     private String homepageUrl;
     private Integer fiscalYearEndMonth;
+
 
 }

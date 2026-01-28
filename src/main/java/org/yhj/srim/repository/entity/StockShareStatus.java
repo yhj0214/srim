@@ -94,6 +94,11 @@ public class StockShareStatus {
             Long distbStockCo
     ) {
         StockShareStatus s = new StockShareStatus();
+
+        if(distbStockCo == null && istcTotqy != null && tesstkCo != null) {
+            distbStockCo = istcTotqy - tesstkCo;
+        }
+
         s.company = company;
         s.bsnsYear = bsnsYear;
         s.settlementDate = stlmDt;

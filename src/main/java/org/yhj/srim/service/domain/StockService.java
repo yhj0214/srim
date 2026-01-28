@@ -1,4 +1,4 @@
-package org.yhj.srim.service;
+package org.yhj.srim.service.domain;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -6,11 +6,18 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.yhj.srim.client.dto.DartShareStatusRow;
 import org.yhj.srim.repository.CompanyRepository;
 import org.yhj.srim.repository.StockCodeRepository;
+import org.yhj.srim.repository.StockShareStatusRepository;
 import org.yhj.srim.repository.entity.Company;
 import org.yhj.srim.repository.entity.StockCode;
+import org.yhj.srim.repository.entity.StockShareStatus;
+import org.yhj.srim.service.crawl.dto.StockCodeDraft;
 import org.yhj.srim.service.dto.StockDto;
+
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -20,6 +27,7 @@ public class StockService {
 
     private final StockCodeRepository stockCodeRepository;
     private final CompanyRepository companyRepository;
+    private final StockShareStatusRepository stockShareStatusRepository;
 
     /**
      * 키워드로 종목 검색 (회사명 또는 티커)
@@ -92,5 +100,72 @@ public class StockService {
                 });
         
         return dto;
+    }
+
+    public int saveStockDrafts(List<StockCodeDraft> drafts) {
+        if(drafts == null || drafts.size() == 0) {
+            return 0;
+        }
+
+        HashSet<String> dedup = new LinkedHashSet<>();
+        List<StockCode> entities = new ArrayList<>();
+        for(StockCodeDraft d : drafts) {
+            if(d == null) continue;
+
+            String ticker = d.getTickerKrx();
+            if(ticker == null) continue;
+
+            ticker = ticker.trim();
+            if(ticker.isBlank()) continue;
+
+            if(dedup.contains(ticker)) continue;
+
+            dedup.add(ticker);
+            StockCode stockCode = StockCode.of(d);
+            entities.add(stockCode);
+        }
+
+        stockCodeRepository.saveAll(entities);
+
+        return entities.size();
+    }
+
+    @Transactional
+    public void replaceShareStatus(Company company, int year, List<DartShareStatusRow> rows) {
+
+        if(rows == null || rows.isEmpty()) return;
+
+        Long companyId = company.getCompanyId();
+
+        long deleted = stockShareStatusRepository.deleteByCompany_CompanyIdAndBsnsYear(companyId, year);
+
+
+        Map<String, DartShareStatusRow> dedupBySe = new LinkedHashMap<>();
+        for (DartShareStatusRow r : rows) {
+            if (r.getBsnsYear() != null && r.getBsnsYear() != year) {
+                log.warn("DART shareStatus bsnsYear mismatch: requestedYear={}, rowYear={}, corpCode={}",
+                        year, r.getBsnsYear(), company.getStockCode().getDartCorpCode());
+            }
+            if (r == null) continue;
+            if ("비고".equals(r.getSe())) continue;
+
+            String se = r.getSe();
+            if (se == null || se.isBlank()) continue;
+
+            // 이 메서드는 'year'만 다룬다 → bsnsYear는 year로 강제
+            // (row.getBsnsYear()는 무시하거나, 다르면 로그만 남기는 것도 가능)
+            dedupBySe.put(se, r);
+        }
+
+        if (dedupBySe.isEmpty()) return;
+
+        List<StockShareStatus> entities = dedupBySe.values().stream()
+                .map(r -> r.toEntity(company, year, r)) // toEntity는 int year 받도록 권장
+                .toList();
+
+
+        stockShareStatusRepository.saveAll(entities);
+        log.debug("회사ID {} - {}년도 주식수 교체 완료 (deleted={}, inserted={})",
+                companyId, year, deleted, entities.size());
     }
 }

@@ -1,4 +1,4 @@
-package org.yhj.srim.service;
+package org.yhj.srim.service.domain;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +34,7 @@ public class DartCorpCodeSyncService {
         // 1) XML → dart_corp_map 적재
         int inserted = 0;
         try {
+            // xml파일의 corp_code, corp_name, stock_code 저장
             inserted = loadXmlToTempTable();
         } catch (Exception e) {
             throw new RuntimeException(e);
