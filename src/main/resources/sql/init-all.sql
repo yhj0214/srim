@@ -353,27 +353,30 @@ CREATE TABLE `fs_required_account` (
 
 -- 3) 재무 지표 정의
 INSERT INTO fin_metric_def (metric_code, name_kor, unit, display_order, description) VALUES
+    -- 원천(계산 전) 지표: display_order <= 100
     ('SALES',           '매출액',       'KRW',  10,  '연결 기준 매출액'),
     ('OP_INC',          '영업이익',     'KRW',  20,  '영업이익'),
     ('NET_INC',         '당기순이익',   'KRW',  30,  '지배주주 기준 당기순이익'),
-    ('NET_INC_OWNER', '당기순이익(지배)', 'KRW', 31, '지배기업 소유주에게 귀속되는 당기순이익'),
+    ('NET_INC_OWNER',   '당기순이익(지배)', 'KRW', 31, '지배기업 소유주에게 귀속되는 당기순이익'),
     ('NET_INC_NONCONT', '당기순이익(비지배)', 'KRW', 32, '비지배지분에 귀속되는 당기순이익'),
-    ('OPM',             '영업이익률',   '%',    40,  '영업이익 / 매출액'),
-    ('DEBT_RATIO',      '부채비율',     '%',    50,  '부채총계 / 자본총계'),
-    ('ROE',             'ROE',          '%',    60,  '당기순이익 / 자본총계(지배주주지분)'),
-    ('ROA',             'ROA',          '%',    70,  '당기순이익 / 자산총계'),
-    ('NET_MARGIN',      '순이익률',     '%',    80,  '당기순이익 / 매출액'),
-    ('EPS',             'EPS',          'KRW',  90,  '주당순이익'),
-    ('BPS',             'BPS',          'KRW', 100,  '주당순자산'),
-    ('PER',             'PER',          '배',   110, '주가 / EPS'),
-    ('PBR',             'PBR',          '배',   120, '주가 / BPS'),
-    ('QUICK_RATIO',     '유동비율',     '%',   130, '유동자산 / 유동부채'),
-    ('DPS',             'DPS',          'KRW', 140, '주당배당금'),
-    ('DIVIDEND_YIELD',  '시가배당률',   '%',   150, 'DPS / 주가 * 100'),
-    ('PAYOUT_RATIO',    '배당성향',     '%',   160, '배당금총액 / 당기순이익 * 100'),
-    ('RETENTION_RATIO', '유보율',       '%',   170, '이익잉여금 / 자본총계 또는 (1-배당성향)'),
-    ('TOTAL_EQUITY',     '자본총계',     'KRW',  180, '자본총계(지배주주지분 + 비지배주주지분)'),
-    ('TOTAL_EQUITY_OWNER', '자본총계(지배)', 'KRW',185, '자본총계(지배주주지분, Equity attributable to owners of parent)');
+    ('TOTAL_EQUITY',        '자본총계',     'KRW',  60, '자본총계(지배주주지분 + 비지배주주지분)'),
+    ('TOTAL_EQUITY_OWNER',  '자본총계(지배)', 'KRW',  61, '자본총계(지배주주지분, Equity attributable to owners of parent)'),
+
+    -- 계산 지표: display_order >= 101
+    ('OPM',             '영업이익률',   '%',    101, '영업이익 / 매출액'),
+    ('DEBT_RATIO',      '부채비율',     '%',    102, '부채총계 / 자본총계'),
+    ('ROE',             'ROE',          '%',    103, '당기순이익 / 자본총계(지배주주지분)'),
+    ('ROA',             'ROA',          '%',    104, '당기순이익 / 자산총계'),
+    ('NET_MARGIN',      '순이익률',     '%',    105, '당기순이익 / 매출액'),
+    ('EPS',             'EPS',          'KRW',  106, '주당순이익'),
+    ('BPS',             'BPS',          'KRW',  107, '주당순자산'),
+    ('QUICK_RATIO',     '유동비율',     '%',    108, '유동자산 / 유동부채'),
+    ('PER',             'PER',          '배',   109, '주가 / EPS'),
+    ('PBR',             'PBR',          '배',   110, '주가 / BPS'),
+    ('DPS',             'DPS',          'KRW',  111, '주당배당금'),
+    ('DIVIDEND_YIELD',  '시가배당률',   '%',    112, 'DPS / 주가 * 100'),
+    ('PAYOUT_RATIO',    '배당성향',     '%',    113, '배당금총액 / 당기순이익 * 100'),
+    ('RETENTION_RATIO', '유보율',       '%',    114, '이익잉여금 / 자본총계 또는 (1-배당성향)');
 -- 4) 삼성전자 재무 기간 (2020~2024)
 -- INSERT INTO fin_period (company_id, period_type, fiscal_year, fiscal_quarter, is_estimate, label)
 -- SELECT

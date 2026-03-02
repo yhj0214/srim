@@ -7,6 +7,7 @@ import org.yhj.srim.repository.entity.StockPrice;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 public interface StockPriceRepository extends JpaRepository<StockPrice, Long> {
     
@@ -25,6 +26,9 @@ public interface StockPriceRepository extends JpaRepository<StockPrice, Long> {
      */
     List<StockPrice> findByCompany_CompanyIdAndTradeDateBetweenOrderByTradeDateAsc(
             Long companyId, LocalDate startDate, LocalDate endDate);
+
+    Optional<StockPrice> findTopByCompany_CompanyIdAndTradeDateLessThanEqualOrderByTradeDateDesc(
+            Long companyId, LocalDate tradeDate);
 
     /**
      * 회사의 최소 거래일 조회

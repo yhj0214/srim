@@ -10,6 +10,7 @@ import org.yhj.srim.repository.CompanyRepository;
 import org.yhj.srim.repository.StockCodeRepository;
 import org.yhj.srim.repository.entity.Company;
 import org.yhj.srim.repository.entity.StockCode;
+import org.yhj.srim.service.domain.PriceBasedMetricService;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -21,8 +22,8 @@ public class ManagementFacade {
 
     private final FinancialFacadeService financialFacadeService;
     private final PriceChartFacadeService priceChartFacadeService;
+    private final PriceBasedMetricService priceBasedMetricService;
     private final StockCodeRepository stockCodeRepository;
-    private final CompanyRepository companyRepository;
 
     private static final int DEFAULT_YEAR = 10;
 
@@ -46,6 +47,8 @@ public class ManagementFacade {
             // 주가정보 조회
             priceChartFacadeService.ensurePriceData(company.getCompanyId(), startDate, endDate);
 
+            // 주가 기반 지표(PER/PBR 등) 계산
+            priceBasedMetricService.recalcAnnualPriceMetrics(company.getCompanyId());
         }
 
         // 회사채수익률조회
@@ -75,5 +78,6 @@ public class ManagementFacade {
         Company company = financialFacadeService.crawlAnnualTable(stockCode.getStockId(), DEFAULT_YEAR);
 
         priceChartFacadeService.ensurePriceData(company.getCompanyId(), startDate, endDate);
+        priceBasedMetricService.recalcAnnualPriceMetrics(company.getCompanyId());
     }
 }

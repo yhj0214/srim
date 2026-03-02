@@ -355,6 +355,7 @@ public class FinancialService {
                             .metricCode(metricDef.getMetricCode())
                             .metricName(metricDef.getNameKor())
                             .unit(metricDef.getUnit())
+                            .displayOrder(metricDef.getDisplayOrder())
                             .values(rowValues)
                             .build();
                 })
@@ -406,7 +407,18 @@ public class FinancialService {
 
         log.debug("==== {}년 조회된 재무제표 라인 수 : {}", currentYear, lines.size());
 
-        return null;
+        FsRawBundle rawBundle = collectRawBundle(lines, currentYear);
+        Map<String, BigDecimal> raw = rawBundle.curr();
+        Map<String, BigDecimal> prevRaw = rawBundle.prev();
+
+        // 원천 지표 + 계산 지표 결합
+        result.putAll(extractBaseMetrics(raw));
+        result.putAll(calculateDerivedMetrics(companyId, raw, prevRaw, currentYear));
+
+        log.info("=== {}년 FS-DB 기반 FIN_METRIC 결과 ({}개 지표) ===", currentYear, result.size());
+        result.forEach((k, v) -> log.info("   • metricCode='{}', value={}", k, v));
+
+        return result;
     }
 
     private FsRawBundle collectRawBundle(List<DartFsLine> lines, int year) {
@@ -427,19 +439,183 @@ public class FinancialService {
             String metricCode = mapAccountToMetric(sjDiv, accountId, accountNm, accountDetail);
 
             if (metricCode == null) {
-                log.debug(" X [FS-DB][UNMAPPED] year={}, sjDiv={}, accountId={}, accountNm={}, accountDetail={}",
-                        year, sjDiv, accountId, accountNm, accountDetail);
                 continue;
             }
 
-            log.debug(" O [FS-DB][MAPPED] year={}, sjDiv={}, accountId={}, accountNm={}, metricCode={}, accountDetail={}",
-                    year, sjDiv, accountId, accountNm, metricCode, accountDetail);
-
+            // 당기
+            if (currVal != null) {
+                BigDecimal old = curr.get(metricCode);
+                if (old != null && old.compareTo(currVal) != 0) {
+                    log.debug("[FS-DB][DUP] metric={} old={} new={} (accountId={}, accountNm={})",
+                            metricCode, old, currVal, accountId, accountNm);
+                } else if (old == null) {
+                    curr.put(metricCode, currVal);
+                }
+            }
+            // 전기
+            if (prevVal != null) {
+                prev.put(metricCode, prevVal);
+            }
         }
 
         return new FsRawBundle(curr, prev);
     }
 
+    private Map<String, BigDecimal> extractBaseMetrics(Map<String, BigDecimal> raw) {
+        Map<String, BigDecimal> result = new LinkedHashMap<>();
+
+        if (raw == null || raw.isEmpty()) {
+            return result;
+        }
+
+        putIfNotNull(result, "SALES",              raw.get("SALES"));
+        putIfNotNull(result, "OP_INC",             raw.get("OP_INC"));
+        putIfNotNull(result, "NET_INC",            raw.get("NET_INC"));
+        putIfNotNull(result, "NET_INC_OWNER",      raw.get("NET_INC_OWNER"));
+        putIfNotNull(result, "NET_INC_NONCONT",    raw.get("NET_INC_NONCONT"));
+        putIfNotNull(result, "TOTAL_EQUITY",       raw.get("TOTAL_EQUITY"));
+        putIfNotNull(result, "TOTAL_EQUITY_OWNER", raw.get("TOTAL_EQUITY_OWNER"));
+
+        return result;
+    }
+
+    private Map<String, BigDecimal> calculateDerivedMetrics(
+            Long companyId,
+            Map<String, BigDecimal> raw,
+            Map<String, BigDecimal> prevRaw,
+            int currentYear
+    ) {
+        Map<String, BigDecimal> result = new LinkedHashMap<>();
+
+        if (raw == null || raw.isEmpty()) {
+            return result;
+        }
+
+        BigDecimal sales             = raw.get("SALES");
+        BigDecimal opInc             = raw.get("OP_INC");
+        BigDecimal netInc            = raw.get("NET_INC");          // 전체 당기순이익
+        BigDecimal netIncOwner       = raw.get("NET_INC_OWNER");    // 지배주주 당기순이익
+        BigDecimal totalAssets       = raw.get("TOTAL_ASSETS");
+        BigDecimal totalLiab         = raw.get("TOTAL_LIABILITIES");
+        BigDecimal equityTotalCurr   = raw.get("TOTAL_EQUITY");         // 전체 자본
+        BigDecimal equityTotalPrev   = prevRaw != null ? prevRaw.get("TOTAL_EQUITY") : null;
+        BigDecimal equityOwnerCurr   = raw.get("TOTAL_EQUITY_OWNER");   // 지배 기준 자본
+        BigDecimal equityOwnerPrev   = prevRaw != null ? prevRaw.get("TOTAL_EQUITY_OWNER") : null;
+        BigDecimal currentAssets     = raw.get("CURRENT_ASSETS");
+        BigDecimal currentLiab       = raw.get("CURRENT_LIABILITIES");
+
+        // 영업이익률 OPM
+        BigDecimal opm = raw.get("OPM");
+        if (opm == null) {
+            opm = toPercent(safeDivide(opInc, sales));
+        }
+        putIfNotNull(result, "OPM", opm);
+
+        // 순이익률 NET_MARGIN
+        BigDecimal netMargin = raw.get("NET_MARGIN");
+        if (netMargin == null) {
+            netMargin = toPercent(safeDivide(netInc, sales));
+        }
+        putIfNotNull(result, "NET_MARGIN", netMargin);
+
+        // 부채비율 DEBT_RATIO = 부채총계 / 자본총계 * 100
+        BigDecimal equityForDebt = (equityTotalCurr != null ? equityTotalCurr : equityOwnerCurr);
+        BigDecimal debtRatio = toPercent(safeDivide(totalLiab, equityForDebt));
+        putIfNotNull(result, "DEBT_RATIO", debtRatio);
+
+        // ROE = (지배주주 당기순이익 or 전체) / 평균 지배주주자본(or 전체) * 100
+        BigDecimal roeSourceNetInc  = (netIncOwner != null ? netIncOwner : netInc);
+        BigDecimal roeEquityCurr    = (equityOwnerCurr != null ? equityOwnerCurr : equityTotalCurr);
+        BigDecimal roeEquityPrev    = (equityOwnerPrev != null ? equityOwnerPrev : equityTotalPrev);
+
+        if (roeSourceNetInc != null && roeEquityCurr != null && roeEquityPrev != null) {
+            BigDecimal avgEquity = roeEquityCurr.add(roeEquityPrev)
+                    .divide(BigDecimal.valueOf(2), 8, RoundingMode.HALF_UP);
+
+            if (avgEquity.compareTo(BigDecimal.ZERO) != 0) {
+                BigDecimal roe = toPercent(
+                        roeSourceNetInc.divide(avgEquity, 8, RoundingMode.HALF_UP)
+                );
+                putIfNotNull(result, "ROE", roe);
+
+                log.debug("[ROE] year={} / netInc(used)={} / equity_curr={} / equity_prev={} / avgEquity={} / ROE={}",
+                        currentYear, roeSourceNetInc, roeEquityCurr, roeEquityPrev, avgEquity, roe);
+            } else {
+                log.debug("[FS-DB][ROE] 평균 자기자본 0 - year={}", currentYear);
+            }
+        } else {
+            log.debug("[FS-DB][ROE] netIncOwner/equityOwnerCurr/equityOwnerPrev 중 null 존재 - year={}", currentYear);
+        }
+
+        // ROA = 당기순이익 / 자산총계 * 100
+        BigDecimal roa = toPercent(safeDivide(netInc, totalAssets));
+        putIfNotNull(result, "ROA", roa);
+
+        // 유동비율(단순) = 유동자산 / 유동부채 * 100
+        BigDecimal quickRatio = toPercent(safeDivide(currentAssets, currentLiab));
+        putIfNotNull(result, "QUICK_RATIO", quickRatio);
+
+        // EPS = 지배주주순이익 / 보통주 주식수
+        Optional<BigDecimal> epsOpt = calcEps(companyId, currentYear, netIncOwner);
+        epsOpt.ifPresent(eps -> putIfNotNull(result, "EPS", eps));
+
+        return result;
+    }
+
+    private Optional<BigDecimal> calcEps(Long companyId, int fiscalYear, BigDecimal netIncOwner) {
+        if (netIncOwner == null) {
+            log.debug("[FS-DB][EPS] netIncOwner is null - companyId={}, year={}", companyId, fiscalYear);
+            return Optional.empty();
+        }
+
+        Optional<BigDecimal> eps = findTotalIssuedShares(companyId, fiscalYear)
+                .filter(shares -> shares.compareTo(BigDecimal.ZERO) > 0)
+                .map(shares -> netIncOwner.divide(shares, 2, RoundingMode.HALF_UP));
+
+        if (eps.isEmpty()) {
+            log.debug("[FS-DB][EPS] common shares not found or zero - companyId={}, year={}", companyId, fiscalYear);
+        } else {
+            log.debug("[FS-DB][EPS] ok - companyId={}, year={}, netIncOwner={}, eps={}",
+                    companyId, fiscalYear, netIncOwner, eps.get());
+        }
+
+        return eps;
+    }
+
+
+    private Optional<BigDecimal> findTotalIssuedShares(Long companyId, int fiscalYear) {
+        List<StockShareStatus> statuses =
+                stockShareStatusRepository.findByCompany_CompanyIdAndBsnsYearAndSeIn(
+                        companyId, fiscalYear, List.of("보통주", "우선주")
+                );
+
+        if (statuses.isEmpty()) {
+            return Optional.empty();
+        }
+
+        BigDecimal total = BigDecimal.ZERO;
+        for (StockShareStatus status : statuses) {
+            BigDecimal shares = resolveIssuedShares(status);
+            if (shares != null) {
+                total = total.add(shares);
+            }
+        }
+
+        if (total.compareTo(BigDecimal.ZERO) <= 0) {
+            return Optional.empty();
+        }
+
+        return Optional.of(total);
+    }
+
+    private BigDecimal resolveIssuedShares(StockShareStatus status) {
+        Long istc = status.getIstcTotqy();
+        if (istc != null && istc > 0L) {
+            return BigDecimal.valueOf(istc);
+        }
+
+        return null;
+    }
 
 
         /**
@@ -631,7 +807,7 @@ public class FinancialService {
         }
 
         // 자본총계 (지배 + 비지배 포함)
-        if (key.id.equals("ifrs-full_Equity")) {
+        if (key.id.equals("ifrs-full_Equity") || key.id.equals("ifrs_Equity")) {
             return "TOTAL_EQUITY";
         }
         if ((key.id.isEmpty() || "-".equals(key.id)) && key.nm.equals("자본총계")) {
@@ -642,6 +818,7 @@ public class FinancialService {
 
         // 지배주주지분 / 지배기업 소유주 지분
         if (key.id.equals("ifrs-full_EquityAttributableToOwnersOfParent")
+                || key.id.equals("ifrs_EquityAttributableToOwnersOfParent")
                 || key.nm.contains("지배기업의 소유주에게 귀속되는 자본")
                 || key.nm.contains("지배주주지분")) {
             return "TOTAL_EQUITY_OWNER";
@@ -671,8 +848,8 @@ public class FinancialService {
         if(!"IS".equalsIgnoreCase(key.sj) && !"CIS".equalsIgnoreCase(key.sj)) return null;
 
         // 전체 당기순이익
-        if (key.id.equals("ifrs-full_ProfitLoss")
-                && (key.nm.equals("당기순이익") || key.nm.equals("당기순손실") || key.nm.equals("당기순손익"))) {
+        if ((key.id.equals("ifrs-full_ProfitLoss") || key.id.equals("ifrs_ProfitLoss") || key.id.contains("미사용"))
+                && (key.nm.contains("당기순이익") || key.nm.contains("당기순손실") || key.nm.contains("당기순손익"))) {
             // 전체 당기순이익
             return "NET_INC";
         }
@@ -704,16 +881,16 @@ public class FinancialService {
         if(!"SCE".equalsIgnoreCase(key.sj)) return null;
 
         // 지배주주 귀속 당기순이익
-        if (key.id.equals("ifrs-full_ProfitLoss")
-                && (key.nm.equals("당기순이익") || key.nm.equals("당기순손실") || key.nm.equals("당기순손익"))
+        if ((key.id.equals("ifrs-full_ProfitLoss") || key.id.contains("미사용"))
+                && (key.nm.contains("당기순이익") || key.nm.contains("당기순손실") || key.nm.contains("당기순손익"))
                 && key.detail.contains("지배기업")) {
 
             return "NET_INC_OWNER";
         }
 
         // 비지배주주 귀속 당기순이익
-        if (key.id.equals("ifrs-full_ProfitLoss")
-                && (key.nm.equals("당기순이익") || key.nm.equals("당기순손실") || key.nm.equals("당기순손익"))
+        if ((key.id.equals("ifrs-full_ProfitLoss") || key.id.contains("미사용"))
+                && (key.nm.contains("당기순이익") || key.nm.contains("당기순손실") || key.nm.contains("당기순손익"))
                 && key.detail.contains("비지배")) {
             return "NET_INC_NONCONT";
         }

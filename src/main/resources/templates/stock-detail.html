@@ -7,7 +7,9 @@
                  th:attr="data-market=${stock.market},
                         data-ticker=${stock.tickerKrx},
                         data-stock-id=${stock.stockId},
-                        data-company-id=${stock.companyId}">
+                        data-company-id=${stock.companyId},
+                        data-api-srim=@{|/api/stocks/${stock.companyId}/srim?basis=YEAR|},
+                        data-api-financial=@{|/api/stocks/${stock.stockId}/financial/annual|}">
             <div class="detailHead">
                 <div>
                     <h1 class="page__title" th:text="${stock.companyName}">회사명</h1>
@@ -34,7 +36,24 @@
                 </div>
 
                 <div class="tabPanel" data-panel="financial" hidden>
-                    <p class="muted">재무정보는 다음 단계에서 연결합니다.</p>
+                    <div id="financialContainer"></div>
+                    <div class="card finNote">
+                        <div class="finHeader">
+                            <h3>계산 지표 설명</h3>
+                        </div>
+                        <div class="muted">
+                            <div>영업이익률 = 영업이익 ÷ 매출액 × 100</div>
+                            <div>순이익률 = 당기순이익 ÷ 매출액 × 100</div>
+                            <div>ROE = 지배주주순이익 ÷ 평균 지배주주지분 × 100 (평균 = 당기+전기/2)</div>
+                            <div>ROA = 당기순이익 ÷ 자산총계 × 100</div>
+                            <div>부채비율 = 부채총계 ÷ 자본총계 × 100</div>
+                            <div>EPS = 지배주주순이익 ÷ 발행주식수</div>
+                            <div>BPS = 지배주주지분 ÷ 발행주식수</div>
+                            <div>PER = 연말 주가 ÷ EPS</div>
+                            <div>PBR = 연말 주가 ÷ BPS</div>
+                            <div>연말 주가는 12/31 기준 가장 가까운 거래일 종가를 사용합니다.</div>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="tabPanel" data-panel="srim">

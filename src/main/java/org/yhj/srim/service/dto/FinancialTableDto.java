@@ -56,6 +56,7 @@ public class FinancialTableDto {
         private String metricCode;
         private String metricName;  // 한글명
         private String unit;  // 단위
+        private Integer displayOrder; // 표기 순서(원천/계산 구분용)
         
         /**
          * 기간별 값

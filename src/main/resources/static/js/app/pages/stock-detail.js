@@ -17,23 +17,32 @@ export const StockDetailPage = {
     },
 
     _bindTabs(root){
-        const tabs = qsa('.nav-tabs a', root);
+        const tabs = qsa('.tab', root);
         tabs.forEach((btn) => {
             btn.addEventListener('click', async () =>{
                 const name = btn.dataset.tab;
                 this._activateTab(root, name);
 
-                if(name === "srim"){
-                    await this._loadAndRenderSrim(root);
-                }
+                await this._ensureLoaded(root, name);
             });
         });
     },
 
+    async _ensureLoaded(root, tabName) {
+        if(tabName === "srim") return this._loadSrim(root);
+        if(tabName === "financial") return this._loadFinancial(root);
+    },
+
     _activateTab(root, name){
+        // tab active 표시
         qsa(".tab", root).forEach((tab) =>
-        tab.classList.toggle("is-active", tab.dataset.tab === name));
-        qsa(".tabPanel", root).forEach((panel) => (panel.hidden = panel.dataset.panel !== name));
+            tab.classList.toggle("is-active", tab.dataset.tab === name)
+        );
+
+        // 패널 전환(data-panel 값과 탭 이름 맞추기)
+        qsa(".tabPanel", root).forEach((panel) =>
+            (panel.hidden = panel.dataset.panel !== name)
+        );
     },
 
     async _loadSrim(root) {
@@ -50,6 +59,7 @@ export const StockDetailPage = {
 
         container.innerHTML = `<div class="alert">S-RIM 데이터를 불러오는 중입니다...</div>`;
 
+        const apiUrl = root.dataset.apiUrl;
         const res = await apiGetJSON(`/api/stocks/${companyId}/srim?basis=YEAR`);
         if (!res.ok) {
             container.innerHTML = `<div class="alert alert--error">${escapeHtml(res.message || "요청에 실패했습니다.")}</div>`;
@@ -62,7 +72,7 @@ export const StockDetailPage = {
             return;
         }
 
-        container.datset.loaded = "true";
+        container.dataset.loaded = "true";
         this._renderSrim(container,body.data);
     },
 
@@ -104,6 +114,119 @@ export const StockDetailPage = {
             </div>
         </div>
         `;
+    },
+
+    async _loadFinancial(root) {
+        const container = qs("#financialContainer", root);
+        if(!container) return;
+
+        if(container.dataset.loaded === "true") return;
+
+        const companyId = root.dataset.companyId;
+        if (!companyId) {
+            container.innerHTML = `<div class="alert alert--error">회사 정보(companyId)가 없어 재무를 조회할 수 없습니다.</div>`;
+            return;
+        }
+
+
+        container.innerHTML = `<div class="alert">재무 데이터를 불러오는 중입니다...</div>`;
+
+        const apiUrl = root.dataset.apiFinancial;
+        const res = await apiGetJSON(apiUrl);
+
+        if (!res.ok) {
+            container.innerHTML = `<div class="alert alert--error">${escapeHtml(res.message || "요청에 실패했습니다.")}</div>`;
+            return;
+        }
+
+        const body = res.data;
+        if (!body?.success) {
+            container.innerHTML = `<div class="alert alert--error">${escapeHtml(body?.message || "재무 조회에 실패했습니다.")}</div>`;
+            return;
+        }
+
+        container.dataset.loaded = "true";
+        this._renderFinancial(container, body.data);
+    },
+    _renderFinancial(container, data) {
+        const headers = Array.isArray(data?.headers) ? data.headers : [];
+        const rows = Array.isArray(data?.rows) ? data.rows : [];
+
+        if (headers.length === 0 || rows.length === 0) {
+            container.innerHTML = `<div class="alert">재무 데이터가 없습니다.</div>`;
+            return;
+        }
+
+        const headerCells = headers.map((h) => {
+            const label = h?.label ?? "-";
+            return `<th class="finTable__head">${escapeHtml(label)}</th>`;
+        }).join("");
+
+        const isCalcMetric = (row) => {
+            const order = Number(row?.displayOrder);
+            return Number.isFinite(order) && order > 100;
+        };
+
+        const rawRows = rows.filter((row) => !isCalcMetric(row));
+        const calcRows = rows.filter((row) => isCalcMetric(row));
+
+        const renderTable = (sectionTitle, tableRows) => {
+            if (!tableRows || tableRows.length === 0) {
+                return `
+                    <div class="finSection">
+                        <h4 class="finSection__title">${escapeHtml(sectionTitle)}</h4>
+                        <div class="alert">표시할 지표가 없습니다.</div>
+                    </div>
+                `;
+            }
+
+            const bodyRows = tableRows.map((row) => {
+                const name = row?.metricName ?? row?.metricCode ?? "-";
+                const unit = row?.unit ? ` <span class="finTable__unit">(${escapeHtml(row.unit)})</span>` : "";
+
+                const valueCells = headers.map((h) => {
+                    const periodId = String(h?.periodId ?? "");
+                    const raw = row?.values?.[periodId];
+                    return `<td class="finTable__cell">${formatFinancialValue(raw)}</td>`;
+                }).join("");
+
+                return `
+                    <tr>
+                        <th class="finTable__rowHead">${escapeHtml(name)}${unit}</th>
+                        ${valueCells}
+                    </tr>
+                `;
+            }).join("");
+
+            return `
+                <div class="finSection">
+                    <h4 class="finSection__title">${escapeHtml(sectionTitle)}</h4>
+                    <div class="finTableWrap">
+                        <table class="finTable">
+                            <thead>
+                                <tr>
+                                    <th class="finTable__head finTable__head--sticky">지표</th>
+                                    ${headerCells}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${bodyRows}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        };
+
+        container.innerHTML = `
+            <div class="card">
+                <div class="finHeader">
+                    <h3>재무정보</h3>
+                </div>
+                ${renderTable("원천 지표", rawRows)}
+                ${renderTable("계산 지표", calcRows)}
+            </div>
+        `;
     }
 }
 
@@ -117,6 +240,12 @@ function formatPercent(v) {
     const n = Number(v);
     if (!Number.isFinite(n)) return "-";
     return n.toFixed(2) + "%";
+}
+
+function formatFinancialValue(v) {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return "-";
+    return n.toLocaleString("ko-KR");
 }
 
 function escapeHtml(str) {

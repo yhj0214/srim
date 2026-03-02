@@ -91,7 +91,8 @@ public class DartFsLine {
     private String rowHash;
 
     @Lob
-    @Column(name = "원본데이터 보관용도")
+    @Column(name = "raw_json")
+    @Comment("원본데이터 보관용도")
     private String rawJson;
 
     @Column(name = "created_at", nullable = false, updatable = false)

@@ -48,7 +48,6 @@ public class NaverClient {
         while(!done) {
             String url = String.format(BASE_URL, tickerKrx, page);
             try{
-                log.debug("네이버 일별 시세 요청 : url = {}", url);
 
                 Document doc = Jsoup.connect(url)
                         .userAgent("Mozilla/5.0")

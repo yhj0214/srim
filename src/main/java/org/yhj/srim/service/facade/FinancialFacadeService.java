@@ -154,6 +154,7 @@ public class FinancialFacadeService {
                     .metricCode(metricCode)
                     .metricName(nameKor)
                     .unit(unit)
+                    .displayOrder(def.getDisplayOrder())
                     .values(valueCopy)
                     .build();
 

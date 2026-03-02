@@ -58,6 +58,13 @@ public class KrxCrawlingApiController {
     }
 
 
+    /**
+     * 단일종목 조회 API
+      * GET /api/crawling/krx/stocks/{tickerKrx}
+       * - tickerKrx : KRX 고유 종목코드 (예: 005930)
+       * - 해당 종목의 상세 정보 및 재무제표 크롤링 및 DB 저장
+       * - 이미 존재하는 경우, 최신 데이터로 업데이트
+     */
     @GetMapping("/stocks/{tickerKrx}")
     public ApiResponse<Void> crawlingStockInfo(@PathVariable String tickerKrx){
         log.info("stickerKrx : {}", tickerKrx);
