@@ -45,7 +45,6 @@ public class FinancialFacadeService {
     private final FinMetricValueRepository finMetricValueRepository;
     private final BondYieldCurveRepository bondYieldCurveRepository;
 
-    private static final int CHUNK_DAYS = 50;
     private static final String SOURCE = "KIS";
 
     /**
@@ -95,7 +94,24 @@ public class FinancialFacadeService {
             return new FinancialTableDto(List.of(), List.of());
         }
 
-        List<FinancialTableDto.PeriodHeaderDto> headers = periods.stream()
+        List<FinancialTableDto.PeriodHeaderDto> headers = buildPeriodHeaders(periods);
+        List<Long> periodIds = extractPeriodIds(periods);
+        List<FinMetricValue> metricValues =
+                finMetricValueRepository.findByCompanyIdAndPeriod_PeriodIdIn(companyId, periodIds);
+        Map<String, Map<Long, BigDecimal>> metricCodeToPeriodValueMap = indexMetricValuesByCode(metricValues);
+
+        List<FinMetricDef> metricDefs = finMetricDefRepository.findAllByOrderByDisplayOrderAsc();
+        List<FinancialTableDto.MetricRowDto> rows =
+                buildMetricRows(metricDefs, periodIds, metricCodeToPeriodValueMap);
+
+        return FinancialTableDto.builder()
+                .headers(headers)
+                .rows(rows)
+                .build();
+    }
+
+    private List<FinancialTableDto.PeriodHeaderDto> buildPeriodHeaders(List<FinPeriod> periods) {
+        return periods.stream()
                 .map(p -> FinancialTableDto.PeriodHeaderDto.builder()
                         .periodId(p.getPeriodId())
                         .label(p.getLabel())              // ex) "2024/12"
@@ -104,17 +120,15 @@ public class FinancialFacadeService {
                         .isEstimate(p.getIsEstimate())
                         .build())
                 .collect(Collectors.toList());
+    }
 
-        // periodId 리스트 추출
-        List<Long> periodIds = periods.stream()
+    private List<Long> extractPeriodIds(List<FinPeriod> periods) {
+        return periods.stream()
                 .map(FinPeriod::getPeriodId)
                 .collect(Collectors.toList());
+    }
 
-        // 해당 기간들에 대한 fin_metric_value 조회
-        List<FinMetricValue> metricValues =
-                finMetricValueRepository.findByCompanyIdAndPeriod_PeriodIdIn(companyId, periodIds);
-
-        // metricCode -> (periodId -> value) 맵 구성
+    private Map<String, Map<Long, BigDecimal>> indexMetricValuesByCode(List<FinMetricValue> metricValues) {
         Map<String, Map<Long, BigDecimal>> metricCodeToPeriodValueMap = new HashMap<>();
 
         for (FinMetricValue v : metricValues) {
@@ -127,9 +141,14 @@ public class FinancialFacadeService {
                     .put(periodId, value);
         }
 
-        // fin_metric_def 기준으로 행 구성
-        List<FinMetricDef> metricDefs = finMetricDefRepository.findAllByOrderByDisplayOrderAsc();
+        return metricCodeToPeriodValueMap;
+    }
 
+    private List<FinancialTableDto.MetricRowDto> buildMetricRows(
+            List<FinMetricDef> metricDefs,
+            List<Long> periodIds,
+            Map<String, Map<Long, BigDecimal>> metricCodeToPeriodValueMap
+    ) {
         List<FinancialTableDto.MetricRowDto> rows = new ArrayList<>();
 
         for (FinMetricDef def : metricDefs) {
@@ -140,11 +159,8 @@ public class FinancialFacadeService {
             Map<Long, BigDecimal> periodValueMap =
                     metricCodeToPeriodValueMap.getOrDefault(metricCode, Collections.emptyMap());
 
-            // DTO에서는 수정 가능하도록 새 HashMap으로 복사
             Map<Long, BigDecimal> valueCopy = new LinkedHashMap<>();
             for (Long periodId : periodIds) {
-                // 값이 없는 기간은 null 또는 아예 넣지 않을 수 있음
-                // 여기서는 있는 값만 넣고, 프론트에서 없는 키는 공백 처리하게
                 if (periodValueMap.containsKey(periodId)) {
                     valueCopy.put(periodId, periodValueMap.get(periodId));
                 }
@@ -160,10 +176,8 @@ public class FinancialFacadeService {
 
             rows.add(row);
         }
-        return FinancialTableDto.builder()
-                .headers(headers)
-                .rows(rows)
-                .build();
+
+        return rows;
     }
 
 
@@ -200,28 +214,6 @@ public class FinancialFacadeService {
 
         financialService.updateCompanyShareInfo(companyId);
     }
-    /**
-     * dart_fs_line 기반 계산 결과로 연간 테이블 DTO 생성
-     */
-    private FinancialTableDto loadMetricsAsDto(Company company, int limit) {
-
-        Long companyId = company.getCompanyId();
-        int currentYear = LocalDate.now().getYear();
-        int startYear   = currentYear - limit + 1;
-
-        Map<Integer, Map<String, BigDecimal>> metricsByYear = new LinkedHashMap<>();
-
-        for (int year = currentYear; year >= startYear; year--) {
-            Map<String, BigDecimal> metrics =
-                    financialService.buildFinancialMetrics(companyId, year);
-
-            metricsByYear.put(year, metrics);
-        }
-
-        return buildFinancialTableDtoFromMetrics(metricsByYear);
-    }
-
-
     private FinancialTableDto buildFinancialTableDtoFromMetrics(
             Map<Integer, Map<String, BigDecimal>> metricsByYear) {
 
@@ -388,22 +380,6 @@ public class FinancialFacadeService {
         return bondYieldCurveRepository.upsert(asOf, rating, tenorMonths, yieldRate, SOURCE);
     }
 
-    private List<BondYieldCurve> toEntities(LocalDate asOf, KisSpreadRow row) {
-
-        List<BondYieldCurve> result = new ArrayList<>(8);
-        String rating = normalizeRating(row.category());
-
-        addIfPresent(result, asOf, rating, (short) 3, row.m3());
-        addIfPresent(result, asOf, rating, (short) 6, row.m6());
-        addIfPresent(result, asOf, rating, (short) 9, row.m9());
-        addIfPresent(result, asOf, rating, (short) 12, row.y1());
-        addIfPresent(result, asOf, rating, (short) 18, row.y1_6());
-        addIfPresent(result, asOf, rating, (short) 24, row.y2());
-        addIfPresent(result, asOf, rating, (short) 36, row.y3());
-        addIfPresent(result, asOf, rating, (short) 60, row.y5());
-
-        return result;
-    }
     private String normalizeRating(String category) {
         if (category == null) return "UNKNOWN";
         return category.trim();
@@ -425,11 +401,6 @@ public class FinancialFacadeService {
                 .yieldRate(yieldRate)
                 .source(SOURCE)
                 .build());
-    }
-
-    private boolean isWeekend(LocalDate d) {
-        DayOfWeek w = d.getDayOfWeek();
-        return w == DayOfWeek.SATURDAY || w == DayOfWeek.SUNDAY;
     }
 
 }
