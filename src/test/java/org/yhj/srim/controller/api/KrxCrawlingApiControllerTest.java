@@ -9,7 +9,6 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.yhj.srim.controller.dto.CrawlAllMarketsResult;
 import org.yhj.srim.service.facade.ManagementFacade;
-import org.yhj.srim.service.crawl.KrxStockCrawlingService;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -23,8 +22,6 @@ class KrxCrawlingApiControllerTest {
 
     @MockitoBean
     ManagementFacade managementFacade;
-    @MockitoBean
-    KrxStockCrawlingService krxStockCrawlingService;
 
     @Test
     @DisplayName("전체 크롤링 step1에 성공한다.")

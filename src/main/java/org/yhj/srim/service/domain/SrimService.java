@@ -8,6 +8,7 @@ import org.yhj.srim.common.exception.CustomException;
 import org.yhj.srim.common.exception.code.CommonErrorCode;
 import org.yhj.srim.repository.*;
 import org.yhj.srim.repository.entity.*;
+import org.yhj.srim.service.dto.SrimCalculateCommand;
 import org.yhj.srim.service.dto.SrimResultDto;
 
 import java.math.BigDecimal;
@@ -48,14 +49,19 @@ public class SrimService {
 
     /**
      * S-RIM 계산
-     *
-     * @param companyId 회사 ID
-     * @param basis 기준 (YEAR/QTR)
-     * @param rating 신용등급 (기본 BBB-)
-     * @param tenorMonths 만기 (기본 60개월)
-     * @return S-RIM 계산 결과
      */
-    public SrimResultDto calculate(Long companyId, String basis,Integer year, String rating, Integer tenorMonths, LocalDate date) {
+    public SrimResultDto calculate(SrimCalculateCommand command) {
+        if (command == null) {
+            throw new IllegalArgumentException("S-RIM 계산 요청이 비어있습니다.");
+        }
+
+        Long companyId = command.getCompanyId();
+        String basis = command.getBasis();
+        Integer year = command.getYear();
+        String rating = command.getRating();
+        Integer tenorMonths = command.getTenor();
+        LocalDate date = command.getAsOf();
+
         log.debug("S-RIM 계산 시작: companyId={}, basis={}, year={}, rating={}, tenor={}",
                 companyId, basis, year, rating, tenorMonths);
 
@@ -63,9 +69,10 @@ public class SrimService {
         if (rating == null) rating = DEFAULT_RATING;
         if (tenorMonths == null) tenorMonths = (int) DEFAULT_TENOR_MONTHS;
         if (basis == null) basis = "YEAR";
+        if (date == null) date = LocalDate.now();
 
         // 1. 연도별 주식 수 조회,
-        int baseYear = year == null ? LocalDate.now().getYear() -1 : year;
+        int baseYear = year == null ? LocalDate.now().getYear() - 1 : year;
         log.debug("기준연도 : year = {}", baseYear);
         Long sharesOutStanding = getShareOutStanding(companyId, baseYear, SE);
         log.debug("{}연도 유통주식수 : {}",baseYear, sharesOutStanding);

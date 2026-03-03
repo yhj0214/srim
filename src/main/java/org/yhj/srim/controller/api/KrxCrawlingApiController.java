@@ -2,15 +2,10 @@ package org.yhj.srim.controller.api;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.yhj.srim.controller.dto.ApiResponse;
 import org.yhj.srim.controller.dto.CrawlAllMarketsResult;
 import org.yhj.srim.service.facade.ManagementFacade;
-import org.yhj.srim.service.crawl.KrxStockCrawlingService;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * KRX 종목 크롤링 API 컨트롤러
@@ -21,7 +16,6 @@ import java.util.Map;
 @Slf4j
 public class KrxCrawlingApiController {
 
-    private final KrxStockCrawlingService krxStockCrawlingService;
     private final ManagementFacade managementFacade;
 
     /**
@@ -73,19 +67,4 @@ public class KrxCrawlingApiController {
     }
 
 
-    /**
-     * 시장별 종목 수 조회
-     * GET /api/crawling/krx/stats
-     */
-    @GetMapping("/stats")
-    public ResponseEntity<ApiResponse<Map<String, Long>>> getStats() {
-        try {
-            Map<String, Long> stats = krxStockCrawlingService.getStockCountByMarket();
-            return ResponseEntity.ok(ApiResponse.success(stats));
-        } catch (Exception e) {
-            log.error("통계 조회 실패", e);
-            return ResponseEntity.internalServerError()
-                    .body(ApiResponse.error("통계 조회 중 오류가 발생했습니다."));
-        }
-    }
 }
