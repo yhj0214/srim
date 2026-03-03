@@ -21,5 +21,9 @@ public interface StockShareStatusRepository extends JpaRepository<StockShareStat
 
     Optional<StockShareStatus> findTopByCompany_CompanyIdOrderByUpdatedAtDesc(Long companyId);
 
+    Optional<StockShareStatus> findTopByCompany_CompanyIdAndSeAndBsnsYearLessThanEqualOrderByBsnsYearDesc(
+            Long companyId, String se, Integer bsnsYear
+    );
+
     long deleteByCompany_CompanyIdAndBsnsYear(Long companyId, Integer bsnsYear);
 }

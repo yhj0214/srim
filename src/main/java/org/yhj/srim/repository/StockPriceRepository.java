@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface StockPriceRepository extends JpaRepository<StockPrice, Long> {
-    
+
     /**
      * 회사 ID로 주가 데이터 존재 여부 확인
      */
@@ -29,6 +29,8 @@ public interface StockPriceRepository extends JpaRepository<StockPrice, Long> {
 
     Optional<StockPrice> findTopByCompany_CompanyIdAndTradeDateLessThanEqualOrderByTradeDateDesc(
             Long companyId, LocalDate tradeDate);
+
+    Optional<StockPrice> findTopByCompany_CompanyIdOrderByTradeDateDesc(Long companyId);
 
     /**
      * 회사의 최소 거래일 조회

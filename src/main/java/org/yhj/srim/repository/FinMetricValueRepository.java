@@ -44,16 +44,9 @@ public interface FinMetricValueRepository extends JpaRepository<FinMetricValue, 
 
     List<FinMetricValue> findByCompanyIdAndPeriod_PeriodIdIn(Long companyId, List<Long> periodIds);
 
-    @Query("""
-        select v
-        from FinMetricValue v
-        join fetch v.period p
-        join p.company c
-        where c.companyId = :companyId
-        and p.fiscalYear = :baseYear
-        and v.metricCode = :metricCode
-    """)
-    Optional<FinMetricValue> findYearlyMetricWithFetch(@Param("companyId") Long companyId,@Param("baseYear") int baseYear, @Param("metricCode") String metricCode);
+    Optional<FinMetricValue> findTopByCompanyIdAndMetricCodeAndPeriod_PeriodTypeAndPeriod_IsEstimateAndPeriod_FiscalYearLessThanEqualOrderByPeriod_FiscalYearDesc(
+            Long companyId, String metricCode, String periodType, Boolean isEstimate, Integer baseYear
+    );
 
     long deleteByCompanyIdAndPeriod_PeriodId(Long companyId, Long periodId);
 }

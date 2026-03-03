@@ -352,6 +352,7 @@ main{
     border: 1px solid var(--border);
     border-radius: 12px;
     padding: 14px;
+    background: #fff;
 }
 
 .srimTitle{
@@ -362,9 +363,207 @@ main{
 }
 .srimTitle h3{ margin:0; font-size: 16px; }
 .srimHint{ color: var(--muted); font-size: 13px; }
+.srimChips{
+    display:flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.chip{
+    display:inline-flex;
+    align-items:center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid transparent;
+    background: #f6f7fb;
+    color: #394150;
+}
+.chip--accent{
+    background: #eef6ff;
+    border-color: #d7e8ff;
+    color: #1c4aa0;
+}
+.chip--neutral{
+    background: #f2f4f8;
+    border-color: #e3e7ee;
+    color: #2d3640;
+}
+.chip--muted{
+    background: #f7f7fb;
+    border-color: #ececf3;
+    color: #5d6674;
+}
+.chip--dark{
+    background: #111827;
+    border-color: #111827;
+    color: #f9fafb;
+}
 
 .srimList{ margin:0; padding-left: 18px; }
 .srimList li{ margin: 6px 0; }
+.srimList--tight{ padding-left: 14px; }
+
+.srimScenarioLayout{
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) 1.3fr;
+    gap: 14px;
+    align-items: center;
+}
+@media (max-width: 900px){
+    .srimScenarioLayout{
+        grid-template-columns: 1fr;
+    }
+}
+
+.srimTableWrap{
+    margin-top: 6px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    background: #fff;
+}
+.srimTable{
+    width: 100%;
+    border-collapse: collapse;
+}
+.srimTable__head,
+.srimTable__rowHead,
+.srimTable__cell{
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    font-size: 13px;
+}
+.srimTable__head:last-child,
+.srimTable__rowHead:last-child,
+.srimTable__cell:last-child{
+    border-right: none;
+}
+.srimTable__head{
+    text-align: left;
+    color: var(--muted);
+    background: #f7f7fb;
+    font-weight: 600;
+}
+.srimTable__rowHead{
+    text-align: left;
+    width: 44%;
+    background: #fbfbff;
+    font-weight: 600;
+    color: #2d3640;
+}
+.srimTable__cell{
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    color: #1f2933;
+}
+.srimTable--center .srimTable__head,
+.srimTable--center .srimTable__cell{
+    text-align: center;
+}
+.srimTable--rowLabels .srimTable__rowHead{
+    text-align: left;
+    width: 26%;
+}
+.srimSubTitle{
+    margin: 12px 0 6px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #4b5563;
+}
+
+.srimSummaryGrid{
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 10px;
+}
+@media (max-width: 860px){
+    .srimSummaryGrid{
+        grid-template-columns: 1fr;
+    }
+}
+
+.srimTable__cell--em{
+    font-weight: 700;
+    color: #0f172a;
+    background: #f6f8ff;
+}
+.srimTable__cell--muted{
+    color: var(--muted);
+    background: #fbfbff;
+}
+
+.srimTable--compact{
+    width: fit-content;
+    min-width: 0;
+    table-layout: auto;
+}
+.srimTable--compact .srimTable__rowHead{
+    width: auto;
+    white-space: nowrap;
+}
+
+.srimChart{
+    position: relative;
+    height: 180px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: #fbfbff;
+}
+.srimBars{
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+    height: 100%;
+    align-items: end;
+}
+.srimBarWrap{
+    display: grid;
+    grid-template-rows: 1fr auto auto;
+    align-items: end;
+    gap: 6px;
+    height: 100%;
+    text-align: center;
+}
+.srimBar{
+    width: 100%;
+    max-width: 56px;
+    justify-self: center;
+    background: linear-gradient(180deg, #7c9cff, #3c62ff);
+    border-radius: 10px 10px 6px 6px;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.35);
+}
+.srimBarLabel{
+    font-size: 11px;
+    color: var(--muted);
+}
+.srimBarValue{
+    font-size: 12px;
+    font-weight: 700;
+    color: #111827;
+}
+.srimLine{
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    height: 2px;
+    background: #111;
+    z-index: 1;
+}
+.srimLine span{
+    position: absolute;
+    right: 0;
+    top: -18px;
+    font-size: 11px;
+    background: #111;
+    color: #fff;
+    padding: 2px 6px;
+    border-radius: 999px;
+}
 
 .alert{
     border: 1px solid var(--border);

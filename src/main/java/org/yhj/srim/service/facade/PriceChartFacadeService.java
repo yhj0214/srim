@@ -14,7 +14,6 @@ import org.yhj.srim.service.dto.SrimResultDto;
 import org.yhj.srim.service.dto.StockPriceDto;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.*;
 
@@ -24,27 +23,19 @@ import java.util.*;
 public class PriceChartFacadeService {
 
     private static final int INITIAL_BACKFILL_YEARS = 10;
+    private static final LocalDate MIN_AVAILABLE_DATE = LocalDate.of(2015, 1, 1);
     private static final String DEFAULT_RATING = "BBB-";
     private static final Short DEFAULT_TENOR_MONTHS = 60;
-    private static final String METRIC_TOTAL_EQUITY_OWNER = "TOTAL_EQUITY_OWNER";
-    private static final int DEFAULT_SCALE = 2;
-    
+
     private final StockPriceRepository stockPriceRepository;
     private final BondYieldCurveRepository bondYieldCurveRepository;
     private final CrawlingService crawlingService;
     private final SrimService srimService;
 
-    private static final BigDecimal[] REDUCTION_RATES = {
-            BigDecimal.ZERO,
-            new BigDecimal("-0.10"),
-            new BigDecimal("-0.20"),
-            new BigDecimal("-0.30"),
-            new BigDecimal("-0.50")
-    };
 
     /**
      * 주가 차트 데이터 조회 (주가 + S-RIM 적정주가)
-     * 
+     *
      * @param companyId 회사 ID
      * @return 주가 차트 데이터
      */
@@ -53,11 +44,22 @@ public class PriceChartFacadeService {
         LocalDate end = (endDate != null) ? endDate : LocalDate.now();
         LocalDate start = (startDate != null) ? startDate : end.minusYears(1);
 
+        if (start.isBefore(MIN_AVAILABLE_DATE)) {
+            start = MIN_AVAILABLE_DATE;
+        }
+        if (end.isBefore(MIN_AVAILABLE_DATE)) {
+            return StockPriceDto.builder().priceData(List.of()).build();
+        }
+
         LocalDate hardMin = end.minusYears(INITIAL_BACKFILL_YEARS);
         if (start.isBefore(hardMin)) start = hardMin;
 
         LocalDate minTradeDate = stockPriceRepository.findMinTradeDateByCompany(companyId);
         LocalDate maxTradeDate = stockPriceRepository.findMaxTradeDateByCompany(companyId);
+
+        if (minTradeDate == null || maxTradeDate == null) {
+            return StockPriceDto.builder().priceData(List.of()).build();
+        }
 
         if (start.isBefore(minTradeDate)) start = minTradeDate;
         if (end.isAfter(maxTradeDate)) end = maxTradeDate;
@@ -66,13 +68,9 @@ public class PriceChartFacadeService {
             return StockPriceDto.builder().priceData(List.of()).build();
         }
 
-        if (minTradeDate == null || maxTradeDate == null) {
-            return StockPriceDto.builder().priceData(List.of()).build();
-        }
-
         // 3. DB에서 주가 데이터 조회 (tradeDate 기준)
-        List<StockPrice> stockPrices = stockPriceRepository.
-                findByCompany_companyIdOrderByTradeDateAsc(companyId);
+        List<StockPrice> stockPrices = stockPriceRepository
+                .findByCompany_CompanyIdAndTradeDateBetweenOrderByTradeDateAsc(companyId, start, end);
         log.info("조회된 주가 데이터 개수: {}", stockPrices.size());
 
         if (stockPrices.isEmpty()) {
@@ -105,11 +103,21 @@ public class PriceChartFacadeService {
      * - 이후: 부족한 구간만 크롤링
      */
     public void ensurePriceData(Long companyId, LocalDate start, LocalDate end) {
+        if (end.isBefore(MIN_AVAILABLE_DATE)) {
+            log.info("요청 종료일이 최소 제공일 이전입니다. end={}", end);
+            return;
+        }
+        if (start.isBefore(MIN_AVAILABLE_DATE)) {
+            start = MIN_AVAILABLE_DATE;
+        }
+
         boolean hasData = stockPriceRepository.existsByCompany_CompanyId(companyId);
 
         if (!hasData) {
-            // 최초 조회인 경우 end 기준 과거 10년 백필
             LocalDate backfillStart = end.minusYears(INITIAL_BACKFILL_YEARS);
+            if (backfillStart.isBefore(MIN_AVAILABLE_DATE)) {
+                backfillStart = MIN_AVAILABLE_DATE;
+            }
             log.info("주가 데이터 최초 조회. companyId={} → {} ~ {} ({}년치) 백필 크롤링",
                     companyId, backfillStart, end, INITIAL_BACKFILL_YEARS);
 
@@ -162,11 +170,11 @@ public class PriceChartFacadeService {
 
     /**
      * 기간 내 연도별 S-RIM 계산
-     * 
+     *
      * 핵심 로직:
      * - 2025년 주가 → 2024년 재무데이터 사용 (전년도 기준)
      * - 2024년 S-RIM = 2024년 유통주식수, 2023년 자기자본, 2023/2022/2021 ROE 가중평균
-     * 
+     *
      * 따라서 Map의 키는 "주가 연도"이고, 값은 "전년도 재무데이터로 계산한 S-RIM"
      */
     private Map<LocalDate, SrimResultDto> calculateSrimForDates(
@@ -214,7 +222,16 @@ public class PriceChartFacadeService {
                 continue;
             }
 
-            SrimResultDto srim = calculateSrimFromBaseAndKe(base, ke, financialYear);
+            SrimResultDto srim = srimService.calculateFromBaseData(
+                    base.getSharesOutstanding(),
+                    base.getRoe(),
+                    base.getEquityOwner(),
+                    ke,
+                    financialYear,
+                    DEFAULT_RATING,
+                    (int) DEFAULT_TENOR_MONTHS,
+                    "YEAR"
+            );
             srimByDate.put(date, srim);
 
 
@@ -234,60 +251,6 @@ public class PriceChartFacadeService {
         BigDecimal equityOwner = srimService.getEquityOwner(companyId, financialYear);
 
         return new YearBaseData(financialYear, sharesOutstanding, roe, equityOwner);
-    }
-
-    private SrimResultDto calculateSrimFromBaseAndKe(YearBaseData base, BigDecimal ke, int financialYear) {
-
-        // 안전장치 (ke=0이면 divide-by-zero)
-        if (ke == null || ke.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("Ke(할인율)가 유효하지 않습니다. ke=" + ke);
-        }
-
-        Long sharesOutstanding = base.getSharesOutstanding();
-        BigDecimal roe = base.getRoe();
-        BigDecimal equityOwner = base.getEquityOwner();
-
-        // 기본 초과이익 = Equity * (ROE - Ke)
-        BigDecimal baseExcessEarnings = equityOwner.multiply(roe.subtract(ke));
-
-        List<SrimResultDto.ScenarioResult> scenarioResults = new ArrayList<>();
-
-        for (BigDecimal reductionRate : REDUCTION_RATES) {
-            // adjustedExcess = baseExcess * (1 + reductionRate)
-            BigDecimal adjustedExcessEarnings =
-                    baseExcessEarnings.multiply(BigDecimal.ONE.add(reductionRate));
-
-            // 기업가치 = Equity + (adjustedExcess / Ke)
-            BigDecimal enterpriseValue = equityOwner.add(
-                    adjustedExcessEarnings.divide(ke, 10, RoundingMode.HALF_UP)
-            );
-
-            // 적정주가 = enterpriseValue / sharesOutstanding
-            BigDecimal fairValuePerShare = enterpriseValue.divide(
-                    BigDecimal.valueOf(sharesOutstanding),
-                    DEFAULT_SCALE,
-                    RoundingMode.HALF_UP
-            );
-
-            scenarioResults.add(SrimResultDto.ScenarioResult.builder()
-                    .reductionRate(reductionRate)
-                    .excessEarnings(adjustedExcessEarnings.setScale(0, RoundingMode.HALF_UP))
-                    .enterpriseValue(enterpriseValue.setScale(0, RoundingMode.HALF_UP))
-                    .fairValuePerShare(fairValuePerShare)
-                    .build());
-        }
-
-        return SrimResultDto.builder()
-                .basis("YEAR")
-                .rating(DEFAULT_RATING)
-                .tenorMonths((int) DEFAULT_TENOR_MONTHS)   // SrimResultDto 타입이 Integer라면 그대로
-                .year(financialYear)
-                .equity(equityOwner)
-                .roe(roe)
-                .ke(ke)
-                .sharesOutstanding(sharesOutstanding)
-                .scenarios(scenarioResults)
-                .build();
     }
 
     private Map<LocalDate, BigDecimal> buildKeByDate(
@@ -319,7 +282,7 @@ public class PriceChartFacadeService {
     }
     /**
      * StockPrice 엔티티 → PriceData DTO 변환
-     * 
+     *
      * 2025년 1월 15일 주가 → 2025년 키로 조회 → 2024년 재무데이터로 계산된 S-RIM 사용
      */
     private StockPriceDto.PriceData convertToPriceData(StockPrice stockPrice,

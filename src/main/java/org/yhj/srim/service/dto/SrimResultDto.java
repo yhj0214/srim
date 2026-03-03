@@ -20,16 +20,21 @@ public class SrimResultDto {
     private String rating; // BBB-
     private Integer tenorMonths; // 60
     private Integer year;
-    
+
     // 중간 계산값
     private BigDecimal equity;           // 자기자본 (지배주주지분)
     private BigDecimal roe;              // ROE (가중평균)
+    private BigDecimal roePercent;       // ROE (가중평균, %)
     private BigDecimal ke;               // 할인율 (요구수익률)
     private Long sharesOutstanding;      // 주식수
-    
+    private BigDecimal currentPrice;     // 현재(최근) 주가
+    private String currentPriceDate;     // 현재가 기준일 (YYYY-MM-DD)
+
+    private List<RoeDetail> roeDetails;  // 연도별 ROE (최신 3개)
+
     // 시나리오별 결과
     private List<ScenarioResult> scenarios;
-    
+
     /**
      * 시나리오 결과
      */
@@ -43,5 +48,16 @@ public class SrimResultDto {
         private BigDecimal excessEarnings;    // 초과이익
         private BigDecimal enterpriseValue;   // 기업가치
         private BigDecimal fairValuePerShare; // 적정주가
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class RoeDetail {
+        private Integer fiscalYear;
+        private BigDecimal roePercent;
+        private BigDecimal equityOwner;
     }
 }

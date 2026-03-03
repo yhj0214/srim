@@ -214,86 +214,6 @@ public class FinancialFacadeService {
 
         financialService.updateCompanyShareInfo(companyId);
     }
-    private FinancialTableDto buildFinancialTableDtoFromMetrics(
-            Map<Integer, Map<String, BigDecimal>> metricsByYear) {
-
-        // 기간 헤더 생성 (연간만 다루니까 fiscalQuarter=null, isEstimate=false)
-        List<FinancialTableDto.PeriodHeaderDto> headers = new ArrayList<>();
-
-        // metricCode 별로 row 모으기
-        Map<String, FinancialTableDto.MetricRowDto> rowMap = new LinkedHashMap<>();
-
-        for (Map.Entry<Integer, Map<String, BigDecimal>> entry : metricsByYear.entrySet()) {
-            Integer year = entry.getKey();
-            Map<String, BigDecimal> metrics = entry.getValue();
-
-            // 여기서는 편의상 periodId = year 로 사용 (나중에 FinPeriod 쓰면 교체)
-            Long periodId = year.longValue();
-
-            // label 은 "YYYY/12"
-            String label = year + "/12";
-
-            headers.add(FinancialTableDto.PeriodHeaderDto.builder()
-                    .periodId(periodId)
-                    .label(label)
-                    .fiscalYear(year)
-                    .fiscalQuarter(null)     // 연간
-                    .isEstimate(false)
-                    .build());
-
-            // metric 들을 MetricRowDto 에 채워넣기
-            for (Map.Entry<String, BigDecimal> mEntry : metrics.entrySet()) {
-                String metricCode = mEntry.getKey();
-                BigDecimal value  = mEntry.getValue();
-
-                FinancialTableDto.MetricRowDto row =
-                        rowMap.computeIfAbsent(metricCode, code -> FinancialTableDto.MetricRowDto.builder()
-                                .metricCode(code)
-                                .metricName(resolveMetricName(code))  // 한글명
-                                .unit(resolveMetricUnit(code))        // 단위
-                                .values(new LinkedHashMap<>())
-                                .build()
-                        );
-
-                row.getValues().put(periodId, value);
-            }
-        }
-
-        return FinancialTableDto.builder()
-                .headers(headers)
-                .rows(new ArrayList<>(rowMap.values()))
-                .build();
-    }
-
-    private String resolveMetricName(String code) {
-        return switch (code) {
-            case "SALES"              -> "매출액";
-            case "OP_INC"             -> "영업이익";
-            case "NET_INC"            -> "당기순이익";
-            case "NET_INC_OWNER"      -> "지배주주 순이익";
-            case "TOTAL_EQUITY"       -> "자본총계";
-            case "TOTAL_EQUITY_OWNER" -> "지배주주지분";
-            case "ROE"                -> "ROE";
-            case "ROA"                -> "ROA";
-            case "OPM"                -> "영업이익률";
-            case "NET_MARGIN"         -> "순이익률";
-            case "DEBT_RATIO"         -> "부채비율";
-            case "QUICK_RATIO"        -> "유동비율";
-            case "EPS"                -> "EPS";
-            case "BPS"                -> "BPS";
-            default                   -> code;
-        };
-    }
-
-    private String resolveMetricUnit(String code) {
-
-        return switch (code) {
-            case "ROE", "ROA", "OPM", "NET_MARGIN", "DEBT_RATIO", "QUICK_RATIO" -> "%";
-            case "EPS", "BPS" -> "원/주";
-            default -> "백만원";
-        };
-    }
-
     @Transactional
     public CrawlAllMarketsResult marketCrawling() {
         // 크롤링 및 데이터 추출
@@ -383,24 +303,6 @@ public class FinancialFacadeService {
     private String normalizeRating(String category) {
         if (category == null) return "UNKNOWN";
         return category.trim();
-    }
-
-    private void addIfPresent(
-            List<BondYieldCurve> target,
-            LocalDate asOf,
-            String rating,
-            short tenorMonths,
-            BigDecimal yieldRate
-    ) {
-        if (yieldRate == null) return;
-
-        target.add(BondYieldCurve.builder()
-                .asOf(asOf)
-                .rating(rating)
-                .tenorMonths(tenorMonths)
-                .yieldRate(yieldRate)
-                .source(SOURCE)
-                .build());
     }
 
 }

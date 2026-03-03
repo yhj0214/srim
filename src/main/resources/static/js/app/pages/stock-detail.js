@@ -85,33 +85,140 @@ export const StockDetailPage = {
         }
 
         const labels = ["초과이익 지속", "10% 감소", "20% 감소", "30% 감소", "50% 감소"];
+        const scenarioData = scenarios.slice(0, 5);
+        const fairValues = scenarioData.map((s) => Number(s?.fairValuePerShare ?? 0));
+        const excessValues = scenarioData.map((s) => Number(s?.excessEarnings ?? 0));
 
-        const listHtml = scenarios.slice(0, 5).map((s, i) => {
+        const listHtml = scenarioData.map((s, i) => {
             const v = formatNumber(s.fairValuePerShare);
             return `<li>${labels[i] ?? `시나리오 ${i+1}`}: <strong>${v}원</strong></li>`;
         }).join("");
+
+        const buildBarChart = (values, labelList, opts = {}) => {
+            const safeValues = values.map((v) => (Number.isFinite(v) ? v : 0));
+            const maxValue = Math.max(1, ...safeValues, Number(opts.lineValue ?? 0));
+            const bars = safeValues.map((v, i) => {
+                const pct = Math.max(0, Math.min(100, (v / maxValue) * 100));
+                const label = labelList[i] ?? `시나리오 ${i + 1}`;
+                return `
+                    <div class="srimBarWrap">
+                        <div class="srimBar" style="height:${pct}%"></div>
+                        <div class="srimBarLabel">${escapeHtml(label)}</div>
+                        <div class="srimBarValue">${formatNumber(v)}</div>
+                    </div>
+                `;
+            }).join("");
+
+            const lineValue = Number(opts.lineValue);
+            const showLine = Number.isFinite(lineValue) && lineValue > 0;
+            const linePct = showLine ? (100 - (lineValue / maxValue) * 100) : null;
+            const lineLabel = showLine
+                ? `현재가 ${formatNumber(lineValue)}원${opts.lineNote ? ` (${escapeHtml(opts.lineNote)})` : ""}`
+                : "";
+
+            return `
+                <div class="srimChart">
+                    ${showLine ? `<div class="srimLine" style="top:${linePct}%"><span>${lineLabel}</span></div>` : ""}
+                    <div class="srimBars">${bars}</div>
+                </div>
+            `;
+        };
+
+        const roeDetails = Array.isArray(data?.roeDetails) ? data.roeDetails : [];
+        const roeYears = roeDetails.slice(0, 3).map((r) => r?.fiscalYear ?? "-");
+        const roeValues = roeDetails.slice(0, 3).map((r) => formatPercent(r?.roePercent));
+        const equityValues = roeDetails.slice(0, 3).map((r) => formatNumber(r?.equityOwner));
+        while (roeYears.length < 3) roeYears.push("-");
+        while (roeValues.length < 3) roeValues.push("-");
+        while (equityValues.length < 3) equityValues.push("-");
+        const roeAvg = formatPercent(data?.roePercent);
+
+        const keChip = `<span class="chip chip--neutral">Ke ${formatPercent(data?.ke)}</span>`;
+        const basisChip = `<span class="chip chip--accent">${escapeHtml(data?.basis ?? "YEAR")}</span>`;
+        const yearChip = data?.year ? `<span class="chip chip--muted">${escapeHtml(data.year)}년</span>` : "";
+        const priceChip = data?.currentPrice
+            ? `<span class="chip chip--dark">현재가 ${formatNumber(data?.currentPrice)}원</span>`
+            : "";
 
         container.innerHTML = `
         <div class="srimGrid">
             <div class="srimCard">
                 <div class="srimTitle">
                     <h3>S-RIM 적정주가</h3>
-                    <span class="srimHint">Ke: ${formatPercent(data?.ke)} / 기준: YEAR</span>
+                    <div class="srimChips">
+                        ${keChip}
+                        ${basisChip}
+                        ${yearChip}
+                        ${priceChip}
+                    </div>
                 </div>
-                 <ul class="srimList">${listHtml}</ul>
+                <div class="srimSubTitle">시나리오별 적정주가</div>
+                <div class="srimScenarioLayout">
+                    <ul class="srimList srimList--tight">${listHtml}</ul>
+                    ${buildBarChart(
+            fairValues,
+            labels,
+            { lineValue: Number(data?.currentPrice ?? 0), lineNote: data?.currentPriceDate }
+        )}
+                </div>
             </div>
         
             <div class="srimCard">
                 <div class="srimTitle">
                     <h3>입력 요약</h3>
-                    <span class="srimHint">참고용</span>
+                    <span class="srimHint">S-RIM 계산 입력값</span>
                 </div>
-                <div class="muted">발행주식수: ${formatNumber(data?.sharesOutstanding)}주</div>
+                <div class="srimSummaryGrid">
+                    <div class="srimTableWrap">
+                        <table class="srimTable srimTable--center srimTable--compact">
+                            <tbody>
+                                <tr>
+                                    <th class="srimTable__rowHead">발행주식수</th>
+                                    <td class="srimTable__cell">${formatNumber(data?.sharesOutstanding)}주</td>
+                                </tr>
+                                <tr>
+                                    <th class="srimTable__rowHead">지배주주지분</th>
+                                    <td class="srimTable__cell">${formatNumber(data?.equity)} (백만원)</td>
+                                </tr>
+                                <tr>
+                                    <th class="srimTable__rowHead">할인율(Ke)</th>
+                                    <td class="srimTable__cell">${formatPercent(data?.ke)}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="srimTableWrap">
+                        <table class="srimTable srimTable--center srimTable--rowLabels">
+                            <thead>
+                                <tr>
+                                    <th class="srimTable__head"></th>
+                                    <th class="srimTable__head">${escapeHtml(roeYears[0])}</th>
+                                    <th class="srimTable__head">${escapeHtml(roeYears[1])}</th>
+                                    <th class="srimTable__head">${escapeHtml(roeYears[2])}</th>
+                                    <th class="srimTable__head">가중평균</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <th class="srimTable__rowHead">ROE</th>
+                                    <td class="srimTable__cell">${escapeHtml(roeValues[0])}</td>
+                                    <td class="srimTable__cell">${escapeHtml(roeValues[1])}</td>
+                                    <td class="srimTable__cell">${escapeHtml(roeValues[2])}</td>
+                                    <td class="srimTable__cell srimTable__cell--em">${escapeHtml(roeAvg)}</td>
+                                </tr>
+                                <tr>
+                                    <th class="srimTable__rowHead">지배주주지분</th>
+                                    <td class="srimTable__cell">${escapeHtml(equityValues[0])}</td>
+                                    <td class="srimTable__cell">${escapeHtml(equityValues[1])}</td>
+                                    <td class="srimTable__cell">${escapeHtml(equityValues[2])}</td>
+                                    <td class="srimTable__cell srimTable__cell--muted">-</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         
-            <div class="alert">
-            계산 결과는 “탭 로딩 방식”으로 확장 예정입니다. (차트/재무 연결 시 근거 데이터 함께 표기)
-            </div>
         </div>
         `;
     },
