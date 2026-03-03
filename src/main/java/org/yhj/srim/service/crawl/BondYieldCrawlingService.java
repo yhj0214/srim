@@ -8,6 +8,8 @@ import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.yhj.srim.common.exception.CustomException;
+import org.yhj.srim.common.exception.code.CommonError;
 import org.yhj.srim.repository.BondYieldCurveRepository;
 import org.yhj.srim.repository.entity.BondYieldCurve;
 
@@ -225,7 +227,7 @@ public class BondYieldCrawlingService {
             }
         }
         
-        throw new IllegalArgumentException("지원하지 않는 만기 형식: " + maturity);
+        throw new CustomException(CommonError.INVALID_INPUT, "지원하지 않는 만기 형식: " + maturity);
     }
     
     /**

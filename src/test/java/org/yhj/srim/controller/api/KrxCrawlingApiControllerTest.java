@@ -34,7 +34,6 @@ class KrxCrawlingApiControllerTest {
         mockMvc.perform(post("/api/crawling/krx/all/step1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.code").value("200"))
                 .andExpect(jsonPath("$.data.crawledCount").value(100))
                 .andExpect(jsonPath("$.data.mappedCount").value(80));
 

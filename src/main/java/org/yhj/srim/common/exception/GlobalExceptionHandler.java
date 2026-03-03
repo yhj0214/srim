@@ -1,22 +1,21 @@
 package org.yhj.srim.common.exception;
 
 import lombok.extern.slf4j.Slf4j;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
-import org.yhj.srim.common.exception.code.CommonErrorCode;
+import org.yhj.srim.common.exception.code.CommonError;
 import org.yhj.srim.common.exception.code.ErrorCode;
 import org.yhj.srim.controller.dto.ApiResponse;
-
-import static org.yhj.srim.controller.dto.ApiResponse.error;
 
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(CustomException.class)
-    public ResponseEntity<ApiResponse<Void>> handleCustomException(CustomException e) {
+    public ResponseEntity<ApiResponse<Void>> handleCustomException(CustomException e, HttpServletRequest request) {
 
         ErrorCode errorCode = e.getErrorCode();
 
@@ -25,17 +24,30 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity
                 .status(errorCode.getHttpStatus())
-                .body(error(errorCode.getCode(), errorCode.getMessage()));
+                .body(ApiResponse.error(errorCode, e.getDetail(), request.getRequestURI()));
     }
 
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponse<Void>> handleException(Exception e) {
-        log.error("unhandled exception 발생", e);
-        ErrorCode errorCode = CommonErrorCode.INVALID_INPUT;
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ApiResponse<Void>> handleIllegalArgumentException(
+            IllegalArgumentException e,
+            HttpServletRequest request
+    ) {
+        log.warn("illegal argument 발생", e);
+        ErrorCode errorCode = CommonError.INVALID_INPUT;
 
         return ResponseEntity
                 .status(errorCode.getHttpStatus())
-                .body(error(errorCode.getCode(), errorCode.getMessage()));
+                .body(ApiResponse.error(errorCode, e.getMessage(), request.getRequestURI()));
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiResponse<Void>> handleException(Exception e, HttpServletRequest request) {
+        log.error("unhandled exception 발생", e);
+        ErrorCode errorCode = CommonError.INTERNAL_ERROR;
+
+        return ResponseEntity
+                .status(errorCode.getHttpStatus())
+                .body(ApiResponse.error(errorCode, null, request.getRequestURI()));
     }
 
     @ExceptionHandler(NoResourceFoundException.class)

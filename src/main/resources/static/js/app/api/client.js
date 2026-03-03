@@ -8,7 +8,7 @@ export async function apiGetJSON(url) {
                 ok: false,
                 status: resp.status,
                 data: null,
-                message: (data && data.message) || `HTTP ${resp.status}`
+                message: (data && (data.error?.message || data.message)) || `HTTP ${resp.status}`
             };
         }
         return {

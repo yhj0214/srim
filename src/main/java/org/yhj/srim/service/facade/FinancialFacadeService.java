@@ -9,7 +9,8 @@ import org.yhj.srim.client.dto.DartFsRow;
 import org.yhj.srim.client.dto.DartShareStatusRow;
 import org.yhj.srim.client.dto.KisSpreadRow;
 import org.yhj.srim.common.exception.CustomException;
-import org.yhj.srim.common.exception.code.StockErrorCode;
+import org.yhj.srim.common.exception.code.CommonError;
+import org.yhj.srim.common.exception.code.StockError;
 import org.yhj.srim.controller.dto.CrawlAllMarketsResult;
 import org.yhj.srim.repository.*;
 import org.yhj.srim.repository.entity.*;
@@ -67,7 +68,7 @@ public class FinancialFacadeService {
 
     public FinancialTableDto getAnnualTableDbOnly(Long stockId, int limit) {
         Company company = financialService.findCompanyByStockId(stockId)
-                .orElseThrow(() -> new CustomException(StockErrorCode.COMPANY_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(StockError.COMPANY_NOT_FOUND));
 
         FinancialTableDto dto = buildAnnualTableDto(company, limit);
 
@@ -232,10 +233,10 @@ public class FinancialFacadeService {
     public void CrawlAndSaveBondYield(LocalDate startDate, LocalDate endDate) {
 
         if (startDate == null || endDate == null) {
-            throw new IllegalArgumentException("startDate/endDate는 null일 수 없습니다.");
+            throw new CustomException(CommonError.INVALID_INPUT, "startDate/endDate는 null일 수 없습니다.");
         }
         if (startDate.isAfter(endDate)) {
-            throw new IllegalArgumentException("startDate는 endDate보다 이후일 수 없습니다.");
+            throw new CustomException(CommonError.INVALID_INPUT, "startDate는 endDate보다 이후일 수 없습니다.");
         }
 
         int processedDays = 0;

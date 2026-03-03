@@ -7,6 +7,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.yhj.srim.client.dto.DartShareStatusRow;
+import org.yhj.srim.common.exception.CustomException;
+import org.yhj.srim.common.exception.code.StockError;
 import org.yhj.srim.repository.CompanyRepository;
 import org.yhj.srim.repository.StockCodeRepository;
 import org.yhj.srim.repository.StockShareStatusRepository;
@@ -51,8 +53,9 @@ public class StockService {
         log.debug("종목 조회: market={}, ticker={}", market, ticker);
         
         StockCode stockCode = stockCodeRepository.findByMarketAndTickerKrx(market, ticker)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        String.format("종목을 찾을 수 없습니다. (market=%s, ticker=%s)", market, ticker)
+                .orElseThrow(() -> new CustomException(
+                        StockError.STOCK_NOT_FOUND,
+                        String.format("market=%s, ticker=%s", market, ticker)
                 ));
         
         return toDto(stockCode);
@@ -65,7 +68,7 @@ public class StockService {
         log.debug("종목 조회: stockId={}", stockId);
         
         StockCode stockCode = stockCodeRepository.findById(stockId)
-                .orElseThrow(() -> new IllegalArgumentException("종목을 찾을 수 없습니다. ID: " + stockId));
+                .orElseThrow(() -> new CustomException(StockError.STOCK_NOT_FOUND, "stockId=" + stockId));
         
         return toDto(stockCode);
     }

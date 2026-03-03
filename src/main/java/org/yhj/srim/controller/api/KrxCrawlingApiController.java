@@ -63,7 +63,7 @@ public class KrxCrawlingApiController {
     public ApiResponse<Void> crawlingStockInfo(@PathVariable String tickerKrx){
         log.info("stickerKrx : {}", tickerKrx);
         managementFacade.findStockInfoByStickerKrx(tickerKrx);
-        return ApiResponse.success("요청에 성공하였습니다.", null);
+        return ApiResponse.success(null);
     }
 
 

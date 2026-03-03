@@ -68,7 +68,7 @@ export const StockDetailPage = {
 
         const body = res.data;
         if (!body?.success) {
-            container.innerHTML = `<div class="alert alert--error">${escapeHtml(body?.message || "S-RIM 조회에 실패했습니다.")}</div>`;
+            container.innerHTML = `<div class="alert alert--error">${escapeHtml(body?.error?.message || "S-RIM 조회에 실패했습니다.")}</div>`;
             return;
         }
 
@@ -248,7 +248,7 @@ export const StockDetailPage = {
 
         const body = res.data;
         if (!body?.success) {
-            container.innerHTML = `<div class="alert alert--error">${escapeHtml(body?.message || "재무 조회에 실패했습니다.")}</div>`;
+            container.innerHTML = `<div class="alert alert--error">${escapeHtml(body?.error?.message || "재무 조회에 실패했습니다.")}</div>`;
             return;
         }
 

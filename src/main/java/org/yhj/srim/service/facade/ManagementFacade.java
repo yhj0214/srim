@@ -4,7 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.yhj.srim.common.exception.CustomException;
-import org.yhj.srim.common.exception.code.StockErrorCode;
+import org.yhj.srim.common.exception.code.StockError;
 import org.yhj.srim.controller.dto.CrawlAllMarketsResult;
 import org.yhj.srim.repository.CompanyRepository;
 import org.yhj.srim.repository.StockCodeRepository;
@@ -68,7 +68,7 @@ public class ManagementFacade {
 
     public void findStockInfoByStickerKrx(String stickerKrx){
         StockCode stockCode = stockCodeRepository.findByTickerKrx(stickerKrx)
-                .orElseThrow(() -> new CustomException(StockErrorCode.STOCK_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(StockError.STOCK_NOT_FOUND));
 
         findStockInfo(stockCode);
     }

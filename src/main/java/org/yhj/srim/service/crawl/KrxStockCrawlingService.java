@@ -12,7 +12,7 @@ import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.yhj.srim.common.exception.CustomException;
-import org.yhj.srim.common.exception.code.CrawlingErrorCode;
+import org.yhj.srim.common.exception.code.CrawlingError;
 import org.yhj.srim.common.exception.code.ErrorCode;
 import org.yhj.srim.repository.StockCodeRepository;
 import org.yhj.srim.repository.entity.StockCode;
@@ -66,7 +66,7 @@ public class KrxStockCrawlingService {
             return parseCsvData(content, marketType);
         } catch (IOException e) {
             log.error("KRX 크롤링 실패", e);
-            throw new CustomException(CrawlingErrorCode.KRX_REQUEST_FAILED);
+            throw new CustomException(CrawlingError.KRX_REQUEST_FAILED);
         }
 
 

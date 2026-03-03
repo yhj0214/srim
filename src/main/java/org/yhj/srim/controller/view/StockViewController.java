@@ -10,6 +10,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriUtils;
+import org.yhj.srim.common.exception.CustomException;
 import org.yhj.srim.service.domain.StockService;
 import org.yhj.srim.service.dto.StockDto;
 
@@ -57,7 +58,7 @@ public class StockViewController {
             log.debug(stock.toString());
             model.addAttribute("stock", stock);
             return "stock-detail";
-        } catch (IllegalArgumentException e) {
+        } catch (CustomException e) {
             log.error("종목을 찾을 수 없음: market={}, ticker={}", market, ticker);
             model.addAttribute("error", e.getMessage());
             return "error";

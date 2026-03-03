@@ -1,6 +1,11 @@
 package org.yhj.srim.controller.dto;
 
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import org.yhj.srim.common.exception.code.ErrorCode;
 
 @Getter
 @Setter
@@ -9,37 +14,24 @@ import lombok.*;
 @Builder
 public class ApiResponse<T> {
     private boolean success;
-    private String code;
-    private String message;
     private T data;
+    private ApiError error;
 
     public static <T> ApiResponse<T> success(T data) {
         return ApiResponse.<T>builder()
                 .success(true)
-                .code("200")
-                .message("요청이 성공적으로 처리되었습니다.")
                 .data(data)
                 .build();
     }
 
-    public static <T> ApiResponse<T> success(String message, T data) {
-        return ApiResponse.<T>builder()
-                .success(true)
-                .code("200")
-                .message(message)
-                .data(data)
-                .build();
-    }
-
-    public static <T> ApiResponse<T> error(String code, String message) {
+    public static <T> ApiResponse<T> error(ApiError error) {
         return ApiResponse.<T>builder()
                 .success(false)
-                .code(code)
-                .message(message)
+                .error(error)
                 .build();
     }
 
-    public static <T> ApiResponse<T> error(String message) {
-        return error("500", message);
+    public static <T> ApiResponse<T> error(ErrorCode code, String detail, String path) {
+        return error(ApiError.from(code, detail, path));
     }
 }

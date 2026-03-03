@@ -5,7 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.yhj.srim.common.exception.CustomException;
-import org.yhj.srim.common.exception.code.CommonErrorCode;
+import org.yhj.srim.common.exception.code.SrimError;
 import org.yhj.srim.repository.*;
 import org.yhj.srim.repository.entity.*;
 import org.yhj.srim.service.dto.SrimCalculateCommand;
@@ -52,7 +52,7 @@ public class SrimService {
      */
     public SrimResultDto calculate(SrimCalculateCommand command) {
         if (command == null) {
-            throw new IllegalArgumentException("S-RIM 계산 요청이 비어있습니다.");
+            throw new CustomException(SrimError.INVALID_REQUEST, "S-RIM 계산 요청이 비어있습니다.");
         }
 
         Long companyId = command.getCompanyId();
@@ -181,7 +181,7 @@ public class SrimService {
             String basis
     ) {
         if (ke == null || ke.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("Ke(할인율)가 유효하지 않습니다. ke=" + ke);
+            throw new CustomException(SrimError.INVALID_DISCOUNT_RATE, "ke=" + ke);
         }
         if (rating == null) rating = DEFAULT_RATING;
         if (tenorMonths == null) tenorMonths = (int) DEFAULT_TENOR_MONTHS;
@@ -237,7 +237,7 @@ public class SrimService {
                 .findTopByCompanyIdAndMetricCodeAndPeriod_PeriodTypeAndPeriod_IsEstimateAndPeriod_FiscalYearLessThanEqualOrderByPeriod_FiscalYearDesc(
                         companyId, METRIC_TOTAL_EQUITY_OWNER, "YEAR", false, baseYear
                 )
-                .orElseThrow(() -> new CustomException(CommonErrorCode.NOT_FOUND3));
+                .orElseThrow(() -> new CustomException(SrimError.EQUITY_OWNER_NOT_FOUND));
 
         Integer actualYear = v.getPeriod() == null ? null : v.getPeriod().getFiscalYear();
         if (actualYear != null && actualYear != baseYear) {
@@ -255,7 +255,7 @@ public class SrimService {
         StockShareStatus s =
                 stockShareStatusRepository
                         .findTopByCompany_CompanyIdAndSeAndBsnsYearLessThanEqualOrderByBsnsYearDesc(companyId, se, baseYear)
-                        .orElseThrow(() -> new CustomException(CommonErrorCode.NOT_FOUND2));
+                        .orElseThrow(() -> new CustomException(SrimError.SHARES_OUTSTANDING_NOT_FOUND));
 
 
         log.info("유통주식수 fallback 사용: companyId={}, requestYear={}, actualYear={}",
@@ -281,7 +281,7 @@ public class SrimService {
         }
 
         if (periods.size() < 3) {
-            throw new IllegalArgumentException("ROE 계산에 필요한 데이터가 부족합니다. (최소 3개 필요)");
+            throw new CustomException(SrimError.INSUFFICIENT_ROE_DATA);
         }
 
         // 최근 3개의 ROE 값 조회
@@ -292,8 +292,10 @@ public class SrimService {
             BigDecimal roe = finMetricValueRepository
                     .findByCompanyIdAndPeriodAndMetricCode(companyId, period, "ROE")
                     .map(FinMetricValue::getValueNum)
-                    .orElseThrow(() -> new IllegalArgumentException(
-                            "ROE 데이터가 없습니다. period: " + period.getLabel()));
+                    .orElseThrow(() -> new CustomException(
+                            SrimError.ROE_NOT_FOUND,
+                            "period=" + period.getLabel()
+                    ));
             BigDecimal equityOwner = finMetricValueRepository
                     .findByCompanyIdAndPeriodAndMetricCode(companyId, period, METRIC_TOTAL_EQUITY_OWNER)
                     .map(FinMetricValue::getValueNum)
@@ -350,6 +352,6 @@ public class SrimService {
         return bondYieldCurveRepository.findFirstByRatingAndTenorMonthsAndAsOfLessThanEqualOrderByAsOfDesc(
                         rating, tenorMonths, date
                 ).map(BondYieldCurve::getYieldRate)
-                .orElseThrow(() -> new CustomException(CommonErrorCode.NOT_FOUND));
+                .orElseThrow(() -> new CustomException(SrimError.BOND_YIELD_NOT_FOUND));
     }
 }

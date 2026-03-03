@@ -7,7 +7,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.yhj.srim.client.dto.DartFsRow;
 import org.yhj.srim.common.exception.CustomException;
-import org.yhj.srim.common.exception.code.StockErrorCode;
+import org.yhj.srim.common.exception.code.StockError;
 import org.yhj.srim.repository.*;
 import org.yhj.srim.repository.entity.*;
 import org.yhj.srim.service.dto.FinancialTableDto;
@@ -127,7 +127,7 @@ public class FinancialService {
 
     private FinPeriod saveOrUpdatePeriod(Long companyId, int fiscalYear, int fiscalMonth, boolean isQuarter) {
         Company company = companyRepository.findById(companyId)
-                .orElseThrow(() -> new IllegalArgumentException("Company not found: " + companyId));
+                .orElseThrow(() -> new CustomException(StockError.COMPANY_NOT_FOUND, "companyId=" + companyId));
 
         String periodType = "YEAR"; // 사업보고서는 연간 데이터
         Integer fiscalQuarter = null;
@@ -192,8 +192,10 @@ public class FinancialService {
         log.info("market: {}, ticker: {}, limit: {}", market, ticker, limit);
 
         StockCode stockCode = stockCodeRepository.findByMarketAndTickerKrx(market, ticker)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        String.format("종목을 찾을 수 없습니다. (market=%s, ticker=%s)", market, ticker)));
+                .orElseThrow(() -> new CustomException(
+                        StockError.STOCK_NOT_FOUND,
+                        String.format("market=%s, ticker=%s", market, ticker)
+                ));
 
         // Company 가져오기 또는 생성
         Company company = getOrCreateCompany(stockCode.getStockId());
@@ -212,8 +214,10 @@ public class FinancialService {
         log.info("market: {}, ticker: {}, limit: {}", market, ticker, limit);
 
         StockCode stockCode = stockCodeRepository.findByMarketAndTickerKrx(market, ticker)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        String.format("종목을 찾을 수 없습니다. (market=%s, ticker=%s)", market, ticker)));
+                .orElseThrow(() -> new CustomException(
+                        StockError.STOCK_NOT_FOUND,
+                        String.format("market=%s, ticker=%s", market, ticker)
+                ));
 
         // Company 가져오기 또는 생성
         Company company = getOrCreateCompany(stockCode.getStockId());
@@ -237,7 +241,7 @@ public class FinancialService {
         return companyRepository.findByStockCode_StockId(stockId)
                 .orElseGet(() -> {
                     StockCode stockCode = stockCodeRepository.findById(stockId)
-                            .orElseThrow(() -> new CustomException(StockErrorCode.STOCK_NOT_FOUND));
+                            .orElseThrow(() -> new CustomException(StockError.STOCK_NOT_FOUND, "stockId=" + stockId));
 
                     Company company = Company.builder()
                             .stockCode(stockCode)
@@ -254,11 +258,11 @@ public class FinancialService {
     public Company createCompany(Long stockId) {
         log.info("=== createCompany : stockId = {} ===", stockId);
         StockCode stockCode = stockCodeRepository.findById(stockId)
-                .orElseThrow(() -> new CustomException(StockErrorCode.STOCK_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(StockError.STOCK_NOT_FOUND, "stockId="+stockId));
 
         String corpCode = stockCode.getDartCorpCode();
         if(corpCode == null || corpCode.length() != 8) {
-            throw new CustomException(StockErrorCode.DART_CORP_CODE_INVALID);
+            throw new CustomException(StockError.DART_CORP_CODE_INVALID);
         }
 
         Company company = Company.builder()
@@ -911,7 +915,7 @@ public class FinancialService {
         }
 
         Company company = companyRepository.findById(companyId)
-                .orElseThrow(() -> new IllegalArgumentException("Company not found"));
+                .orElseThrow(() -> new CustomException(StockError.COMPANY_NOT_FOUND, "companyId=" + companyId));
 
         company.setSharesOutstanding( latest.getDistbStockCo());
 

@@ -14,7 +14,7 @@ import org.springframework.web.client.RestTemplate;
 import org.yhj.srim.client.dto.DartFsRow;
 import org.yhj.srim.client.dto.DartShareStatusRow;
 import org.yhj.srim.common.exception.CustomException;
-import org.yhj.srim.common.exception.code.CrawlingErrorCode;
+import org.yhj.srim.common.exception.code.CrawlingError;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -113,7 +113,7 @@ public class DartClient {
             }
 
         } catch (Exception e) {
-            throw new CustomException(CrawlingErrorCode.JSON_PARSE_FAILED);
+            throw new CustomException(CrawlingError.JSON_PARSE_FAILED);
         }
 
         return result;
@@ -203,7 +203,7 @@ public class DartClient {
             }
         } catch (Exception e) {
             log.error("DART 주식수 응답 파싱 실패. json={}", json, e);
-            throw new CustomException(CrawlingErrorCode.JSON_PARSE_FAILED);
+            throw new CustomException(CrawlingError.JSON_PARSE_FAILED);
         }
         return result;
     }

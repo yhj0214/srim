@@ -9,6 +9,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.yhj.srim.common.exception.CustomException;
+import org.yhj.srim.common.exception.code.StockError;
 import org.yhj.srim.repository.*;
 import org.yhj.srim.repository.entity.*;
 import org.yhj.srim.service.domain.BpsCalculatorService;
@@ -253,7 +255,7 @@ public class DartCrawlingService {
     public int crawlAndSaveFinancialData(Long companyId, String tickerKrx) {
         try {
             Company company = companyRepository.findById(companyId)
-                    .orElseThrow(() -> new IllegalArgumentException("Company not found: " + companyId));
+                    .orElseThrow(() -> new CustomException(StockError.COMPANY_NOT_FOUND, "companyId=" + companyId));
 
             String dartCorpCode = company.getStockCode().getDartCorpCode();
             if (dartCorpCode == null || dartCorpCode.length() != 8) {
@@ -742,7 +744,7 @@ public class DartCrawlingService {
      */
     private FinPeriod saveOrUpdatePeriod(Long companyId, int fiscalYear, int fiscalMonth, boolean isQuarter) {
         Company company = companyRepository.findById(companyId)
-                .orElseThrow(() -> new IllegalArgumentException("Company not found: " + companyId));
+                .orElseThrow(() -> new CustomException(StockError.COMPANY_NOT_FOUND, "companyId=" + companyId));
 
         String periodType = "YEAR"; // 사업보고서는 연간 데이터
         Integer fiscalQuarter = null;

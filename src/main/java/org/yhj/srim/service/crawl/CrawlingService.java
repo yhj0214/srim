@@ -10,9 +10,7 @@ import org.yhj.srim.client.dto.DaliyPrice;
 import org.yhj.srim.client.dto.DartFsRow;
 import org.yhj.srim.client.dto.DartShareStatusRow;
 import org.yhj.srim.common.exception.CustomException;
-import org.yhj.srim.common.exception.code.ErrorCode;
-import org.yhj.srim.common.exception.code.FinancialErrorCode;
-import org.yhj.srim.common.exception.code.StockErrorCode;
+import org.yhj.srim.common.exception.code.StockError;
 import org.yhj.srim.repository.*;
 import org.yhj.srim.repository.entity.*;
 
@@ -92,7 +90,7 @@ public class CrawlingService {
     @Transactional
     public void crawlAndSaveShareStatus(String corpCode, Long companyId, int year) {
         Company company = companyRepository.findById(companyId)
-                .orElseThrow(() -> new IllegalArgumentException("Company not found. companyId=" + companyId));
+                .orElseThrow(() -> new CustomException(StockError.COMPANY_NOT_FOUND, "companyId=" + companyId));
 
         List<DartShareStatusRow> rows = dartClient.fetchShareStatus(corpCode, year);
 
@@ -210,7 +208,7 @@ public class CrawlingService {
     public int crawlingStockPrice(Long companyId, LocalDate start, LocalDate end) {
 
         Company company = companyRepository.findById(companyId)
-                .orElseThrow(() -> new CustomException(StockErrorCode.COMPANY_NOT_FOUND));
+                .orElseThrow(() -> new CustomException(StockError.COMPANY_NOT_FOUND));
 
         StockCode stockCode = company.getStockCode();
 
