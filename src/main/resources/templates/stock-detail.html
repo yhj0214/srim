@@ -9,7 +9,8 @@
                         data-stock-id=${stock.stockId},
                         data-company-id=${stock.companyId},
                         data-api-srim=@{|/api/stocks/${stock.companyId}/srim?basis=YEAR|},
-                        data-api-financial=@{|/api/stocks/${stock.stockId}/financial/annual|}">
+                        data-api-financial=@{|/api/stocks/${stock.stockId}/financial/annual|},
+                        data-api-pricechart=@{|/api/stocks/${stock.companyId}/price-chart|}">
             <div class="detailHead">
                 <div>
                     <h1 class="page__title" th:text="${stock.companyName}">회사명</h1>
@@ -32,7 +33,7 @@
 
             <div class="tabPanels">
                 <div class="tabPanel" data-panel="chart" hidden>
-                    <p class="muted">차트는 다음 단계에서 연결합니다.</p>
+                    <div id="priceChartContainer"></div>
                 </div>
 
                 <div class="tabPanel" data-panel="financial" hidden>

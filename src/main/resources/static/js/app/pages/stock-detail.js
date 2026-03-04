@@ -31,6 +31,7 @@ export const StockDetailPage = {
     async _ensureLoaded(root, tabName) {
         if(tabName === "srim") return this._loadSrim(root);
         if(tabName === "financial") return this._loadFinancial(root);
+        if(tabName === "chart") return this._loadChart(root);
     },
 
     _activateTab(root, name){
@@ -334,6 +335,623 @@ export const StockDetailPage = {
                 ${renderTable("계산 지표", calcRows)}
             </div>
         `;
+    },
+
+    async _loadChart(root) {
+        const container = qs("#priceChartContainer", root);
+        if(!container) return;
+
+        if(container.dataset.loaded === "true") return;
+
+        const companyId = root.dataset.companyId;
+        if(!companyId) {
+            container.innerHTML = `<div class="alert alert--error">회사 정보(companyId)가 없어 차트를 조회할 수 없습니다.</div>`;
+            return;
+        }
+
+        container.dataset.loaded = "true";
+        this._renderChartShell(container, "2w");
+        this._bindChartRangeButtons(root, container);
+        this._bindChartInteractions(container);
+        this._initChartState(container, "2w");
+        container.__chartRoot = root;
+        await this._fetchAndRenderChart(root, container, "2w");
+    },
+
+    _renderChartShell(container, activeRange) {
+        const ranges = [
+            { key: "2w", label: "2주" },
+            { key: "1m", label: "1개월" },
+            { key: "3m", label: "3개월" },
+            { key: "6m", label: "6개월" },
+            { key: "1y", label: "1년" },
+            { key: "3y", label: "3년" },
+            { key: "5y", label: "5년" },
+            { key: "10y", label: "10년" }
+        ];
+        const controls = ranges.map((r) => {
+            const active = r.key === activeRange ? "is-active" : "";
+            return `<button class="chartRangeBtn ${active}" type="button" data-range="${r.key}">${r.label}</button>`;
+        }).join("");
+
+        container.innerHTML = `
+            <div class="chartCard">
+                <div class="chartHead">
+                    <h3 class="chartTitle">주가 캔들 차트</h3>
+                    <div class="chartControls">${controls}</div>
+                </div>
+                <span class="chartMeta" data-chart-meta>불러오는 중...</span>
+                <div class="chartCanvasWrap">
+                    <canvas class="chartCanvas" data-chart="price-candle"></canvas>
+                    <div class="chartTooltip" data-chart-tooltip hidden></div>
+                </div>
+                <div class="chartError alert alert--error" data-chart-error hidden></div>
+                <div class="chartNote">일별 시가/고가/저가/종가 기반 캔들 차트입니다.</div>
+            </div>
+        `;
+    },
+
+    _bindChartRangeButtons(root, container) {
+        const buttons = qsa(".chartRangeBtn", container);
+        if (buttons.length === 0) return;
+
+        buttons.forEach((btn) => {
+            btn.addEventListener("click", async () => {
+                const range = btn.dataset.range || "1y";
+                if (container.dataset.range === range) return;
+                buttons.forEach((b) => b.classList.toggle("is-active", b === btn));
+                await this._fetchAndRenderChart(root, container, range);
+            });
+        });
+    },
+
+    async _fetchAndRenderChart(root, container, range) {
+        const companyId = root.dataset.companyId;
+        const apiBase = root.dataset.apiPricechart || `/api/stocks/${companyId}/price-chart`;
+        const { startDate, endDate } = buildDateRange(range);
+        const apiUrl = `${apiBase}?startDate=${startDate}&endDate=${endDate}`;
+
+        container.dataset.range = range;
+        this._setChartMeta(container, "불러오는 중...");
+        this._hideChartError(container);
+
+        const res = await apiGetJSON(apiUrl);
+
+        if (!res.ok) {
+            this._showChartError(container, res.message || "요청에 실패했습니다.");
+            return;
+        }
+
+        const body = res.data;
+        if (!body?.success) {
+            this._showChartError(container, body?.error?.message || "주가 차트 조회에 실패했습니다.");
+            return;
+        }
+
+        const priceData = Array.isArray(body?.data?.priceData) ? body.data.priceData : [];
+        if (priceData.length === 0) {
+            this._showChartError(container, "표시할 주가 데이터가 없습니다.");
+            return;
+        }
+
+        this._mergeChartData(container, priceData);
+        container.__chartSelectedIndex = null;
+
+        this._setChartViewRange(container, startDate, endDate);
+        this._clampViewToLoaded(container);
+        this._updateChartMetaWithView(container);
+
+        const canvas = qs('canvas[data-chart="price-candle"]', container);
+        if(!canvas) return;
+
+        const render = () => this._renderCandleChart(canvas, container);
+        render();
+
+        if (!container.__chartObserver) {
+            const observer = new ResizeObserver(() => render());
+            observer.observe(canvas);
+            container.__chartObserver = observer;
+        }
+
+        await this._maybePrefetchChart(root, container);
+    },
+
+    _initChartState(container, rangeKey) {
+        // 캐시/뷰 상태 초기화
+        container.__chartCache = [];
+        container.__chartCacheMap = new Map();
+        container.__chartViewStart = null;
+        container.__chartViewEnd = null;
+        container.__chartRangeKey = rangeKey;
+        container.__chartMinRangeDays = 14;
+        container.__chartInflight = new Set();
+        container.__chartFetchedRanges = new Set();
+        container.__chartLastPrefetchAt = 0;
+    },
+
+    _mergeChartData(container, priceData) {
+        if (!Array.isArray(priceData)) return;
+        const cache = container.__chartCache || [];
+        const cacheMap = container.__chartCacheMap || new Map();
+
+        // date 기준 중복 제거 후 병합
+        priceData.forEach((item) => {
+            const key = String(item?.date || "");
+            if (!key || cacheMap.has(key)) return;
+            cacheMap.set(key, item);
+            cache.push(item);
+        });
+
+        // 날짜 오름차순 정렬 유지
+        cache.sort((a, b) => dateToMs(a?.date) - dateToMs(b?.date));
+        container.__chartCache = cache;
+        container.__chartCacheMap = cacheMap;
+    },
+
+    _setChartViewRange(container, startDate, endDate) {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) return;
+        // 현재 뷰 범위 설정
+        container.__chartViewStart = start;
+        container.__chartViewEnd = end;
+    },
+
+    _updateChartMetaWithView(container) {
+        const start = container.__chartViewStart;
+        const end = container.__chartViewEnd;
+        if (!start || !end) return;
+        // 뷰 범위를 메타에 표시
+        const label = `${formatDateLabel(start)} ~ ${formatDateLabel(end)}`;
+        this._setChartMeta(container, label);
+    },
+
+    _clampViewToLoaded(container) {
+        const cache = container.__chartCache || [];
+        if (cache.length === 0) return;
+        const minDate = parseDate(cache[0]?.date);
+        const maxDate = parseDate(cache[cache.length - 1]?.date);
+        const viewStart = container.__chartViewStart;
+        const viewEnd = container.__chartViewEnd;
+        if (!minDate || !maxDate || !viewStart || !viewEnd) return;
+
+        // 최소 범위(2주) 보장
+        const minRangeMs = container.__chartMinRangeDays * 24 * 60 * 60 * 1000;
+        if (viewEnd.getTime() - viewStart.getTime() < minRangeMs) {
+            viewEnd.setTime(viewStart.getTime() + minRangeMs);
+        }
+
+        // 로드된 구간 밖으로 나가면 다시 안쪽으로 끌어오기
+        if (viewStart < minDate) {
+            const delta = viewEnd.getTime() - viewStart.getTime();
+            viewStart.setTime(minDate.getTime());
+            viewEnd.setTime(minDate.getTime() + delta);
+        }
+        if (viewEnd > maxDate) {
+            const delta = viewEnd.getTime() - viewStart.getTime();
+            viewEnd.setTime(maxDate.getTime());
+            viewStart.setTime(maxDate.getTime() - delta);
+        }
+
+        if (viewStart < minDate) viewStart.setTime(minDate.getTime());
+        if (viewEnd > maxDate) viewEnd.setTime(maxDate.getTime());
+    },
+
+    _getViewData(container) {
+        const cache = container.__chartCache || [];
+        if (cache.length === 0) return [];
+        const viewStart = container.__chartViewStart;
+        const viewEnd = container.__chartViewEnd;
+        if (!viewStart || !viewEnd) return cache;
+
+        // 현재 뷰 범위에 해당하는 데이터만 추출
+        const startMs = viewStart.getTime();
+        const endMs = viewEnd.getTime();
+        return cache.filter((item) => {
+            const t = dateToMs(item?.date);
+            return t >= startMs && t <= endMs;
+        });
+    },
+
+    _bindChartInteractions(container) {
+        if (container.__chartInteractionBound) return;
+        const canvas = qs('canvas[data-chart="price-candle"]', container);
+        if (!canvas) return;
+
+        // 좌우 드래그로 팬 이동
+        canvas.addEventListener("mousedown", (evt) => {
+            if (evt.button !== 0) return;
+            const layout = canvas.__chartLayout;
+            if (!layout) return;
+            const rect = canvas.getBoundingClientRect();
+            container.__chartDrag = {
+                startX: evt.clientX - rect.left,
+                startViewStart: container.__chartViewStart ? new Date(container.__chartViewStart) : null,
+                startViewEnd: container.__chartViewEnd ? new Date(container.__chartViewEnd) : null
+            };
+        });
+
+        window.addEventListener("mouseup", () => {
+            if (!container.__chartDrag) return;
+            container.__chartDrag = null;
+        });
+
+        window.addEventListener("mousemove", (evt) => {
+            if (!container.__chartDrag) return;
+            const layout = canvas.__chartLayout;
+            if (!layout) return;
+            const rect = canvas.getBoundingClientRect();
+            const currentX = evt.clientX - rect.left;
+            const dx = currentX - container.__chartDrag.startX;
+            const viewStart = container.__chartDrag.startViewStart;
+            const viewEnd = container.__chartDrag.startViewEnd;
+            if (!viewStart || !viewEnd) return;
+
+            const viewMs = viewEnd.getTime() - viewStart.getTime();
+            const plotWidth = layout.width - layout.padding.left - layout.padding.right;
+            const msPerPx = viewMs / Math.max(1, plotWidth);
+            const shiftMs = -dx * msPerPx;
+            container.__chartViewStart = new Date(viewStart.getTime() + shiftMs);
+            container.__chartViewEnd = new Date(viewEnd.getTime() + shiftMs);
+
+            this._clampViewToLoaded(container);
+            this._updateChartMetaWithView(container);
+            this._renderCandleChart(canvas, container);
+            this._maybePrefetchChartFromContainer(container);
+        });
+
+        // 휠로 줌 (마우스 위치 기준)
+        canvas.addEventListener("wheel", (evt) => {
+            const layout = canvas.__chartLayout;
+            if (!layout) return;
+            evt.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const x = evt.clientX - rect.left;
+
+            const viewStart = container.__chartViewStart;
+            const viewEnd = container.__chartViewEnd;
+            if (!viewStart || !viewEnd) return;
+
+            const plotLeft = layout.padding.left;
+            const plotRight = layout.width - layout.padding.right;
+            const clampedX = Math.min(plotRight, Math.max(plotLeft, x));
+            const ratio = (clampedX - plotLeft) / Math.max(1, plotRight - plotLeft);
+
+            const zoomFactor = evt.deltaY < 0 ? 0.9 : 1.1;
+            const viewMs = viewEnd.getTime() - viewStart.getTime();
+            let newMs = viewMs * zoomFactor;
+            const minMs = container.__chartMinRangeDays * 24 * 60 * 60 * 1000;
+            newMs = Math.max(minMs, newMs);
+
+            const focusMs = viewStart.getTime() + viewMs * ratio;
+            const newStart = new Date(focusMs - newMs * ratio);
+            const newEnd = new Date(focusMs + newMs * (1 - ratio));
+
+            container.__chartViewStart = newStart;
+            container.__chartViewEnd = newEnd;
+
+            this._clampViewToLoaded(container);
+            this._updateChartMetaWithView(container);
+            this._renderCandleChart(canvas, container);
+            this._maybePrefetchChartFromContainer(container);
+        }, { passive: false });
+
+        canvas.addEventListener("click", (evt) => {
+            const idx = this._getChartIndexFromEvent(canvas, container, evt);
+            if (idx === null) return;
+            container.__chartSelectedIndex = idx;
+            this._renderCandleChart(canvas, container);
+        });
+
+        canvas.addEventListener("mousemove", (evt) => {
+            const idx = this._getChartIndexFromEvent(canvas, container, evt);
+            if (idx === null) return;
+            if (container.__chartHoverIndex === idx) return;
+            container.__chartHoverIndex = idx;
+            this._renderCandleChart(canvas, container);
+        });
+
+        canvas.addEventListener("mouseleave", () => {
+            if (container.__chartHoverIndex == null) return;
+            container.__chartHoverIndex = null;
+            this._renderCandleChart(canvas, container);
+        });
+
+        container.__chartInteractionBound = true;
+    },
+
+    _getChartIndexFromEvent(canvas, container, evt) {
+        const layout = canvas.__chartLayout;
+        const data = container.__chartViewData;
+        if (!layout || !Array.isArray(data) || data.length === 0) return null;
+
+        const rect = canvas.getBoundingClientRect();
+        const x = evt.clientX - rect.left;
+        const { padding, gap, width } = layout;
+        const plotLeft = padding.left;
+        const plotRight = width - padding.right;
+        if (x < plotLeft || x > plotRight) return null;
+
+        return Math.max(0, Math.min(data.length - 1, Math.floor((x - plotLeft) / gap)));
+    },
+
+    async _maybePrefetchChart(root, container) {
+        if (!root) return;
+        await this._maybePrefetchChartFromContainer(container, root);
+    },
+
+    async _maybePrefetchChartFromContainer(container, rootRef) {
+        const root = rootRef || container.__chartRoot;
+        if (!root) return;
+        const cache = container.__chartCache || [];
+        if (cache.length === 0) return;
+        const viewStart = container.__chartViewStart;
+        const viewEnd = container.__chartViewEnd;
+        if (!viewStart || !viewEnd) return;
+
+        const minDate = parseDate(cache[0]?.date);
+        const maxDate = parseDate(cache[cache.length - 1]?.date);
+        if (!minDate || !maxDate) return;
+
+        const prefetchStartThreshold = addMonths(minDate, 6);
+        const prefetchEndThreshold = addMonths(maxDate, -6);
+        const today = new Date();
+
+        // 너무 잦은 호출 방지 (짧은 쓰로틀)
+        const now = Date.now();
+        if (now - (container.__chartLastPrefetchAt || 0) < 600) return;
+        container.__chartLastPrefetchAt = now;
+
+        // 오래된 쪽: 6개월 내 접근 시 과거 3년 추가
+        if (viewStart <= prefetchStartThreshold) {
+            await this._prefetchRange(container, root, addYears(minDate, -3), addDays(minDate, -1));
+        }
+        // 최신 쪽: 6개월 내 접근 시 미래 3년 추가 (오늘까지만)
+        if (viewEnd >= prefetchEndThreshold) {
+            const nextStart = addDays(maxDate, 1);
+            const nextEnd = addYears(maxDate, 3);
+            const cappedEnd = nextEnd > today ? today : nextEnd;
+            if (nextStart <= cappedEnd) {
+                await this._prefetchRange(container, root, nextStart, cappedEnd);
+            }
+        }
+    },
+
+    async _prefetchRange(container, root, startDate, endDate) {
+        if (!root || !startDate || !endDate) return;
+        if (endDate < startDate) return;
+
+        const key = `${formatDateParam(startDate)}:${formatDateParam(endDate)}`;
+        // 같은 구간 중복 요청 방지
+        if (container.__chartFetchedRanges?.has(key)) return;
+        if (container.__chartInflight?.has(key)) return;
+        container.__chartInflight?.add(key);
+
+        const companyId = root.dataset.companyId;
+        const apiBase = root.dataset.apiPricechart || `/api/stocks/${companyId}/price-chart`;
+        const apiUrl = `${apiBase}?startDate=${formatDateParam(startDate)}&endDate=${formatDateParam(endDate)}`;
+        const res = await apiGetJSON(apiUrl);
+        container.__chartInflight?.delete(key);
+
+        if (!res.ok) return;
+        const body = res.data;
+        if (!body?.success) return;
+        const priceData = Array.isArray(body?.data?.priceData) ? body.data.priceData : [];
+        // 비어 있어도 재요청 방지용으로 기록
+        container.__chartFetchedRanges?.add(key);
+        if (priceData.length === 0) return;
+        this._mergeChartData(container, priceData);
+    },
+
+    _setChartMeta(container, text) {
+        const meta = qs("[data-chart-meta]", container);
+        if (meta) meta.textContent = text;
+    },
+
+    _showChartError(container, message) {
+        const error = qs("[data-chart-error]", container);
+        if (!error) return;
+        error.textContent = message;
+        error.hidden = false;
+    },
+
+    _hideChartError(container) {
+        const error = qs("[data-chart-error]", container);
+        if (error) {
+            error.hidden = true;
+            error.textContent = "";
+        }
+    },
+
+    _renderCandleChart(canvas, container) {
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+        const width = Math.max(1, Math.floor(rect.width));
+        const height = Math.max(1, Math.floor(rect.height));
+
+        canvas.width = Math.floor(width * dpr);
+        canvas.height = Math.floor(height * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, width, height);
+
+        const padding = { left: 50, right: 16, top: 16, bottom: 26 };
+        const plotWidth = width - padding.left - padding.right;
+        const plotHeight = height - padding.top - padding.bottom;
+        if (plotWidth <= 0 || plotHeight <= 0) return;
+
+        const viewData = this._getViewData(container);
+        container.__chartViewData = viewData;
+
+        const valid = viewData.filter((d) =>
+            Number.isFinite(Number(d?.high)) &&
+            Number.isFinite(Number(d?.low)) &&
+            Number.isFinite(Number(d?.open)) &&
+            Number.isFinite(Number(d?.close))
+        );
+
+        if (valid.length === 0) {
+            ctx.fillStyle = "#6b7280";
+            ctx.font = "12px sans-serif";
+            ctx.fillText("표시할 데이터가 없습니다.", padding.left, padding.top + 12);
+            return;
+        }
+
+        const highs = valid.map((d) => Number(d.high));
+        const lows = valid.map((d) => Number(d.low));
+        const maxValue = Math.max(...highs);
+        const minValue = Math.min(...lows);
+        const range = Math.max(1, maxValue - minValue);
+
+        const yFor = (v) =>
+            padding.top + ((maxValue - v) / range) * plotHeight;
+
+        const count = viewData.length;
+        const gap = plotWidth / Math.max(1, count);
+        canvas.__chartLayout = {
+            padding,
+            gap,
+            width,
+            height
+        };
+
+        ctx.strokeStyle = "#e5e7eb";
+        ctx.lineWidth = 1;
+        const gridCount = 4;
+        for (let i = 0; i <= gridCount; i += 1) {
+            const y = padding.top + (plotHeight / gridCount) * i;
+            ctx.beginPath();
+            ctx.moveTo(padding.left, y);
+            ctx.lineTo(width - padding.right, y);
+            ctx.stroke();
+        }
+
+        ctx.fillStyle = "#64748b";
+        ctx.font = "11px sans-serif";
+        const labelValues = [maxValue, (maxValue + minValue) / 2, minValue];
+        labelValues.forEach((v, i) => {
+            const y = yFor(v);
+            const text = formatNumber(v);
+            ctx.fillText(text, 6, y + (i === 0 ? 4 : 3));
+        });
+
+        const bodyWidth = Math.max(2, gap * 0.98);
+        const wickColor = "#6b7280";
+        const upColor = "#16a34a";
+        const downColor = "#dc2626";
+        const highlightColor = "#111827";
+
+        viewData.forEach((d, idx) => {
+            const open = Number(d?.open);
+            const close = Number(d?.close);
+            const high = Number(d?.high);
+            const low = Number(d?.low);
+            if (!Number.isFinite(open) || !Number.isFinite(close) || !Number.isFinite(high) || !Number.isFinite(low)) {
+                return;
+            }
+
+            const x = padding.left + idx * gap + gap / 2;
+            const yOpen = yFor(open);
+            const yClose = yFor(close);
+            const yHigh = yFor(high);
+            const yLow = yFor(low);
+
+            ctx.strokeStyle = wickColor;
+            ctx.beginPath();
+            ctx.moveTo(x, yHigh);
+            ctx.lineTo(x, yLow);
+            ctx.stroke();
+
+            const isUp = close >= open;
+            ctx.fillStyle = isUp ? upColor : downColor;
+            const bodyTop = isUp ? yClose : yOpen;
+            const bodyBottom = isUp ? yOpen : yClose;
+            const bodyHeight = Math.max(1, bodyBottom - bodyTop);
+            ctx.fillRect(x - bodyWidth / 2, bodyTop, bodyWidth, bodyHeight);
+
+            const highlight = idx === container?.__chartHoverIndex || idx === container?.__chartSelectedIndex;
+            if (highlight) {
+                ctx.strokeStyle = highlightColor;
+                ctx.lineWidth = 1;
+                ctx.strokeRect(x - bodyWidth / 2, bodyTop, bodyWidth, bodyHeight);
+            }
+        });
+
+        this._renderYearBoundaries(ctx, viewData, padding, gap, height);
+
+        const startLabel = formatDateLabel(viewData[0]?.date);
+        const endLabel = formatDateLabel(viewData[count - 1]?.date);
+        ctx.fillStyle = "#6b7280";
+        ctx.font = "11px sans-serif";
+        ctx.fillText(startLabel, padding.left, height - 6);
+        const endTextWidth = ctx.measureText(endLabel).width;
+        ctx.fillText(endLabel, width - padding.right - endTextWidth, height - 6);
+
+        this._renderCandleSelection(canvas, viewData, container, padding, gap, yFor);
+    },
+
+    _renderYearBoundaries(ctx, viewData, padding, gap, height) {
+        if (!ctx || !Array.isArray(viewData) || viewData.length < 2) return;
+        ctx.save();
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = "#cbd5f5";
+        ctx.lineWidth = 1;
+
+        for (let i = 1; i < viewData.length; i += 1) {
+            const prev = viewData[i - 1]?.date;
+            const curr = viewData[i]?.date;
+            const prevYear = getYearFromDate(prev);
+            const currYear = getYearFromDate(curr);
+            if (!prevYear || !currYear || prevYear === currYear) continue;
+            const x = padding.left + i * gap;
+            ctx.beginPath();
+            ctx.moveTo(x, padding.top);
+            ctx.lineTo(x, height - padding.bottom);
+            ctx.stroke();
+        }
+
+        ctx.restore();
+    },
+
+    _renderCandleSelection(canvas, data, container, padding, gap, yFor) {
+        const ctx = canvas.getContext("2d");
+        if (!ctx || !container) return;
+
+        const idx = Number.isInteger(container.__chartSelectedIndex)
+            ? container.__chartSelectedIndex
+            : null;
+        const tooltip = qs("[data-chart-tooltip]", container);
+
+        const hoverIdx = Number.isInteger(container.__chartHoverIndex)
+            ? container.__chartHoverIndex
+            : null;
+        const targetIdx = hoverIdx ?? idx;
+
+        if (targetIdx === null || !data[targetIdx]) {
+            if (tooltip) tooltip.hidden = true;
+            return;
+        }
+
+        const point = data[targetIdx];
+        const x = padding.left + targetIdx * gap + gap / 2;
+        const yHigh = yFor(Number(point?.high));
+        const yLow = yFor(Number(point?.low));
+
+        ctx.strokeStyle = "#111827";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x, yHigh);
+        ctx.lineTo(x, yLow);
+        ctx.stroke();
+
+        if (tooltip) {
+            tooltip.hidden = false;
+            tooltip.innerHTML = buildCandleTooltipHtml(point);
+            tooltip.style.left = `${x}px`;
+            tooltip.style.top = `${padding.top + 6}px`;
+        }
     }
 }
 
@@ -353,6 +971,94 @@ function formatFinancialValue(v) {
     const n = Number(v);
     if (!Number.isFinite(n)) return "-";
     return n.toLocaleString("ko-KR");
+}
+
+function formatDateLabel(value) {
+    if (!value) return "-";
+    if (value instanceof Date) {
+        return formatDateParam(value).replaceAll("-", ".");
+    }
+    return String(value).replaceAll("-", ".");
+}
+
+function buildCandleTooltipHtml(point) {
+    const date = formatDateLabel(point?.date);
+    const open = formatNumber(point?.open);
+    const high = formatNumber(point?.high);
+    const low = formatNumber(point?.low);
+    const close = formatNumber(point?.close);
+
+    return `
+        <div>${date}</div>
+        <div>시 ${open}</div>
+        <div>고 ${high}</div>
+        <div>저 ${low}</div>
+        <div>종 ${close}</div>
+    `;
+}
+
+function buildDateRange(rangeKey) {
+    const today = new Date();
+    const endDate = formatDateParam(today);
+    const start = new Date(today);
+    const key = String(rangeKey || "1y").toLowerCase();
+    const value = Number(key.slice(0, -1)) || 1;
+    const unit = key.slice(-1);
+
+    if (unit === "w") {
+        start.setDate(start.getDate() - value * 7);
+    } else if (unit === "m") {
+        start.setMonth(start.getMonth() - value);
+    } else {
+        start.setFullYear(start.getFullYear() - value);
+    }
+    return {
+        startDate: formatDateParam(start),
+        endDate
+    };
+}
+
+function formatDateParam(date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+}
+
+function parseDate(value) {
+    if (!value) return null;
+    const d = new Date(value);
+    if (!Number.isFinite(d.getTime())) return null;
+    return d;
+}
+
+function dateToMs(value) {
+    const d = parseDate(value);
+    return d ? d.getTime() : 0;
+}
+
+function addMonths(date, months) {
+    const d = new Date(date);
+    d.setMonth(d.getMonth() + months);
+    return d;
+}
+
+function addYears(date, years) {
+    const d = new Date(date);
+    d.setFullYear(d.getFullYear() + years);
+    return d;
+}
+
+function addDays(date, days) {
+    const d = new Date(date);
+    d.setDate(d.getDate() + days);
+    return d;
+}
+
+function getYearFromDate(value) {
+    const d = parseDate(value);
+    if (!d) return null;
+    return d.getFullYear();
 }
 
 function escapeHtml(str) {
