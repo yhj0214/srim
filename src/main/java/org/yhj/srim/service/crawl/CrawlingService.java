@@ -33,32 +33,6 @@ public class CrawlingService {
     private final StockCodeRepository stockCodeRepository;
     private final StockPriceRepository stockPriceRepository;
 
-    @Transactional
-    public int crawlAndSaveAnnualFinancial(String corpCode, Long companyId, int year) {
-
-        // 크롤링 결과
-        List<DartFsRow> rows = dartClient.fetchAnnualFinancialStatements(corpCode, year);
-
-        if(rows.isEmpty()) {
-            log.warn("{}년도에 크롤링된 데이터가 없습니다.", year);
-            return 0;
-        }
-
-        DartFsRow meta = rows.get(0);
-        DartFsFiling filing = createOrGetFiling(corpCode, companyId, meta);
-
-        // Line 엔티티로 변환 + 저장
-        List<DartFsLine> entities = rows.stream()
-                .map(row -> DartFsLine.fromRow(
-                        filing,
-                        companyId,
-                        row
-                ))
-                .toList();
-
-        lineRepository.saveAll(entities);
-        return entities.size();
-    }
 
     public List<DartFsRow> crawlAnnualFinancial(String corpCode, int year) {
 

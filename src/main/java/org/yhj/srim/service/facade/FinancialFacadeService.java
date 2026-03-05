@@ -194,12 +194,10 @@ public class FinancialFacadeService {
         for (int year = endYear - 1; year >= startYear; year--) {
             log.debug("{}년 크롤링 및 계산 진행", year);
 
-            // 재무제표 크롤링 , dart_fs_filing + dart_fs_line DB저장
-//            crawlingService.crawlAndSaveAnnualFinancial(corpCode, companyId, year);
             // 재무제표 크롤링
             List<DartFsRow> fsRows = crawlingService.crawlAnnualFinancial(corpCode, year);
             // 재무제표 정보 저장 Line, Filing
-            if(!fsRows.isEmpty()) financialService.replaceAnnualFinancial(corpCode, companyId, fsRows);
+            financialService.replaceAnnualFinancial(corpCode, companyId, fsRows);
 
             // 주식수 크롤링 + dart_share_status 저장
 //            crawlingService.crawlAndSaveShareStatus(corpCode, companyId, year);

@@ -23,7 +23,7 @@ public class ManagementFacade {
 
     private static final LocalDate START_DATE = LocalDate.of(2015, 1, 1);
 
-    // 초기 실행용으로 시장 수집 후 전체 회사 동기화를 순차 실행한다.
+    // 초기 실행용으로 시장 수집 후 전체 회사 초기화를 순차 실행
     public CrawlAllMarketsResult runInitialSync() {
 
         // 시장종목 크롤링, dartCorpCode 매핑
@@ -60,15 +60,15 @@ public class ManagementFacade {
                 successCount++;
             } catch (Exception e) {
                 failureCount++;
-                log.error("회사 동기화 실패 - stockId={}", stockId, e);
+                log.error("회사 초기화 실패 - stockId={}", stockId, e);
             }
         }
 
-        log.info("전체 회사 동기화 완료 - total={}, success={}, failure={}",
+        log.info("전체 회사 초기화 완료 - total={}, success={}, failure={}",
                 stockIds.size(), successCount, failureCount);
     }
 
-    // 단일종목 조회 및 동기화
+    // 단일종목 조회 및 초기화
     public void syncSingleCompanyByTickerKrx(String tickerKrx){
         Long stockId = stockService.getStockIdByTickerKrx(tickerKrx);
 
@@ -76,7 +76,7 @@ public class ManagementFacade {
         syncCompany(stockId, endDate);
     }
 
-    // 개별 회사 단위 재무/주가/주가기반지표 동기화
+    // 개별 회사 단위 재무/주가/주가기반지표 초기화
     private void syncCompany(Long stockId, LocalDate endDate) {
 
         // 회사 정보 및 재무정보 생성

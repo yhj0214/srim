@@ -930,6 +930,10 @@ public class FinancialService {
 
         DartFsRow meta = rows.get(0);
         DartFsFiling filing = getOrCreateFiling(corpCode, companyId, meta);
+        replaceFsLines(filing, companyId, rows);
+    }
+
+    private void replaceFsLines(DartFsFiling filing, Long companyId, List<DartFsRow> rows) {
 
         dartFsLineRepository.deleteByFiling_FsFilingId(filing.getFsFilingId());
 
