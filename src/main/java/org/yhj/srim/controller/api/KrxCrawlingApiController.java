@@ -61,8 +61,8 @@ public class KrxCrawlingApiController {
      */
     @GetMapping("/stocks/{tickerKrx}")
     public ApiResponse<Void> crawlingStockInfo(@PathVariable String tickerKrx){
-        log.info("stickerKrx : {}", tickerKrx);
-        managementFacade.findStockInfoByStickerKrx(tickerKrx);
+        log.info("tickerKrx : {}", tickerKrx);
+        managementFacade.findStockInfoByTickerKrx(tickerKrx);
         return ApiResponse.success(null);
     }
 

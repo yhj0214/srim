@@ -105,6 +105,7 @@ public class StockService {
         return dto;
     }
 
+    @Transactional
     public int saveStockDrafts(List<StockCodeDraft> drafts) {
         if(drafts == null || drafts.size() == 0) {
             return 0;

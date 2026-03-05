@@ -215,7 +215,6 @@ public class FinancialFacadeService {
 
         financialService.updateCompanyShareInfo(companyId);
     }
-    @Transactional
     public CrawlAllMarketsResult marketCrawling() {
         // 크롤링 및 데이터 추출
         List<StockCodeDraft> stockCodeDrafts = krxStockCrawlingService.fetchStockList("KOSPI");
@@ -229,7 +228,6 @@ public class FinancialFacadeService {
         return new CrawlAllMarketsResult(saved, mappedCount);
     }
 
-    @Transactional
     public void CrawlAndSaveBondYield(LocalDate startDate, LocalDate endDate) {
 
         if (startDate == null || endDate == null) {
