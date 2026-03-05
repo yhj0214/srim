@@ -27,7 +27,7 @@ class KrxCrawlingApiControllerTest {
     @DisplayName("전체 크롤링 step1에 성공한다.")
     void all_crawling_step1_success() throws Exception {
         // given
-        BDDMockito.given(managementFacade.step1MarketSync())
+        BDDMockito.given(managementFacade.collectMarketData())
                 .willReturn(new CrawlAllMarketsResult(100, 80));
 
         // when & then

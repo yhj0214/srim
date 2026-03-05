@@ -19,7 +19,6 @@ import org.yhj.srim.service.crawl.dto.StockCodeDraft;
 import org.yhj.srim.service.dto.StockDto;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -78,6 +77,16 @@ public class StockService {
      */
     public long count() {
         return stockCodeRepository.count();
+    }
+
+    public List<Long> findAllStockIds() {
+        return stockCodeRepository.findStockIdBy();
+    }
+
+    public Long getStockIdByTickerKrx(String tickerKrx) {
+        return stockCodeRepository.findStockIdByTickerKrx(tickerKrx)
+                .orElseThrow(() -> new CustomException(StockError.STOCK_NOT_FOUND))
+                .getStockId();
     }
 
     /**

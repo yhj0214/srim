@@ -53,7 +53,7 @@ public class FinancialFacadeService {
      * 2. 재무제표, 주식 수 크롤링 및 저장
      * 3. 저장된 값들로 지표 계산 및 financialTableDto생성
      */
-    public Company crawlAnnualTable(Long stockId, int limit) {
+    public Company crawlAnnualTable(Long stockId, int startYear) {
 
         return financialService.findCompanyByStockId(stockId)
                 .orElseGet(() ->{
@@ -61,7 +61,7 @@ public class FinancialFacadeService {
                     Company company = financialService.createCompany(stockId);
                     log.info("신규 company 생성 : stockId = {}, companyId = {}", stockId, company.getCompanyId());
 
-                    initializeCompanyData(company, limit);
+                    initializeCompanyData(company, startYear, LocalDate.now().getYear());
                     return company;
                 });
     }
@@ -183,17 +183,15 @@ public class FinancialFacadeService {
 
 
     // 데이터가 있는 경우 Skip, Delete&Insert, Upsert
-    private void initializeCompanyData(Company company, int limit) {
+    private void initializeCompanyData(Company company, int startYear, int endYear) {
         String corpCode = company.getStockCode().getDartCorpCode();
         Long companyId = company.getCompanyId();
 
-        int currentYear = LocalDate.now().getYear();
-        int startYear   = currentYear - limit + 1;
 
         log.info("전체 파이프라인 실행 - companyId={}, corpCode={}, year {}~{}",
-                companyId, corpCode, startYear, currentYear);
+                companyId, corpCode, startYear, endYear);
 
-        for (int year = currentYear-1; year >= startYear; year--) {
+        for (int year = endYear - 1; year >= startYear; year--) {
             log.debug("{}년 크롤링 및 계산 진행", year);
 
             // 재무제표 크롤링 , dart_fs_filing + dart_fs_line DB저장

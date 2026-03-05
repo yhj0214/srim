@@ -27,7 +27,7 @@ public class KrxCrawlingApiController {
     @PostMapping("/all")
     public ApiResponse<CrawlAllMarketsResult> crawlAllMarkets() {
         log.info("전체 시장 크롤링 요청");
-        return ApiResponse.success(managementFacade.initializeAll());
+        return ApiResponse.success(managementFacade.runInitialSync());
     }
 
     /**
@@ -37,7 +37,7 @@ public class KrxCrawlingApiController {
     @PostMapping("/all/step1")
     public ApiResponse<CrawlAllMarketsResult> crawlAllMarketsStep1() {
         log.info("전체 시장 크롤링 요청 (STEP1)");
-        return ApiResponse.success(managementFacade.step1MarketSync());
+        return ApiResponse.success(managementFacade.collectMarketData());
     }
 
     /**
@@ -47,7 +47,7 @@ public class KrxCrawlingApiController {
     @PostMapping("/all/step2")
     public ApiResponse<Void> crawlAllMarketsStep2() {
         log.info("전체 시장 크롤링 요청 (STEP2)");
-        managementFacade.step2CorpSync();
+        managementFacade.syncAllCompanies();
         return ApiResponse.success(null);
     }
 
@@ -62,7 +62,7 @@ public class KrxCrawlingApiController {
     @GetMapping("/stocks/{tickerKrx}")
     public ApiResponse<Void> crawlingStockInfo(@PathVariable String tickerKrx){
         log.info("tickerKrx : {}", tickerKrx);
-        managementFacade.findStockInfoByTickerKrx(tickerKrx);
+        managementFacade.syncSingleCompanyByTickerKrx(tickerKrx);
         return ApiResponse.success(null);
     }
 

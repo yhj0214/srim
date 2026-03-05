@@ -8,6 +8,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.yhj.srim.controller.dto.CrawlAllMarketsResult;
 import org.yhj.srim.service.domain.PriceBasedMetricService;
+import org.yhj.srim.service.domain.StockService;
 
 import java.time.LocalDate;
 
@@ -32,7 +33,7 @@ class ManagementFacadeTest {
     PriceBasedMetricService priceBasedMetricService;
 
     @Mock
-    org.yhj.srim.repository.StockCodeRepository stockCodeRepository;
+    StockService stockService;
 
     @Test
     @DisplayName("step1은 시장 동기화 결과를 반환하고 채권수익률을 수집한다.")
@@ -40,7 +41,7 @@ class ManagementFacadeTest {
         CrawlAllMarketsResult result = new CrawlAllMarketsResult(10, 8);
         given(financialFacadeService.marketCrawling()).willReturn(result);
 
-        CrawlAllMarketsResult actual = managementFacade.step1MarketSync();
+        CrawlAllMarketsResult actual = managementFacade.collectMarketData();
 
         assertThat(actual.getCrawledCount()).isEqualTo(10);
         assertThat(actual.getMappedCount()).isEqualTo(8);
