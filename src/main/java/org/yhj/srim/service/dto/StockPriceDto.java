@@ -31,6 +31,8 @@ public class StockPriceDto {
         private BigDecimal close;      // 종가
         private Long volume;           // 거래량
 
+        private BigDecimal per;        // 일별 PER (종가 / 전년도 EPS)
+
         private BigDecimal fvScenario0;   // 적정주가 (초과이익 지속)
         private BigDecimal fvScenario10;  // 초과이익 10% 감소
         private BigDecimal fvScenario20;  // 20% 감소

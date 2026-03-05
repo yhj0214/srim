@@ -2,68 +2,69 @@
 <html lang="ko" xmlns:th="http://www.thymeleaf.org"
       th:replace="~{layout :: layout(~{::section})}">
 
-    <body>
-        <section class="page" data-page="stock-detail"
-                 th:attr="data-market=${stock.market},
+<body>
+<section class="page" data-page="stock-detail"
+         th:attr="data-market=${stock.market},
                         data-ticker=${stock.tickerKrx},
                         data-stock-id=${stock.stockId},
                         data-company-id=${stock.companyId},
                         data-api-srim=@{|/api/stocks/${stock.companyId}/srim?basis=YEAR|},
                         data-api-financial=@{|/api/stocks/${stock.stockId}/financial/annual|},
                         data-api-pricechart=@{|/api/stocks/${stock.companyId}/price-chart|}">
-            <div class="detailHead">
-                <div>
-                    <h1 class="page__title" th:text="${stock.companyName}">회사명</h1>
-                    <div class="detailHead__meta">
-                        <span class="code" th:text="${stock.tickerKrx}">000000</span>
-                        <span class="badge" th:text="${stock.market}">KOSPI</span>
-                        <span class="muted" th:text="${stock.industry}">업종</span>
-                        <span class="muted" th:text="${stock.region}">지역</span>
-                    </div>
-                </div>
-                <a class="btnOutline" th:href="@{/stocks(q=${param.q}, page=${param.page}, size=${param.size})}">← 목록으로</a>
+    <div class="detailHead">
+        <div>
+            <h1 class="page__title" th:text="${stock.companyName}">회사명</h1>
+            <div class="detailHead__meta">
+                <span class="code" th:text="${stock.tickerKrx}">000000</span>
+                <span class="badge" th:text="${stock.market}">KOSPI</span>
+                <span class="muted" th:text="${stock.industry}">업종</span>
+                <span class="muted" th:text="${stock.region}">지역</span>
             </div>
+        </div>
+        <a class="btnOutline" th:href="@{/stocks(q=${param.q}, page=${param.page}, size=${param.size})}">← 목록으로</a>
+    </div>
 
 
-            <div class="tabs" role="tablist">
-                <button class="tab is-active" data-tab="srim" type="button">S-RIM</button>
-                <button class="tab" data-tab="financial" type="button">재무정보</button>
-                <button class="tab" data-tab="chart" type="button">그래프</button>
-            </div>
+    <div class="tabs" role="tablist">
+        <button class="tab is-active" data-tab="srim" type="button">S-RIM</button>
+        <button class="tab" data-tab="financial" type="button">재무정보</button>
+        <button class="tab" data-tab="chart" type="button">그래프</button>
+    </div>
 
-            <div class="tabPanels">
-                <div class="tabPanel" data-panel="chart" hidden>
-                    <div id="priceChartContainer"></div>
+    <div class="tabPanels">
+        <div class="tabPanel" data-panel="chart" hidden>
+            <div id="priceChartContainer"></div>
+            <div id="metricChartContainer"></div>
+        </div>
+
+        <div class="tabPanel" data-panel="financial" hidden>
+            <div id="financialContainer"></div>
+            <div class="card finNote">
+                <div class="finHeader">
+                    <h3>계산 지표 설명</h3>
                 </div>
-
-                <div class="tabPanel" data-panel="financial" hidden>
-                    <div id="financialContainer"></div>
-                    <div class="card finNote">
-                        <div class="finHeader">
-                            <h3>계산 지표 설명</h3>
-                        </div>
-                        <div class="muted">
-                            <div>영업이익률 = 영업이익 ÷ 매출액 × 100</div>
-                            <div>순이익률 = 당기순이익 ÷ 매출액 × 100</div>
-                            <div>ROE = 지배주주순이익 ÷ 평균 지배주주지분 × 100 (평균 = 당기+전기/2)</div>
-                            <div>ROA = 당기순이익 ÷ 자산총계 × 100</div>
-                            <div>부채비율 = 부채총계 ÷ 자본총계 × 100</div>
-                            <div>EPS = 지배주주순이익 ÷ 발행주식수</div>
-                            <div>BPS = 지배주주지분 ÷ 발행주식수</div>
-                            <div>PER = 연말 주가 ÷ EPS</div>
-                            <div>PBR = 연말 주가 ÷ BPS</div>
-                            <div>연말 주가는 12/31 기준 가장 가까운 거래일 종가를 사용합니다.</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="tabPanel" data-panel="srim">
-                    <div id="srimResultContainer">
-                        <!-- JS가 여기다 렌더 -->
-                    </div>
+                <div class="muted">
+                    <div>영업이익률 = 영업이익 ÷ 매출액 × 100</div>
+                    <div>순이익률 = 당기순이익 ÷ 매출액 × 100</div>
+                    <div>ROE = 지배주주순이익 ÷ 평균 지배주주지분 × 100 (평균 = 당기+전기/2)</div>
+                    <div>ROA = 당기순이익 ÷ 자산총계 × 100</div>
+                    <div>부채비율 = 부채총계 ÷ 자본총계 × 100</div>
+                    <div>EPS = 지배주주순이익 ÷ 발행주식수</div>
+                    <div>BPS = 지배주주지분 ÷ 발행주식수</div>
+                    <div>PER = 연말 주가 ÷ EPS</div>
+                    <div>PBR = 연말 주가 ÷ BPS</div>
+                    <div>연말 주가는 12/31 기준 가장 가까운 거래일 종가를 사용합니다.</div>
                 </div>
             </div>
+        </div>
 
-        </section>
-    </body>
+        <div class="tabPanel" data-panel="srim">
+            <div id="srimResultContainer">
+                <!-- JS가 여기다 렌더 -->
+            </div>
+        </div>
+    </div>
+
+</section>
+</body>
 </html>

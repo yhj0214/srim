@@ -420,7 +420,8 @@ export const StockDetailPage = {
         this._bindChartInteractions(container);
         this._initChartState(container, "2w");
         container.__chartRoot = root;
-        await this._fetchAndRenderChart(root, container, "2w");
+        this._renderMetricShell();
+        await this._fetchAndRenderChart(root, container, "3y", "2w");
     },
 
     _renderChartShell(container, activeRange) {
@@ -456,6 +457,22 @@ export const StockDetailPage = {
         `;
     },
 
+    _renderMetricShell() {
+        const container = qs("#metricChartContainer");
+        if (!container) return;
+        if (container.dataset.loaded === "true") return;
+        container.dataset.loaded = "true";
+        container.innerHTML = `
+            <div class="metricChartCard">
+                <h3 class="metricChartTitle">PER 추이</h3>
+                <div class="chartCanvasWrap">
+                    <canvas class="metricChartCanvas" data-chart="per-line"></canvas>
+                </div>
+                <div class="chartNote">일별 PER = 종가 / 전년도 EPS</div>
+            </div>
+        `;
+    },
+
     _bindChartRangeButtons(root, container) {
         const buttons = qsa(".chartRangeBtn", container);
         if (buttons.length === 0) return;
@@ -470,7 +487,7 @@ export const StockDetailPage = {
         });
     },
 
-    async _fetchAndRenderChart(root, container, range) {
+    async _fetchAndRenderChart(root, container, range, viewRangeKey = null) {
         const companyId = root.dataset.companyId;
         const apiBase = root.dataset.apiPricechart || `/api/stocks/${companyId}/price-chart`;
         const { startDate, endDate } = buildDateRange(range);
@@ -502,14 +519,22 @@ export const StockDetailPage = {
         this._mergeChartData(container, priceData);
         container.__chartSelectedIndex = null;
 
-        this._setChartViewRange(container, startDate, endDate);
+        if (viewRangeKey) {
+            const viewRange = buildDateRangeFromEnd(endDate, viewRangeKey);
+            this._setChartViewRange(container, viewRange.startDate, viewRange.endDate);
+        } else {
+            this._setChartViewRange(container, startDate, endDate);
+        }
         this._clampViewToLoaded(container);
         this._updateChartMetaWithView(container);
 
         const canvas = qs('canvas[data-chart="price-candle"]', container);
         if(!canvas) return;
 
-        const render = () => this._renderCandleChart(canvas, container);
+        const render = () => {
+            this._renderCandleChart(canvas, container);
+            this._renderPerChart(container);
+        };
         render();
 
         if (!container.__chartObserver) {
@@ -661,7 +686,7 @@ export const StockDetailPage = {
 
             this._clampViewToLoaded(container);
             this._updateChartMetaWithView(container);
-            this._renderCandleChart(canvas, container);
+            this._renderCharts(container);
             this._maybePrefetchChartFromContainer(container);
         });
 
@@ -697,7 +722,7 @@ export const StockDetailPage = {
 
             this._clampViewToLoaded(container);
             this._updateChartMetaWithView(container);
-            this._renderCandleChart(canvas, container);
+            this._renderCharts(container);
             this._maybePrefetchChartFromContainer(container);
         }, { passive: false });
 
@@ -705,7 +730,7 @@ export const StockDetailPage = {
             const idx = this._getChartIndexFromEvent(canvas, container, evt);
             if (idx === null) return;
             container.__chartSelectedIndex = idx;
-            this._renderCandleChart(canvas, container);
+            this._renderCharts(container);
         });
 
         canvas.addEventListener("mousemove", (evt) => {
@@ -713,13 +738,13 @@ export const StockDetailPage = {
             if (idx === null) return;
             if (container.__chartHoverIndex === idx) return;
             container.__chartHoverIndex = idx;
-            this._renderCandleChart(canvas, container);
+            this._renderCharts(container);
         });
 
         canvas.addEventListener("mouseleave", () => {
             if (container.__chartHoverIndex == null) return;
             container.__chartHoverIndex = null;
-            this._renderCandleChart(canvas, container);
+            this._renderCharts(container);
         });
 
         container.__chartInteractionBound = true;
@@ -957,6 +982,105 @@ export const StockDetailPage = {
         this._renderCandleSelection(canvas, viewData, container, padding, gap, yFor);
     },
 
+    _renderCharts(container) {
+        const canvas = qs('canvas[data-chart="price-candle"]', container);
+        if (!canvas) return;
+        this._renderCandleChart(canvas, container);
+        this._renderPerChart(container);
+    },
+
+    _renderPerChart(container) {
+        const metricContainer = qs("#metricChartContainer");
+        if (!metricContainer) return;
+        const canvas = qs('canvas[data-chart="per-line"]', metricContainer);
+        if (!canvas) return;
+
+        const viewData = container.__chartViewData || [];
+        if (viewData.length === 0) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+        const width = Math.max(1, Math.floor(rect.width));
+        const height = Math.max(1, Math.floor(rect.height));
+
+        canvas.width = Math.floor(width * dpr);
+        canvas.height = Math.floor(height * dpr);
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, width, height);
+
+        const padding = { left: 50, right: 16, top: 16, bottom: 24 };
+        const plotWidth = width - padding.left - padding.right;
+        const plotHeight = height - padding.top - padding.bottom;
+        if (plotWidth <= 0 || plotHeight <= 0) return;
+
+        const perValues = viewData
+            .map((d) => Number(d?.per))
+            .filter((v) => Number.isFinite(v));
+        if (perValues.length === 0) {
+            ctx.fillStyle = "#6b7280";
+            ctx.font = "12px sans-serif";
+            ctx.fillText("PER 데이터 없음", padding.left, padding.top + 12);
+            return;
+        }
+
+        const maxValue = Math.max(...perValues);
+        const minValue = Math.min(...perValues);
+        const range = Math.max(1, maxValue - minValue);
+
+        const yFor = (v) =>
+            padding.top + ((maxValue - v) / range) * plotHeight;
+
+        ctx.strokeStyle = "#e5e7eb";
+        ctx.lineWidth = 1;
+        const gridCount = 3;
+        for (let i = 0; i <= gridCount; i += 1) {
+            const y = padding.top + (plotHeight / gridCount) * i;
+            ctx.beginPath();
+            ctx.moveTo(padding.left, y);
+            ctx.lineTo(width - padding.right, y);
+            ctx.stroke();
+        }
+
+        ctx.fillStyle = "#64748b";
+        ctx.font = "11px sans-serif";
+        const labelValues = [maxValue, (maxValue + minValue) / 2, minValue];
+        labelValues.forEach((v, i) => {
+            const y = yFor(v);
+            const text = formatPerValue(v);
+            ctx.fillText(text, 6, y + (i === 0 ? 4 : 3));
+        });
+
+        const count = viewData.length;
+        const gap = plotWidth / Math.max(1, count);
+        ctx.strokeStyle = "#2563eb";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        let started = false;
+        viewData.forEach((d, idx) => {
+            const per = Number(d?.per);
+            if (!Number.isFinite(per)) return;
+            const x = padding.left + idx * gap + gap / 2;
+            const y = yFor(per);
+            if (!started) {
+                ctx.moveTo(x, y);
+                started = true;
+            } else {
+                ctx.lineTo(x, y);
+            }
+        });
+        ctx.stroke();
+
+        const startLabel = formatDateLabel(viewData[0]?.date);
+        const endLabel = formatDateLabel(viewData[count - 1]?.date);
+        ctx.fillStyle = "#6b7280";
+        ctx.font = "11px sans-serif";
+        ctx.fillText(startLabel, padding.left, height - 6);
+        const endTextWidth = ctx.measureText(endLabel).width;
+        ctx.fillText(endLabel, width - padding.right - endTextWidth, height - 6);
+    },
+
     _renderYearBoundaries(ctx, viewData, padding, gap, height) {
         if (!ctx || !Array.isArray(viewData) || viewData.length < 2) return;
         ctx.save();
@@ -1062,6 +1186,12 @@ function buildCandleTooltipHtml(point) {
     `;
 }
 
+function formatPerValue(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return "-";
+    return n.toFixed(2);
+}
+
 function buildDateRange(rangeKey) {
     const today = new Date();
     const endDate = formatDateParam(today);
@@ -1080,6 +1210,29 @@ function buildDateRange(rangeKey) {
     return {
         startDate: formatDateParam(start),
         endDate
+    };
+}
+
+function buildDateRangeFromEnd(endDate, rangeKey) {
+    const end = new Date(endDate);
+    if (!Number.isFinite(end.getTime())) {
+        return buildDateRange(rangeKey);
+    }
+    const start = new Date(end);
+    const key = String(rangeKey || "1y").toLowerCase();
+    const value = Number(key.slice(0, -1)) || 1;
+    const unit = key.slice(-1);
+
+    if (unit === "w") {
+        start.setDate(start.getDate() - value * 7);
+    } else if (unit === "m") {
+        start.setMonth(start.getMonth() - value);
+    } else {
+        start.setFullYear(start.getFullYear() - value);
+    }
+    return {
+        startDate: formatDateParam(start),
+        endDate: formatDateParam(end)
     };
 }
 

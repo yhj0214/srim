@@ -5,8 +5,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.yhj.srim.service.facade.dto.YearBaseData;
 import org.yhj.srim.repository.BondYieldCurveRepository;
+import org.yhj.srim.repository.FinMetricValueRepository;
+import org.yhj.srim.repository.FinPeriodRepository;
+import org.yhj.srim.repository.StockShareStatusRepository;
 import org.yhj.srim.repository.StockPriceRepository;
 import org.yhj.srim.repository.entity.BondYieldCurve;
+import org.yhj.srim.repository.entity.FinMetricValue;
+import org.yhj.srim.repository.entity.FinPeriod;
+import org.yhj.srim.repository.entity.StockShareStatus;
 import org.yhj.srim.repository.entity.StockPrice;
 import org.yhj.srim.service.crawl.CrawlingService;
 import org.yhj.srim.service.domain.SrimService;
@@ -14,6 +20,7 @@ import org.yhj.srim.service.dto.SrimResultDto;
 import org.yhj.srim.service.dto.StockPriceDto;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.*;
 
@@ -26,9 +33,14 @@ public class PriceChartFacadeService {
     private static final LocalDate MIN_AVAILABLE_DATE = LocalDate.of(2015, 1, 1);
     private static final String DEFAULT_RATING = "BBB-";
     private static final Short DEFAULT_TENOR_MONTHS = 60;
+    private static final String METRIC_EPS = "EPS";
+    private static final String METRIC_NET_INC_OWNER = "NET_INC_OWNER";
 
     private final StockPriceRepository stockPriceRepository;
     private final BondYieldCurveRepository bondYieldCurveRepository;
+    private final FinPeriodRepository finPeriodRepository;
+    private final FinMetricValueRepository finMetricValueRepository;
+    private final StockShareStatusRepository stockShareStatusRepository;
     private final CrawlingService crawlingService;
     private final SrimService srimService;
 
@@ -84,10 +96,12 @@ public class PriceChartFacadeService {
         Map<LocalDate, SrimResultDto> srimByDate =
                 calculateSrimForDates(companyId, stockPrices);
 
+        // 4-1. 일별 PER 계산용 EPS 맵 구성 (주가 연도 → 전년도 EPS)
+        Map<Integer, BigDecimal> epsByYear = buildEpsByYear(companyId, stockPrices);
         // 5. DTO 변환 (주가 + 적정주가 결합)
         List<StockPriceDto.PriceData> priceDataList =
                 stockPrices.stream()
-                        .map(sp -> convertToPriceData(sp, srimByDate))
+                        .map(sp -> convertToPriceData(sp, srimByDate, epsByYear))
                         .toList();
 
         log.info("PriceChart 조회 완료 - 응답 데이터 개수: {}", priceDataList.size());
@@ -286,7 +300,8 @@ public class PriceChartFacadeService {
      * 2025년 1월 15일 주가 → 2025년 키로 조회 → 2024년 재무데이터로 계산된 S-RIM 사용
      */
     private StockPriceDto.PriceData convertToPriceData(StockPrice stockPrice,
-                                                       Map<LocalDate, SrimResultDto> srimByDate) {
+                                                       Map<LocalDate, SrimResultDto> srimByDate,
+                                                       Map<Integer, BigDecimal> epsByYear) {
 
         // tradeDate 사용
         LocalDate tradeDate = stockPrice.getTradeDate();
@@ -310,14 +325,24 @@ public class PriceChartFacadeService {
         }
 
 
+        BigDecimal per = null;
+        BigDecimal close = stockPrice.getPrice();
+        if (close != null) {
+            BigDecimal eps = epsByYear.get(tradeDate.getYear() - 1);
+            if (eps != null && eps.compareTo(BigDecimal.ZERO) != 0) {
+                per = close.divide(eps, 2, RoundingMode.HALF_UP);
+            }
+        }
+
         StockPriceDto.PriceData.PriceDataBuilder builder =
                 StockPriceDto.PriceData.builder()
                         .date(tradeDate)
                         .open(stockPrice.getOpenPrice())
                         .high(stockPrice.getHighPrice())
                         .low(stockPrice.getLowPrice())
-                        .close(stockPrice.getPrice())        // 종가
-                        .volume(stockPrice.getVolume());
+                        .close(close)        // 종가
+                        .volume(stockPrice.getVolume())
+                        .per(per);
         // S-RIM 계산 실패 또는 데이터 없음 -> fv 필드는 설정하지 않음(null)
         if (srim == null) {
             log.debug("S-RIM 데이터 없음 (date={})", tradeDate);
@@ -337,5 +362,63 @@ public class PriceChartFacadeService {
             log.warn("S-RIM 값 매핑 중 오류 발생 (date={}): {}", tradeDate, e.getMessage());
             return builder.build();
         }
+    }
+
+    private Map<Integer, BigDecimal> buildEpsByYear(Long companyId, List<StockPrice> stockPrices) {
+        if (stockPrices.isEmpty()) return Collections.emptyMap();
+
+        LocalDate firstDate = stockPrices.get(0).getTradeDate();
+        LocalDate lastDate = stockPrices.get(stockPrices.size() - 1).getTradeDate();
+        if (firstDate == null || lastDate == null) return Collections.emptyMap();
+        int minYear = firstDate.getYear() - 1;
+        int maxYear = lastDate.getYear() - 1;
+
+        List<FinPeriod> yearlyPeriods = finPeriodRepository.findYearlyPeriods(companyId);
+        Map<Integer, FinPeriod> periodByYear = new HashMap<>();
+        for (FinPeriod period : yearlyPeriods) {
+            Integer year = period.getFiscalYear();
+            if (year == null) continue;
+            periodByYear.putIfAbsent(year, period);
+        }
+
+        Integer minPeriodYear = periodByYear.keySet().stream().min(Integer::compareTo).orElse(null);
+        if (minPeriodYear == null) return Collections.emptyMap();
+
+        int startYear = Math.max(minYear, minPeriodYear);
+        List<Long> periodIds = new ArrayList<>();
+        for (int year = startYear; year <= maxYear; year++) {
+            FinPeriod period = periodByYear.get(year);
+            if (period == null || period.getPeriodId() == null) continue;
+            periodIds.add(period.getPeriodId());
+        }
+
+        if (periodIds.isEmpty()) return Collections.emptyMap();
+
+        List<FinMetricValue> epsValues = finMetricValueRepository
+                .findByCompanyIdAndPeriodIdsAndMetricCode(companyId, periodIds, METRIC_EPS);
+        Map<Long, BigDecimal> epsByPeriodId = new HashMap<>();
+        for (FinMetricValue v : epsValues) {
+            Long pid = v.getPeriod() != null ? v.getPeriod().getPeriodId() : null;
+            if (pid == null) continue;
+            epsByPeriodId.put(pid, v.getValueNum());
+        }
+
+        Map<Integer, BigDecimal> epsByYear = new HashMap<>();
+        for (int year = minYear; year <= maxYear; year++) {
+            BigDecimal eps = null;
+            for (int y = year; y >= minPeriodYear; y--) {
+                FinPeriod period = periodByYear.get(y);
+                if (period == null || period.getPeriodId() == null) continue;
+                BigDecimal value = epsByPeriodId.get(period.getPeriodId());
+                if (value != null && value.compareTo(BigDecimal.ZERO) != 0) {
+                    eps = value;
+                    break;
+                }
+            }
+            if (eps == null) continue;
+            epsByYear.put(year, eps);
+        }
+
+        return epsByYear;
     }
 }
