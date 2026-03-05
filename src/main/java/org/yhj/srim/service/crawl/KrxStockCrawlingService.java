@@ -2,25 +2,16 @@ package org.yhj.srim.service.crawl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.jsoup.Connection;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
-import org.jsoup.select.Elements;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.yhj.srim.common.exception.CustomException;
 import org.yhj.srim.common.exception.code.CrawlingError;
+import org.yhj.srim.service.crawl.client.KrxHttpClient;
 import org.yhj.srim.service.crawl.dto.StockCodeDraft;
+import org.yhj.srim.service.crawl.parser.KrxParser;
 
-import java.io.IOException;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
-import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.List;
 
 /**
  * KRX 상장법인목록 크롤링 서비스
@@ -31,43 +22,22 @@ import java.util.regex.Pattern;
 public class KrxStockCrawlingService {
 
     private static final String KRX_CORP_LIST_URL = "https://kind.krx.co.kr/corpgeneral/corpList.do";
-    private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
+
+    private final KrxHttpClient krxHttpClient;
+    private final List<KrxParser> parsers;
 
     // https://kind.krx.co.kr/corpgeneral/corpList.do?method=download&searchType=13&currentPageSize=5000&pageIndex=1&marketType=stockMkt&OrderMode=3&orderStat=D&fiscalYearEnd=all&location=all
     @Retryable(maxAttempts = 3, backoff = @Backoff(delay = 2000))
     public List<StockCodeDraft> fetchStockList(String marketType) {
-
         String fullUrl = buildUrl(marketType);
+        String content = krxHttpClient.get(fullUrl);
 
-        try {
-            Connection.Response response = Jsoup.connect(fullUrl)
-                    .method(Connection.Method.GET)
-                    .userAgent(USER_AGENT)
-                    .header("Accept", "text/html,application/xhtml+xml,application/xml")
-                    .header("Accept-Language", "ko-KR,ko;q=0.9")
-                    .header("Referer", "https://kind.krx.co.kr/")
-                    .ignoreContentType(true)
-                    .timeout(30000)
-                    .maxBodySize(0)   // 무제한 크기 허용
-                    .execute();
+        KrxParser parser = parsers.stream()
+                .filter(p -> p.supports(content))
+                .findFirst()
+                .orElseThrow(() -> new CustomException(CrawlingError.KRX_REQUEST_FAILED));
 
-
-            byte[] bodyBytes = response.bodyAsBytes();
-            String content = new String(bodyBytes, "EUC-KR");
-
-            if(looksHtml(content)) return parseHtmlData(content, marketType);
-            return parseCsvData(content, marketType);
-        } catch (IOException e) {
-            log.error("KRX 크롤링 실패", e);
-            throw new CustomException(CrawlingError.KRX_REQUEST_FAILED);
-        }
-
-
-    }
-
-    private boolean looksHtml(String content) {
-        String t = content.trim();
-        return t.startsWith("<") || t.contains("<html") || t.contains("<table");
+        return parser.parse(content, marketType);
     }
 
     private String buildUrl(String marketType) {
@@ -95,240 +65,4 @@ public class KrxStockCrawlingService {
 
         return fullUrl;
     }
-
-    /**
-     * HTML 테이블 파싱
-     */
-    private List<StockCodeDraft> parseHtmlData(String htmlContent, String defaultMarket) {
-        List<StockCodeDraft> stockCodes = new ArrayList<>();
-
-        try {
-            Document doc = Jsoup.parse(htmlContent);
-            Elements rows = doc.select("tr");
-            
-            log.info("HTML 테이블 행 수: {}", rows.size());
-            
-            boolean isFirstRow = true;
-            for (Element row : rows) {
-                // 헤더 행 건너뛰기
-                if (isFirstRow) {
-                    isFirstRow = false;
-                    log.info("헤더 행: {}", row.text());
-                    continue;
-                }
-                
-                Elements cols = row.select("td");
-                if (cols.isEmpty()) {
-                    continue;
-                }
-                
-                try {
-                    // 컬럼 순서: 회사명, 시장구분, 종목코드, 업종, 주요제품, 상장일, 결산월, 대표자명, 홈페이지, 지역
-                    if (cols.size() < 4) {
-                        log.debug("컬럼 수 부족: {}", cols.size());
-                        continue;
-                    }
-                    
-                    String companyName = cols.get(0).text().trim();
-                    String marketFromData = cols.get(1).text().trim();  // 시장구분
-                    String tickerKrx = normalizeTicker(cols.get(2).text().trim());
-                    String industry = cols.size() > 3 ? cols.get(3).text().trim() : null;
-                    
-                    if (tickerKrx.isEmpty() || companyName.isEmpty()) {
-                        log.debug("필수 데이터 누락: 회사명={}, 티커={}", companyName, tickerKrx);
-                        continue;
-                    }
-                    
-                    LocalDate listingDate = cols.size() > 5 ? parseDate(cols.get(5).text().trim()) : null;
-                    Integer fiscalMonth = cols.size() > 6 ? parseMonth(cols.get(6).text().trim()) : null;
-                    String homepage = cols.size() > 8 ? cols.get(8).text().trim() : null;
-                    String region = cols.size() > 9 ? cols.get(9).text().trim() : null;
-                    
-                    // 시장 구분 결정 (데이터에서 온 값 우선, 없으면 파라미터 사용)
-                    String market = defaultMarket;
-                    if (marketFromData != null && !marketFromData.isEmpty()) {
-                        if (marketFromData.contains("코스피") || marketFromData.contains("KOSPI")) {
-                            market = "KOSPI";
-                        } else if (marketFromData.contains("코스닥") || marketFromData.contains("KOSDAQ")) {
-                            market = "KOSDAQ";
-                        } else if (marketFromData.contains("코넥스") || marketFromData.contains("KONEX")) {
-                            market = "KONEX";
-                        }
-                    }
-                    if (market == null) {
-                        market = "KOSPI";
-                    }
-
-                    StockCodeDraft stockCodeDraft = StockCodeDraft.builder()
-                            .tickerKrx(tickerKrx)
-                            .companyName(companyName)
-                            .industry(industry)
-                            .listingDate(listingDate)
-                            .fiscalYearEndMonth(fiscalMonth)
-                            .homepageUrl(homepage)
-                            .region(region)
-                            .market(market)
-                            .build();
-                    
-                    stockCodes.add(stockCodeDraft);
-                    
-                } catch (Exception e) {
-                    log.debug("행 파싱 실패: {}", row.text(), e);
-                }
-            }
-            
-            log.info("HTML 파싱 완료 - {} 개 종목", stockCodes.size());
-            
-        } catch (Exception e) {
-            log.error("HTML 파싱 오류", e);
-        }
-
-        return stockCodes;
-    }
-
-    /**
-     * CSV 데이터 파싱
-     */
-    private List<StockCodeDraft> parseCsvData(String csvContent, String defaultMarket) {
-        List<StockCodeDraft> stockCodes = new ArrayList<>();
-
-        try {
-            String[] lines = csvContent.split("\n");
-            
-            log.info("CSV 총 라인 수: {}", lines.length);
-            
-            if (lines.length < 2) {
-                log.warn("CSV 데이터가 너무 짧습니다. 라인 수: {}", lines.length);
-                return stockCodes;
-            }
-            
-            // 헤더 확인
-            log.info("CSV 헤더: {}", lines[0]);
-            
-            // 첫 번째 데이터 행 확인
-            if (lines.length > 1) {
-                log.info("첫 번째 데이터 행: {}", lines[1]);
-            }
-
-            for (int i = 1; i < lines.length; i++) {
-                String line = lines[i].trim();
-                if (line.isEmpty()) continue;
-
-                try {
-                    StockCodeDraft stockCode = parseCsvLine(line, defaultMarket);
-                    if (stockCode != null) {
-                        stockCodes.add(stockCode);
-                    }
-                } catch (Exception e) {
-                    log.debug("라인 파싱 실패 [{}]: {}", i, e.getMessage());
-                }
-            }
-            
-            log.info("CSV 파싱 완료 - {} 개 종목", stockCodes.size());
-
-        } catch (Exception e) {
-            log.error("CSV 파싱 오류", e);
-        }
-
-        return stockCodes;
-    }
-
-    private StockCodeDraft parseCsvLine(String line, String defaultMarket) {
-        List<String> columns = parseCsvColumns(line);
-
-        if (columns.size() < 3) {
-            return null;
-        }
-
-        String companyName = columns.get(0).trim();
-        String tickerKrx = normalizeTicker(columns.get(1).trim());
-        String industry = columns.size() > 2 ? columns.get(2).trim() : null;
-        
-        if (tickerKrx.isEmpty() || companyName.isEmpty()) {
-            return null;
-        }
-
-        LocalDate listingDate = columns.size() > 4 ? parseDate(columns.get(4).trim()) : null;
-        Integer fiscalMonth = columns.size() > 5 ? parseMonth(columns.get(5).trim()) : null;
-        String homepage = columns.size() > 7 ? columns.get(7).trim() : null;
-        String region = columns.size() > 8 ? columns.get(8).trim() : null;
-
-        String market = defaultMarket != null ? defaultMarket : "KOSPI";
-
-        return StockCodeDraft.builder()
-                .tickerKrx(tickerKrx)
-                .companyName(companyName)
-                .industry(industry)
-                .listingDate(listingDate)
-                .fiscalYearEndMonth(fiscalMonth)
-                .homepageUrl(homepage)
-                .region(region)
-                .market(market)
-                .build();
-    }
-
-    private List<String> parseCsvColumns(String line) {
-        List<String> columns = new ArrayList<>();
-        boolean inQuotes = false;
-        StringBuilder current = new StringBuilder();
-
-        for (char c : line.toCharArray()) {
-            if (c == '"') {
-                inQuotes = !inQuotes;
-            } else if (c == ',' && !inQuotes) {
-                columns.add(current.toString());
-                current = new StringBuilder();
-            } else {
-                current.append(c);
-            }
-        }
-        columns.add(current.toString());
-        return columns;
-    }
-
-
-    private String normalizeTicker(String code) {
-        if (code == null) return "";
-        // 필요 최소: 공백/nbsp만 정리하고 원문 보존
-        return code.replace("\u00A0", " ").trim();
-    }
-
-    private LocalDate parseDate(String dateStr) {
-        if (dateStr == null || dateStr.isEmpty() || dateStr.equals("-")) {
-            return null;
-        }
-
-        DateTimeFormatter[] formatters = {
-                DateTimeFormatter.ofPattern("yyyy/MM/dd"),
-                DateTimeFormatter.ofPattern("yyyy-MM-dd"),
-                DateTimeFormatter.ofPattern("yyyy.MM.dd"),
-                DateTimeFormatter.ofPattern("yyyyMMdd")
-        };
-
-        for (DateTimeFormatter formatter : formatters) {
-            try {
-                return LocalDate.parse(dateStr, formatter);
-            } catch (DateTimeParseException ignored) {
-            }
-        }
-        return null;
-    }
-
-    private Integer parseMonth(String monthStr) {
-        if (monthStr == null || monthStr.isEmpty() || monthStr.equals("-")) {
-            return null;
-        }
-
-        Pattern pattern = Pattern.compile("(\\d+)");
-        Matcher matcher = pattern.matcher(monthStr);
-        
-        if (matcher.find()) {
-            int month = Integer.parseInt(matcher.group(1));
-            if (month >= 1 && month <= 12) {
-                return month;
-            }
-        }
-        return null;
-    }
-
 }

@@ -11,6 +11,8 @@ import org.yhj.srim.service.crawl.KrxStockCrawlingService;
 import org.yhj.srim.service.crawl.dto.StockCodeDraft;
 import org.yhj.srim.service.domain.DartCorpCodeSyncService;
 import org.yhj.srim.service.domain.StockService;
+import org.yhj.srim.common.exception.CustomException;
+import org.yhj.srim.common.exception.code.CrawlingError;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -62,6 +64,22 @@ class FinancialFacadeServiceTest {
         verify(stockService, times(1)).saveStockDrafts(drafts);
         verify(dartCorpCodeSyncService, times(1)).syncFromXml();
 
+        verifyNoMoreInteractions(krxStockCrawlingService, stockService, dartCorpCodeSyncService);
+    }
+
+    @Test
+    @DisplayName("KOSPI 크롤링 실패 시 예외를 그대로 전파한다.")
+    void marketCrawling_fetchStockList_fail() {
+        // given
+        CustomException ex = new CustomException(CrawlingError.KRX_REQUEST_FAILED);
+        when(krxStockCrawlingService.fetchStockList("KOSPI")).thenThrow(ex);
+
+        // when / then
+        assertThatThrownBy(() -> financialFacadeService.marketCrawling())
+                .isInstanceOf(CustomException.class)
+                .hasMessageContaining(CrawlingError.KRX_REQUEST_FAILED.name());
+
+        verify(krxStockCrawlingService, times(1)).fetchStockList("KOSPI");
         verifyNoMoreInteractions(krxStockCrawlingService, stockService, dartCorpCodeSyncService);
     }
 
