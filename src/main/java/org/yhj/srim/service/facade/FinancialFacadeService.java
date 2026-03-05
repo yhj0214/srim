@@ -70,15 +70,15 @@ public class FinancialFacadeService {
         Company company = financialService.findCompanyByStockId(stockId)
                 .orElseThrow(() -> new CustomException(StockError.COMPANY_NOT_FOUND));
 
-        FinancialTableDto dto = buildAnnualTableDto(company, limit);
+        FinancialTableDto dto = buildAnnualTableDto(company, limit, LocalDate.now());
 
         return dto;
     }
 
 
-    private FinancialTableDto buildAnnualTableDto(Company company, int limit) {
+    private FinancialTableDto buildAnnualTableDto(Company company, int limit, LocalDate asOfDate) {
         Long companyId = company.getCompanyId();
-        int currentYear = LocalDate.now().getYear();
+        int currentYear = (asOfDate != null ? asOfDate : LocalDate.now()).getYear();
         int startYear = currentYear - limit + 1;
 
         for(int year = currentYear; year >= startYear; year--){

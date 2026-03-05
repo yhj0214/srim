@@ -32,7 +32,11 @@ public class ManagementFacade {
 
 
     public CrawlAllMarketsResult step1MarketSync() {
-        return financialFacadeService.marketCrawling();
+        // 기업 리스트 크롤링 후 저장 및 dartCorpCode갱신
+        CrawlAllMarketsResult result = financialFacadeService.marketCrawling();
+        // KE 회사채수익률 크롤링 및 저장
+        financialFacadeService.CrawlAndSaveBondYield(startDate, endDate);
+        return result;
     }
 
     public void step2CorpSync() {
@@ -50,9 +54,6 @@ public class ManagementFacade {
             // 주가 기반 지표(PER/PBR 등) 계산
             priceBasedMetricService.recalcAnnualPriceMetrics(company.getCompanyId());
         }
-
-        // 회사채수익률조회
-        financialFacadeService.CrawlAndSaveBondYield(startDate, endDate);
 
     }
 

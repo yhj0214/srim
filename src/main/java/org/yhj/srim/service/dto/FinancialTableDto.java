@@ -41,7 +41,7 @@ public class FinancialTableDto {
         private String label;  // 예: "2024/12", "2024.Q3"
         private Integer fiscalYear;
         private Integer fiscalQuarter;  // 연간이면 null
-        private Boolean isEstimate;
+        private Boolean isEstimate; // 추정치 여부
     }
     
     /**

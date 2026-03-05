@@ -1,55 +1,37 @@
 package org.yhj.srim.service.facade;
 
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.yhj.srim.client.KisSpreadClient;
 import org.yhj.srim.controller.dto.CrawlAllMarketsResult;
-import org.yhj.srim.repository.*;
-import org.yhj.srim.service.crawl.CrawlingService;
 import org.yhj.srim.service.crawl.KrxStockCrawlingService;
 import org.yhj.srim.service.crawl.dto.StockCodeDraft;
 import org.yhj.srim.service.domain.DartCorpCodeSyncService;
-import org.yhj.srim.service.domain.FinancialService;
 import org.yhj.srim.service.domain.StockService;
 
 import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.*;
-import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class FinancialFacadeServiceTest {
 
-    @Mock KrxStockCrawlingService krxStockCrawlingService;
-    @Mock
-    CrawlingService crawlingService;
-    @Mock
-    KisSpreadClient kisSpreadClient;
-    @Mock StockService stockService;
-    @Mock DartCorpCodeSyncService dartCorpCodeSyncService;
-    @Mock
-    FinancialService financialService;
-    @Mock
-    FinPeriodRepository finPeriodRepository;
-    @Mock
-    FinMetricDefRepository finMetricDefRepository;
-    @Mock
-    FinMetricValueRepository finMetricValueRepository;
-    @Mock
-    CompanyRepository companyRepository;
-    @Mock
-    StockCodeRepository stockCodeRepository;
-    @Mock BondYieldCurveRepository bondYieldCurveRepository;
+    @InjectMocks
+    FinancialFacadeService financialFacadeService;
 
-    @InjectMocks FinancialFacadeService financialFacadeService;
+    @Mock
+    KrxStockCrawlingService krxStockCrawlingService;
+
+    @Mock
+    StockService stockService;
+
+    @Mock
+    DartCorpCodeSyncService dartCorpCodeSyncService;
 
     @Test
     @DisplayName("KOSPI종목을 크롤링하고 저장한 후 매핑 결과를 반환한다.")

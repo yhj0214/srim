@@ -10,12 +10,8 @@ import org.jsoup.select.Elements;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.yhj.srim.common.exception.CustomException;
 import org.yhj.srim.common.exception.code.CrawlingError;
-import org.yhj.srim.common.exception.code.ErrorCode;
-import org.yhj.srim.repository.StockCodeRepository;
-import org.yhj.srim.repository.entity.StockCode;
 import org.yhj.srim.service.crawl.dto.StockCodeDraft;
 
 import java.io.IOException;
@@ -33,8 +29,6 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 @Slf4j
 public class KrxStockCrawlingService {
-
-    private final StockCodeRepository stockCodeRepository;
 
     private static final String KRX_CORP_LIST_URL = "https://kind.krx.co.kr/corpgeneral/corpList.do";
     private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
@@ -60,7 +54,6 @@ public class KrxStockCrawlingService {
 
             byte[] bodyBytes = response.bodyAsBytes();
             String content = new String(bodyBytes, "EUC-KR");
-            String contentType = response.contentType();
 
             if(looksHtml(content)) return parseHtmlData(content, marketType);
             return parseCsvData(content, marketType);
@@ -338,17 +331,4 @@ public class KrxStockCrawlingService {
         return null;
     }
 
-
-    @Transactional(readOnly = true)
-    public Map<String, Long> getStockCountByMarket() {
-        List<StockCode> allStocks = stockCodeRepository.findAll();
-        
-        Map<String, Long> countMap = new HashMap<>();
-        for (StockCode stock : allStocks) {
-            String market = stock.getMarket() != null ? stock.getMarket() : "UNKNOWN";
-            countMap.put(market, countMap.getOrDefault(market, 0L) + 1);
-        }
-        
-        return countMap;
-    }
 }
