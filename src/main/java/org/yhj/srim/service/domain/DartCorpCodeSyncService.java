@@ -3,24 +3,28 @@ package org.yhj.srim.service.domain;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.ClassPathResource;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
+import org.springframework.core.io.ResourceLoader;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
-import org.w3c.dom.Element;
-import org.w3c.dom.NodeList;
+import org.yhj.srim.common.exception.CustomException;
 
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.InputStream;
-import java.util.ArrayList;
 import java.util.List;
+
+import static org.yhj.srim.common.exception.code.CommonError.INTERNAL_ERROR;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class DartCorpCodeSyncService {
     private final JdbcTemplate jdbcTemplate;
+    private final ResourceLoader resourceLoader;
+    private final DartCorpCodeXmlParser dartCorpCodeXmlParser;
+
+    @Value("${dart.corp-code.xml-path:classpath:sql/CORPCODE.xml}")
+    private String corpCodeXmlPath;
 
     /**
      * classpath:sql/CORPCODE.xml 을 읽어서
@@ -37,7 +41,7 @@ public class DartCorpCodeSyncService {
             // xml파일의 corp_code, corp_name, stock_code 저장
             inserted = loadXmlToTempTable();
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new CustomException(INTERNAL_ERROR, "DART corpCode XML 로드 실패");
         }
         log.info("dart_corp_map 적재 건수 = {}", inserted);
 
@@ -63,41 +67,14 @@ public class DartCorpCodeSyncService {
         jdbcTemplate.update("TRUNCATE TABLE dart_corp_map");
 
         // classpath 에서 파일 로드
-        Resource resource = new ClassPathResource("sql/CORPCODE.xml");
+        Resource resource = resourceLoader.getResource(corpCodeXmlPath);
         if (!resource.exists()) {
-            throw new IllegalStateException("CORPCODE.xml 파일을 찾을 수 없습니다. (classpath:sql/CORPCODE.xml)");
+            throw new IllegalStateException("CORPCODE.xml 파일을 찾을 수 없습니다. (" + corpCodeXmlPath + ")");
         }
 
-        List<Object[]> batch = new ArrayList<>();
-
+        List<Object[]> batch;
         try (InputStream is = resource.getInputStream()) {
-            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-            DocumentBuilder builder = factory.newDocumentBuilder();
-            org.w3c.dom.Document doc = builder.parse(is);
-            doc.getDocumentElement().normalize();
-
-            NodeList list = doc.getElementsByTagName("list");
-            log.info("CORPCODE.xml list 노드 개수 = {}", list.getLength());
-
-            for (int i = 0; i < list.getLength(); i++) {
-                Element e = (Element) list.item(i);
-
-                String corpCode  = getTagText(e, "corp_code");   // 00126380
-                String corpName  = getTagText(e, "corp_name");   // 삼성전자
-                String stockCode = getTagText(e, "stock_code");  // 005930 (상장사만)
-
-                // 비상장( stock_code 비어있는 경우 )는 대상이 아니니 스킵
-                if (stockCode == null || stockCode.isBlank()) {
-                    continue;
-                }
-
-                // 혹시 모를 공백 제거
-                corpCode  = corpCode != null  ? corpCode.trim()  : null;
-                corpName  = corpName != null  ? corpName.trim()  : null;
-                stockCode = stockCode != null ? stockCode.trim() : null;
-
-                batch.add(new Object[]{ corpCode, corpName, stockCode });
-            }
+            batch = dartCorpCodeXmlParser.parse(is);
         }
 
         if (!batch.isEmpty()) {
@@ -110,9 +87,4 @@ public class DartCorpCodeSyncService {
         return batch.size();
     }
 
-    private String getTagText(Element e, String tagName) {
-        NodeList nl = e.getElementsByTagName(tagName);
-        if (nl.getLength() == 0) return null;
-        return nl.item(0).getTextContent();
-    }
 }
