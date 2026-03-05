@@ -31,9 +31,7 @@ public class SrimResultDto {
     private String currentPriceDate;     // 현재가 기준일 (YYYY-MM-DD)
 
     private List<RoeDetail> roeDetails;  // 연도별 ROE (최신 3개)
-
-    // 시나리오별 결과
-    private List<ScenarioResult> scenarios;
+    private List<ScenarioResult> scenarios; // 시나리오별 결과
 
     /**
      * 시나리오 결과

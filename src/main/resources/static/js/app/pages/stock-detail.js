@@ -90,9 +90,17 @@ export const StockDetailPage = {
         const fairValues = scenarioData.map((s) => Number(s?.fairValuePerShare ?? 0));
         const excessValues = scenarioData.map((s) => Number(s?.excessEarnings ?? 0));
 
-        const listHtml = scenarioData.map((s, i) => {
-            const v = formatNumber(s.fairValuePerShare);
-            return `<li>${labels[i] ?? `시나리오 ${i+1}`}: <strong>${v}원</strong></li>`;
+        const scenarioRows = scenarioData.map((s, i) => {
+            const label = labels[i] ?? `시나리오 ${i + 1}`;
+            const fairValue = formatNumber(s?.fairValuePerShare);
+            const enterpriseValue = formatNumber(s?.enterpriseValue);
+            return `
+                <tr>
+                    <th class="srimTable__rowHead">${escapeHtml(label)}</th>
+                    <td class="srimTable__cell">${fairValue}</td>
+                    <td class="srimTable__cell">${enterpriseValue}</td>
+                </tr>
+            `;
         }).join("");
 
         const buildBarChart = (values, labelList, opts = {}) => {
@@ -133,6 +141,15 @@ export const StockDetailPage = {
         while (roeValues.length < 3) roeValues.push("-");
         while (equityValues.length < 3) equityValues.push("-");
         const roeAvg = formatPercent(data?.roePercent);
+        const baseScenario = scenarioData[0] ?? {};
+        const baseScenarioLabel = labels[0] ?? "시나리오 1";
+        const calcEnterpriseValue = formatNumber(baseScenario?.enterpriseValue);
+        const calcExcessEarnings = formatNumber(baseScenario?.excessEarnings);
+        const calcFairValue = formatNumber(baseScenario?.fairValuePerShare);
+        const calcEquity = formatNumber(data?.equity);
+        const calcKe = formatPercent(data?.ke);
+        const calcRoe = formatPercent(data?.roePercent);
+        const calcShares = formatNumber(data?.sharesOutstanding);
 
         const keChip = `<span class="chip chip--neutral">Ke ${formatPercent(data?.ke)}</span>`;
         const basisChip = `<span class="chip chip--accent">${escapeHtml(data?.basis ?? "YEAR")}</span>`;
@@ -155,12 +172,60 @@ export const StockDetailPage = {
                 </div>
                 <div class="srimSubTitle">시나리오별 적정주가</div>
                 <div class="srimScenarioLayout">
-                    <ul class="srimList srimList--tight">${listHtml}</ul>
+                    <div class="srimTableWrap srimTableWrap--flush">
+                        <table class="srimTable srimTable--scenario">
+                            <thead>
+                                <tr>
+                                    <th class="srimTable__head">시나리오</th>
+                                    <th class="srimTable__head">적정주가(원)</th>
+                                    <th class="srimTable__head">기업가치(백만원)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${scenarioRows}
+                            </tbody>
+                        </table>
+                    </div>
                     ${buildBarChart(
             fairValues,
             labels,
             { lineValue: Number(data?.currentPrice ?? 0), lineNote: data?.currentPriceDate }
         )}
+                </div>
+                <div class="srimSubTitle">계산식 요약</div>
+                <div class="srimTableWrap">
+                    <table class="srimTable srimTable--calc">
+                        <thead>
+                            <tr>
+                                <th class="srimTable__head">식</th>
+                                <th class="srimTable__head">값</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <th class="srimTable__rowHead">기업가치 = 지배주주지분 + (초과이익 / 할인율)</th>
+                                <td class="srimTable__cell">${calcEnterpriseValue} (백만원)</td>
+                            </tr>
+                            <tr>
+                                <th class="srimTable__rowHead">초과이익 = 자기자본 × (가중평균 ROE − 할인율)</th>
+                                <td class="srimTable__cell">${calcExcessEarnings} (백만원)</td>
+                            </tr>
+                            <tr>
+                                <th class="srimTable__rowHead">ROE = 당기순이익 / 평균자기자본</th>
+                                <td class="srimTable__cell">${calcRoe}</td>
+                            </tr>
+                            <tr>
+                                <th class="srimTable__rowHead">적정주가 = 기업가치 / 유통주식수</th>
+                                <td class="srimTable__cell">${calcFairValue}원</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="srimCalcNote">
+                    기준 시나리오: ${escapeHtml(baseScenarioLabel)} ·
+                    지배주주지분 ${calcEquity} (백만원) ·
+                    할인율 ${calcKe} ·
+                    유통주식수 ${calcShares}주
                 </div>
             </div>
         
