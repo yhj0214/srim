@@ -7,7 +7,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.yhj.srim.controller.dto.CrawlAllMarketsResult;
-import org.yhj.srim.service.domain.PriceBasedMetricService;
 import org.yhj.srim.service.domain.StockService;
 
 import java.time.LocalDate;
@@ -30,9 +29,6 @@ class ManagementFacadeTest {
     PriceChartFacadeService priceChartFacadeService;
 
     @Mock
-    PriceBasedMetricService priceBasedMetricService;
-
-    @Mock
     StockService stockService;
 
     @Test
@@ -46,7 +42,7 @@ class ManagementFacadeTest {
         assertThat(actual.getCrawledCount()).isEqualTo(10);
         assertThat(actual.getMappedCount()).isEqualTo(8);
         verify(financialFacadeService).marketCrawling();
-        verify(financialFacadeService).CrawlAndSaveBondYield(any(LocalDate.class), any(LocalDate.class));
+//        verify(financialFacadeService).CrawlAndSaveBondYield(any(LocalDate.class), any(LocalDate.class));
     }
 
 

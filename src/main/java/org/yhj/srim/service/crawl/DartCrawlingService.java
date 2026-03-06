@@ -13,7 +13,7 @@ import org.yhj.srim.common.exception.CustomException;
 import org.yhj.srim.common.exception.code.StockError;
 import org.yhj.srim.repository.*;
 import org.yhj.srim.repository.entity.*;
-import org.yhj.srim.service.domain.BpsCalculatorService;
+import org.yhj.srim.service.domain.FinancialMetricService;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -39,7 +39,7 @@ public class DartCrawlingService {
     private final CompanyRepository companyRepository;
     private final StockCodeRepository stockCodeRepository;
     private final StockShareStatusRepository stockShareStatusRepository;
-    private final BpsCalculatorService bpsCalculatorService;
+    private final FinancialMetricService financialMetricService;
 
     private final WebClient webClient = WebClient.builder()
             .baseUrl("https://opendart.fss.or.kr/api")
@@ -243,78 +243,6 @@ public class DartCrawlingService {
         return null;
     }
 
-    /**
-     * 재무정보 크롤링 및 저장 (사업보고서 기준, 최대한 많은 연도)
-     * NaverCrawlingService의 crawlAndSaveFinancialData와 동일한 시그니처
-     * 
-     * @param companyId 회사 ID
-     * @param tickerKrx KRX 티커 또는 DART 고유번호 (8자리면 DART 코드로 간주)
-     * @return 저장된 데이터 건수
-     */
-    @Transactional
-    public int crawlAndSaveFinancialData(Long companyId, String tickerKrx) {
-        try {
-            Company company = companyRepository.findById(companyId)
-                    .orElseThrow(() -> new CustomException(StockError.COMPANY_NOT_FOUND, "companyId=" + companyId));
-
-            String dartCorpCode = company.getStockCode().getDartCorpCode();
-            if (dartCorpCode == null || dartCorpCode.length() != 8) {
-                log.warn("유효하지 않은 DART 코드: {}. 기업명으로 조회 시도", dartCorpCode);
-                return 0;
-            }
-
-            int currentYear = LocalDate.now().getYear();
-            int startYear = 2015;
-            int savedCount = 0;
-
-            log.info("DART 재무정보 크롤링 시작 - companyId: {}, ticker={}, corpCode={}",
-                    companyId, tickerKrx, dartCorpCode);
-
-            // 먼저 가장 최근 연도의 주식수를 가져와서 Company 테이블에 저장
-            boolean sharesSaved = false;
-            for (int year = currentYear; year >= startYear && !sharesSaved; year--) {
-                try {
-                    log.info("{}년 주식총수 조회 중...", year);
-                    StockShareStatus shareStatus = fetchAndSaveShareStatus(company, dartCorpCode, year);
-                    log.info("{}년 주식총수 저장 완료 - shares={}", year, company.getSharesOutstanding());
-                    sharesSaved = true;
-                    
-                    // API 호출 제한 방지
-                    Thread.sleep(1000);
-                } catch (Exception e) {
-                    log.warn("{}년 주식총수 조회 실패: {}", year, e.getMessage());
-                }
-            }
-
-            if (!sharesSaved) {
-                log.warn("모든 연도의 주식총수 조회 실패");
-            }
-
-            // 연도별 재무 데이터 저장
-            for (int year = currentYear; year >= startYear; year--) {
-                try {
-                    int yearSaved = crawlAndSaveFinancialForYear(company, dartCorpCode, year);
-                    savedCount += yearSaved;
-                    log.info("{}년 재무 데이터 저장 완료 - {} 건", year, yearSaved);
-                } catch (Exception e) {
-                    log.warn("{}년 재무 데이터 처리 실패: {}", year, e.getMessage());
-                }
-            }
-
-
-            // 여기서 BPS 전 기간 재계산
-            int bpsUpdated = bpsCalculatorService.recalcAllBpsForCompany(companyId);
-            log.info("BPS 재계산 완료 - companyId={}, updated={} rows", companyId, bpsUpdated);
-
-
-            log.info("DART 재무정보 크롤링 완료 - 총 {} 건 저장", savedCount);
-            return savedCount;
-
-        } catch (Exception e) {
-            log.error("DART 재무정보 크롤링 실패", e);
-            throw new RuntimeException("DART 재무정보 크롤링 실패: " + e.getMessage(), e);
-        }
-    }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public int crawlAndSaveFinancialForYear(Company company, String dartCorpCode, int year) throws InterruptedException {

@@ -18,7 +18,6 @@ import java.time.LocalDate;
 @RequiredArgsConstructor
 @Slf4j
 public class FinancialApiController {
-
     private final FinancialFacadeService financialFacadeService;
     private final SrimService srimService;
 
@@ -28,9 +27,9 @@ public class FinancialApiController {
     @GetMapping("/{stockId}/financial/annual")
     public ApiResponse<FinancialTableDto> getAnnualTableByStockId(
             @PathVariable Long stockId,
-            @RequestParam(defaultValue = "10") int limit) {
+            @RequestParam(defaultValue = "15") int limit) {
         log.debug("연간 재무 테이블 요청 - stockId: {}, limit: {}", stockId, limit);
-        FinancialTableDto result = financialFacadeService.getAnnualTableDbOnly(stockId, limit);
+        FinancialTableDto result = financialFacadeService.getAnnualTable(stockId, limit);
 
         return ApiResponse.success(result);
     }

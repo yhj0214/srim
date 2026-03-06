@@ -5,7 +5,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.yhj.srim.controller.dto.CrawlAllMarketsResult;
 import org.yhj.srim.repository.entity.Company;
-import org.yhj.srim.service.domain.PriceBasedMetricService;
 import org.yhj.srim.service.domain.StockService;
 
 import java.time.LocalDate;
@@ -18,7 +17,6 @@ public class ManagementFacade {
 
     private final FinancialFacadeService financialFacadeService;
     private final PriceChartFacadeService priceChartFacadeService;
-    private final PriceBasedMetricService priceBasedMetricService;
     private final StockService stockService;
 
     private static final LocalDate START_DATE = LocalDate.of(2015, 1, 1);
@@ -56,7 +54,7 @@ public class ManagementFacade {
 
         for (Long stockId : stockIds) {
             try {
-                syncCompany(stockId, endDate);
+                initCompany(stockId, endDate);
                 successCount++;
             } catch (Exception e) {
                 failureCount++;
@@ -73,11 +71,11 @@ public class ManagementFacade {
         Long stockId = stockService.getStockIdByTickerKrx(tickerKrx);
 
         LocalDate endDate = LocalDate.now();
-        syncCompany(stockId, endDate);
+        initCompany(stockId, endDate);
     }
 
     // 개별 회사 단위 재무/주가/주가기반지표 초기화
-    private void syncCompany(Long stockId, LocalDate endDate) {
+    private void initCompany(Long stockId, LocalDate endDate) {
 
         // 회사 정보 및 재무정보 생성
         Company company = financialFacadeService.crawlAnnualTable(stockId, START_DATE.getYear());
@@ -85,7 +83,8 @@ public class ManagementFacade {
         // 주가정보 조회
         priceChartFacadeService.ensurePriceData(company.getCompanyId(), START_DATE, endDate);
         
-        // 주가 기반 지표(PER/PBR 등) 계산
-        priceBasedMetricService.recalcAnnualPriceMetrics(company.getCompanyId());
+        // 재무관련 metric 계산 및 저장
+        financialFacadeService.rebuildCompanyMetrics(company.getCompanyId(),
+                START_DATE.getYear(), endDate.getYear());
     }
 }

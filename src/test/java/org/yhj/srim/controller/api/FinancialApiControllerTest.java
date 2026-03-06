@@ -61,7 +61,7 @@ class FinancialApiControllerTest {
                                 .build()))
                 .build();
 
-        BDDMockito.given(financialFacadeService.getAnnualTableDbOnly(1L, 10))
+        BDDMockito.given(financialFacadeService.getAnnualTable(1L, 10))
                 .willReturn(dto);
 
         mockMvc.perform(get("/api/stocks/1/financial/annual")
@@ -79,7 +79,7 @@ class FinancialApiControllerTest {
     @Test
     @DisplayName("연간 재무 테이블 API 요청이 잘못되면 400을 반환한다.")
     void annual_financial_bad_request() throws Exception {
-        BDDMockito.given(financialFacadeService.getAnnualTableDbOnly(1L, 10))
+        BDDMockito.given(financialFacadeService.getAnnualTable(1L, 10))
                 .willThrow(new IllegalArgumentException("invalid request"));
 
         mockMvc.perform(get("/api/stocks/1/financial/annual")
@@ -88,14 +88,14 @@ class FinancialApiControllerTest {
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error.code").value("COMMON-001"))
                 .andExpect(jsonPath("$.error.message").value("잘못된 요청입니다."))
-                .andExpect(jsonPath("$.error.detail").value("invalid limit"))
+                .andExpect(jsonPath("$.error.detail").value("invalid request"))
                 .andExpect(jsonPath("$.error.path").value("/api/stocks/1/financial/annual"));
     }
 
     @Test
     @DisplayName("연간 재무 테이블 API에서 CustomException이 발생하면 ErrorCode를 반환한다.")
     void annual_financial_custom_error() throws Exception {
-        BDDMockito.given(financialFacadeService.getAnnualTableDbOnly(1L, 10))
+        BDDMockito.given(financialFacadeService.getAnnualTable(1L, 10))
                 .willThrow(new CustomException(CommonError.INVALID_INPUT, "custom detail"));
 
         mockMvc.perform(get("/api/stocks/1/financial/annual")
@@ -111,7 +111,7 @@ class FinancialApiControllerTest {
     @Test
     @DisplayName("연간 재무 테이블 API 처리 중 오류가 발생하면 500을 반환한다.")
     void annual_financial_internal_error() throws Exception {
-        BDDMockito.given(financialFacadeService.getAnnualTableDbOnly(1L, 10))
+        BDDMockito.given(financialFacadeService.getAnnualTable(1L, 10))
                 .willThrow(new RuntimeException("unhandled 발생"));
 
         mockMvc.perform(get("/api/stocks/1/financial/annual")

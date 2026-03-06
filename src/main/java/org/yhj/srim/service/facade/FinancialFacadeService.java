@@ -3,7 +3,6 @@ package org.yhj.srim.service.facade;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.yhj.srim.client.KisSpreadClient;
 import org.yhj.srim.client.dto.DartFsRow;
 import org.yhj.srim.client.dto.DartShareStatusRow;
@@ -12,11 +11,12 @@ import org.yhj.srim.common.exception.CustomException;
 import org.yhj.srim.common.exception.code.CommonError;
 import org.yhj.srim.common.exception.code.StockError;
 import org.yhj.srim.controller.dto.CrawlAllMarketsResult;
-import org.yhj.srim.repository.*;
+import org.yhj.srim.repository.BondYieldCurveRepository;
 import org.yhj.srim.repository.entity.*;
 import org.yhj.srim.service.crawl.CrawlingService;
 import org.yhj.srim.service.crawl.dto.StockCodeDraft;
 import org.yhj.srim.service.domain.DartCorpCodeSyncService;
+import org.yhj.srim.service.domain.FinancialMetricService;
 import org.yhj.srim.service.domain.FinancialService;
 import org.yhj.srim.service.crawl.KrxStockCrawlingService;
 import org.yhj.srim.service.domain.StockService;
@@ -41,17 +41,14 @@ public class FinancialFacadeService {
 
     private final DartCorpCodeSyncService dartCorpCodeSyncService;
     private final FinancialService financialService;
-    private final FinPeriodRepository finPeriodRepository;
-    private final FinMetricDefRepository finMetricDefRepository;
-    private final FinMetricValueRepository finMetricValueRepository;
+    private final FinancialMetricService financialMetricService;
     private final BondYieldCurveRepository bondYieldCurveRepository;
 
     private static final String SOURCE = "KIS";
 
     /**
      * 1. company 조회, 없을 시 생성
-     * 2. 재무제표, 주식 수 크롤링 및 저장
-     * 3. 저장된 값들로 지표 계산 및 financialTableDto생성
+     * 2. 재무제표, 주식 수 원천데이터 크롤링 및 저장
      */
     public Company crawlAnnualTable(Long stockId, int startYear) {
 
@@ -59,14 +56,14 @@ public class FinancialFacadeService {
                 .orElseGet(() ->{
 
                     Company company = financialService.createCompany(stockId);
-                    log.info("신규 company 생성 : stockId = {}, companyId = {}", stockId, company.getCompanyId());
+                    log.debug("신규 company 생성 : stockId = {}, companyId = {}", stockId, company.getCompanyId());
 
                     initializeCompanyData(company, startYear, LocalDate.now().getYear());
                     return company;
                 });
     }
 
-    public FinancialTableDto getAnnualTableDbOnly(Long stockId, int limit) {
+    public FinancialTableDto getAnnualTable(Long stockId, int limit) {
         Company company = financialService.findCompanyByStockId(stockId)
                 .orElseThrow(() -> new CustomException(StockError.COMPANY_NOT_FOUND));
 
@@ -75,20 +72,16 @@ public class FinancialFacadeService {
         return dto;
     }
 
+    public int rebuildCompanyMetrics(Long companyId, int startYear, int endYear) {
+        return financialMetricService.rebuildCompanyMetrics(companyId, startYear, endYear);
+    }
 
     private FinancialTableDto buildAnnualTableDto(Company company, int limit, LocalDate asOfDate) {
         Long companyId = company.getCompanyId();
         int currentYear = (asOfDate != null ? asOfDate : LocalDate.now()).getYear();
         int startYear = currentYear - limit + 1;
 
-        for(int year = currentYear; year >= startYear; year--){
-            financialService.getOrBuildAnnualMetrics(companyId, year);
-        }
-
-        List<FinPeriod> periods = finPeriodRepository
-                .findByCompany_CompanyIdAndPeriodTypeAndFiscalYearBetweenAndIsEstimateOrderByFiscalYearDesc(
-                        companyId, "YEAR", startYear, currentYear, false
-                );
+        List<FinPeriod> periods = financialService.findAnnualPeriodsBetween(companyId, startYear, currentYear);
 
         if (periods.isEmpty()) {
             log.warn("FinPeriod 없음 - companyId={}, years={}~{}", companyId, startYear, currentYear);
@@ -97,11 +90,10 @@ public class FinancialFacadeService {
 
         List<FinancialTableDto.PeriodHeaderDto> headers = buildPeriodHeaders(periods);
         List<Long> periodIds = extractPeriodIds(periods);
-        List<FinMetricValue> metricValues =
-                finMetricValueRepository.findByCompanyIdAndPeriod_PeriodIdIn(companyId, periodIds);
+        List<FinMetricValue> metricValues = financialService.findMetricValuesByPeriodIds(companyId, periodIds);
         Map<String, Map<Long, BigDecimal>> metricCodeToPeriodValueMap = indexMetricValuesByCode(metricValues);
 
-        List<FinMetricDef> metricDefs = finMetricDefRepository.findAllByOrderByDisplayOrderAsc();
+        List<FinMetricDef> metricDefs = financialService.findMetricDefinitions();
         List<FinancialTableDto.MetricRowDto> rows =
                 buildMetricRows(metricDefs, periodIds, metricCodeToPeriodValueMap);
 
@@ -182,7 +174,7 @@ public class FinancialFacadeService {
     }
 
 
-    // 데이터가 있는 경우 Skip, Delete&Insert, Upsert
+    // 회사 초기화용 원천 데이터 적재
     private void initializeCompanyData(Company company, int startYear, int endYear) {
         String corpCode = company.getStockCode().getDartCorpCode();
         Long companyId = company.getCompanyId();
@@ -199,14 +191,11 @@ public class FinancialFacadeService {
             // 재무제표 정보 저장 Line, Filing
             financialService.replaceAnnualFinancial(corpCode, companyId, fsRows);
 
-            // 주식수 크롤링 + dart_share_status 저장
-//            crawlingService.crawlAndSaveShareStatus(corpCode, companyId, year);
+            // 주식개수정보 크롤링
             List<DartShareStatusRow> shareStatusRows = crawlingService.crawlShareStatus(company, year);
+            // 주식개수 정보 저장 StockShareStatus
             stockService.replaceShareStatus(company, year,shareStatusRows);
 
-
-            // dart_fs_line 기반 -> fin_metric_value 저장 (필요 데이터 가공)
-            financialService.recalcAndSaveFinancialForYearFromDb(company, year);
         }
 
         financialService.updateCompanyShareInfo(companyId);

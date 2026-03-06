@@ -44,6 +44,8 @@ public interface FinMetricValueRepository extends JpaRepository<FinMetricValue, 
 
     List<FinMetricValue> findByCompanyIdAndPeriod_PeriodIdIn(Long companyId, List<Long> periodIds);
 
+    long deleteByCompanyIdAndPeriod_PeriodIdAndMetricCodeIn(Long companyId, Long periodId, List<String> metricCodes);
+
     Optional<FinMetricValue> findTopByCompanyIdAndMetricCodeAndPeriod_PeriodTypeAndPeriod_IsEstimateAndPeriod_FiscalYearLessThanEqualOrderByPeriod_FiscalYearDesc(
             Long companyId, String metricCode, String periodType, Boolean isEstimate, Integer baseYear
     );
