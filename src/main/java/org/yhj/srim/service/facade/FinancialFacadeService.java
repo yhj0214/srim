@@ -13,7 +13,7 @@ import org.yhj.srim.common.exception.code.StockError;
 import org.yhj.srim.controller.dto.CrawlAllMarketsResult;
 import org.yhj.srim.repository.BondYieldCurveRepository;
 import org.yhj.srim.repository.entity.*;
-import org.yhj.srim.service.crawl.CrawlingService;
+import org.yhj.srim.service.crawl.DartCrawlingService;
 import org.yhj.srim.service.crawl.dto.StockCodeDraft;
 import org.yhj.srim.service.domain.DartCorpCodeSyncService;
 import org.yhj.srim.service.domain.FinancialMetricService;
@@ -35,7 +35,7 @@ import java.util.stream.Collectors;
 public class FinancialFacadeService {
 
     private final KrxStockCrawlingService krxStockCrawlingService;
-    private final CrawlingService crawlingService;
+    private final DartCrawlingService dartCrawlingService;
     private final KisSpreadClient kisSpreadClient;
     private final StockService stockService;
 
@@ -187,12 +187,12 @@ public class FinancialFacadeService {
             log.debug("{}년 크롤링 및 계산 진행", year);
 
             // 재무제표 크롤링
-            List<DartFsRow> fsRows = crawlingService.crawlAnnualFinancial(corpCode, year);
+            List<DartFsRow> fsRows = dartCrawlingService.crawlAnnualFinancial(corpCode, year);
             // 재무제표 정보 저장 Line, Filing
             financialService.replaceAnnualFinancial(corpCode, companyId, fsRows);
 
             // 주식개수정보 크롤링
-            List<DartShareStatusRow> shareStatusRows = crawlingService.crawlShareStatus(company, year);
+            List<DartShareStatusRow> shareStatusRows = dartCrawlingService.crawlShareStatus(corpCode, year);
             // 주식개수 정보 저장 StockShareStatus
             stockService.replaceShareStatus(company, year,shareStatusRows);
 

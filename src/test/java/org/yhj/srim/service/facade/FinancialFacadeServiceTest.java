@@ -77,7 +77,7 @@ class FinancialFacadeServiceTest {
         // when / then
         assertThatThrownBy(() -> financialFacadeService.marketCrawling())
                 .isInstanceOf(CustomException.class)
-                .hasMessageContaining(CrawlingError.KRX_REQUEST_FAILED.name());
+                .hasMessageContaining(CrawlingError.KRX_REQUEST_FAILED.getMessage());
 
         verify(krxStockCrawlingService, times(1)).fetchStockList("KOSPI");
         verifyNoMoreInteractions(krxStockCrawlingService, stockService, dartCorpCodeSyncService);

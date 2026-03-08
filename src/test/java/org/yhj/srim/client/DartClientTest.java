@@ -3,30 +3,24 @@ package org.yhj.srim.client;
 import lombok.extern.slf4j.Slf4j;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.client.RestClientTest;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Profile;
 import org.springframework.core.env.Environment;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.TestPropertySource;
 import org.yhj.srim.client.dto.DartFsRow;
 import org.yhj.srim.client.dto.DartShareStatusRow;
+import org.yhj.srim.service.crawl.DartCrawlingService;
 
 import java.util.Arrays;
 import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 @Slf4j
 @ActiveProfiles("test")
 class DartClientTest {
 
-    @Autowired DartClient dartClient;
+    @Autowired DartCrawlingService dartCrawlingService;
 
     @Autowired
     Environment env;
@@ -49,7 +43,7 @@ class DartClientTest {
         }
 
         // when
-        List<DartFsRow> rows = dartClient.fetchAnnualFinancialStatements("00126380", 2021);
+        List<DartFsRow> rows = dartCrawlingService.crawlAnnualFinancial("00126380", 2021);
 
         // then
         String meta = rows.get(0).toString();
@@ -79,7 +73,7 @@ class DartClientTest {
         String corpCode = "00126380";
         int year = 2021;
 
-        List<DartShareStatusRow> rows = dartClient.fetchShareStatus(corpCode, year);
+        List<DartShareStatusRow> rows = dartCrawlingService.crawlShareStatus(corpCode, year);
 
 
         log.info("[DART SHARE] corpCode={}, year={}, rows.size={}",
@@ -114,7 +108,7 @@ class DartClientTest {
         int year = 2021;
 
         // when
-        List<DartShareStatusRow> rows = dartClient.fetchShareStatus(corpCode, year);
+        List<DartShareStatusRow> rows = dartCrawlingService.crawlShareStatus(corpCode, year);
 
         // then
         Assertions.assertThat(rows).isNotEmpty();
