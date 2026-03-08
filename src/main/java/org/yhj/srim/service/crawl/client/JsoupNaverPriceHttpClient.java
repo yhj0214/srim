@@ -3,6 +3,8 @@ package org.yhj.srim.service.crawl.client;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
 import org.springframework.stereotype.Component;
+import org.yhj.srim.common.exception.CustomException;
+import org.yhj.srim.common.exception.code.CrawlingError;
 
 @Component
 @Slf4j
@@ -23,7 +25,7 @@ public class JsoupNaverPriceHttpClient implements NaverPriceHttpClient {
                     .outerHtml();
         } catch (Exception e) {
             log.error("NAVER 일별 시세 페이지 조회 실패 - code={}, page={}", tickerKrx, page, e);
-            throw new IllegalStateException("NAVER 일별 시세 페이지 조회 실패", e);
+            throw new CustomException(CrawlingError.NAVER_REQUEST_FAILED, "code=" + tickerKrx + ", page=" + page);
         }
     }
 }

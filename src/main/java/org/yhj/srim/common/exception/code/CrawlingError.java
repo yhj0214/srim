@@ -7,7 +7,8 @@ import org.springframework.http.HttpStatus;
 public enum CrawlingError implements ErrorCode {
 
     KRX_REQUEST_FAILED(HttpStatus.BAD_GATEWAY, "CRAWL-001", "KRX 서버 요청에 실패했습니다."),
-    JSON_PARSE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "CRAWL-002", "응답 JSON 파싱에 실패하였습니다.");
+    JSON_PARSE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "CRAWL-002", "응답 JSON 파싱에 실패하였습니다."),
+    NAVER_REQUEST_FAILED(HttpStatus.BAD_GATEWAY, "CRAWL-003", "NAVER 서버 요청에 실패했습니다.");
 
     private final HttpStatus httpStatus;
     private final String code;

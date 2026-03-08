@@ -5,26 +5,22 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.yhj.srim.service.facade.dto.YearBaseData;
 import org.yhj.srim.repository.BondYieldCurveRepository;
-import org.yhj.srim.repository.CompanyRepository;
 import org.yhj.srim.repository.FinMetricValueRepository;
 import org.yhj.srim.repository.FinPeriodRepository;
-import org.yhj.srim.repository.StockShareStatusRepository;
-import org.yhj.srim.repository.StockPriceRepository;
 import org.yhj.srim.repository.entity.BondYieldCurve;
-import org.yhj.srim.repository.entity.Company;
 import org.yhj.srim.repository.entity.FinMetricValue;
 import org.yhj.srim.repository.entity.FinPeriod;
 import org.yhj.srim.repository.entity.StockPrice;
 import org.yhj.srim.client.dto.DaliyPrice;
 import org.yhj.srim.service.crawl.NaverCrawlingService;
 import org.yhj.srim.service.domain.SrimService;
+import org.yhj.srim.service.domain.StockPriceService;
 import org.yhj.srim.service.dto.SrimResultDto;
 import org.yhj.srim.service.dto.StockPriceDto;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.*;
 
 @Service
@@ -37,16 +33,13 @@ public class PriceChartFacadeService {
     private static final String DEFAULT_RATING = "BBB-";
     private static final Short DEFAULT_TENOR_MONTHS = 60;
     private static final String METRIC_EPS = "EPS";
-    private static final String METRIC_NET_INC_OWNER = "NET_INC_OWNER";
 
-    private final CompanyRepository companyRepository;
-    private final StockPriceRepository stockPriceRepository;
     private final BondYieldCurveRepository bondYieldCurveRepository;
     private final FinPeriodRepository finPeriodRepository;
     private final FinMetricValueRepository finMetricValueRepository;
-    private final StockShareStatusRepository stockShareStatusRepository;
     private final NaverCrawlingService naverCrawlingService;
     private final SrimService srimService;
+    private final StockPriceService stockPriceService;
 
 
     /**
@@ -70,8 +63,8 @@ public class PriceChartFacadeService {
         LocalDate hardMin = end.minusYears(INITIAL_BACKFILL_YEARS);
         if (start.isBefore(hardMin)) start = hardMin;
 
-        LocalDate minTradeDate = stockPriceRepository.findMinTradeDateByCompany(companyId);
-        LocalDate maxTradeDate = stockPriceRepository.findMaxTradeDateByCompany(companyId);
+        LocalDate minTradeDate = stockPriceService.findMinTradeDateByCompany(companyId);
+        LocalDate maxTradeDate = stockPriceService.findMaxTradeDateByCompany(companyId);
 
         if (minTradeDate == null || maxTradeDate == null) {
             return StockPriceDto.builder().priceData(List.of()).build();
@@ -85,8 +78,8 @@ public class PriceChartFacadeService {
         }
 
         // 3. DB에서 주가 데이터 조회 (tradeDate 기준)
-        List<StockPrice> stockPrices = stockPriceRepository
-                .findByCompany_CompanyIdAndTradeDateBetweenOrderByTradeDateAsc(companyId, start, end);
+        List<StockPrice> stockPrices = stockPriceService
+                .findPricesByCompanyIdAndTradeDateBetween(companyId, start, end);
         log.info("조회된 주가 데이터 개수: {}", stockPrices.size());
 
         if (stockPrices.isEmpty()) {
@@ -127,7 +120,7 @@ public class PriceChartFacadeService {
             start = MIN_AVAILABLE_DATE;
         }
 
-        boolean hasData = stockPriceRepository.existsByCompany_CompanyId(companyId);
+        boolean hasData = stockPriceService.existsByCompanyId(companyId);
 
         if (!hasData) {
             LocalDate backfillStart = end.minusYears(INITIAL_BACKFILL_YEARS);
@@ -147,8 +140,8 @@ public class PriceChartFacadeService {
         }
 
         // 기존 데이터가 있는 경우 - 부족한 구간 체크
-        LocalDate dbStart = stockPriceRepository.findMinTradeDateByCompany(companyId);
-        LocalDate dbEnd = stockPriceRepository.findMaxTradeDateByCompany(companyId);
+        LocalDate dbStart = stockPriceService.findMinTradeDateByCompany(companyId);
+        LocalDate dbEnd = stockPriceService.findMaxTradeDateByCompany(companyId);
 
         if (dbStart == null || dbEnd == null) {
             log.warn("DB에 주가 데이터가 없습니다. companyId={}", companyId);
@@ -185,32 +178,9 @@ public class PriceChartFacadeService {
     }
 
     private int crawlAndSavePrices(Long companyId, LocalDate start, LocalDate end) {
-        Company company = companyRepository.findById(companyId)
-                .orElseThrow(() -> new IllegalStateException("Company not found: " + companyId));
-        String tickerKrx = company.getStockCode().getTickerKrx();
-
+        String tickerKrx = stockPriceService.findTickerKrxByCompanyId(companyId);
         List<DaliyPrice> dailyPrices = naverCrawlingService.fetchDailyPrices(tickerKrx, start, end);
-        if (dailyPrices.isEmpty()) {
-            return 0;
-        }
-
-        List<StockPrice> entities = dailyPrices.stream()
-                .map(price -> StockPrice.builder()
-                        .company(company)
-                        .tradeDate(price.getDate())
-                        .asOf(LocalDateTime.now())
-                        .price(price.getClose())
-                        .openPrice(price.getOpen())
-                        .highPrice(price.getHigh())
-                        .lowPrice(price.getLow())
-                        .volume(price.getVolume())
-                        .source(StockPrice.MarketSnapshotSource.NAVER)
-                        .build())
-                .toList();
-
-        stockPriceRepository.saveAll(entities);
-        log.info("NAVER 주가 저장 완료 - companyId={}, ticker={}, count={}", companyId, tickerKrx, entities.size());
-        return entities.size();
+        return stockPriceService.savePrices(companyId, dailyPrices);
     }
 
     /**
