@@ -60,8 +60,8 @@ export const StockDetailPage = {
 
         container.innerHTML = `<div class="alert">S-RIM 데이터를 불러오는 중입니다...</div>`;
 
-        const apiUrl = root.dataset.apiUrl;
-        const res = await apiGetJSON(`/api/stocks/${companyId}/srim?basis=YEAR`);
+        const apiUrl = root.dataset.apiSrim || `/api/stocks/${companyId}/srim`;
+        const res = await apiGetJSON(apiUrl);
         if (!res.ok) {
             container.innerHTML = `<div class="alert alert--error">${escapeHtml(res.message || "요청에 실패했습니다.")}</div>`;
             return;
@@ -152,7 +152,6 @@ export const StockDetailPage = {
         const calcShares = formatNumber(data?.sharesOutstanding);
 
         const keChip = `<span class="chip chip--neutral">Ke ${formatPercent(data?.ke)}</span>`;
-        const basisChip = `<span class="chip chip--accent">${escapeHtml(data?.basis ?? "YEAR")}</span>`;
         const yearChip = data?.year ? `<span class="chip chip--muted">${escapeHtml(data.year)}년</span>` : "";
         const priceChip = data?.currentPrice
             ? `<span class="chip chip--dark">현재가 ${formatNumber(data?.currentPrice)}원</span>`
@@ -165,7 +164,6 @@ export const StockDetailPage = {
                     <h3>S-RIM 적정주가</h3>
                     <div class="srimChips">
                         ${keChip}
-                        ${basisChip}
                         ${yearChip}
                         ${priceChip}
                     </div>
@@ -417,6 +415,7 @@ export const StockDetailPage = {
         container.dataset.loaded = "true";
         this._renderChartShell(container, "2w");
         this._bindChartRangeButtons(root, container);
+        this._bindChartToggle(container);
         this._bindChartInteractions(container);
         this._initChartState(container, "2w");
         container.__chartRoot = root;
@@ -444,7 +443,13 @@ export const StockDetailPage = {
             <div class="chartCard">
                 <div class="chartHead">
                     <h3 class="chartTitle">주가 캔들 차트</h3>
-                    <div class="chartControls">${controls}</div>
+                    <div class="chartControls">
+                        <label class="chartToggle">
+                            <input type="checkbox" data-chart-toggle="srim" checked>
+                            <span>S-RIM 적정주가</span>
+                        </label>
+                        ${controls}
+                    </div>
                 </div>
                 <span class="chartMeta" data-chart-meta>불러오는 중...</span>
                 <div class="chartCanvasWrap">
@@ -452,7 +457,7 @@ export const StockDetailPage = {
                     <div class="chartTooltip" data-chart-tooltip hidden></div>
                 </div>
                 <div class="chartError alert alert--error" data-chart-error hidden></div>
-                <div class="chartNote">일별 시가/고가/저가/종가 기반 캔들 차트입니다.</div>
+                <div class="chartNote">일별 시가/고가/저가/종가와 S-RIM 적정주가(감소율 0%)를 함께 표시합니다.</div>
             </div>
         `;
     },
@@ -557,6 +562,19 @@ export const StockDetailPage = {
         container.__chartInflight = new Set();
         container.__chartFetchedRanges = new Set();
         container.__chartLastPrefetchAt = 0;
+        container.__chartShowSrim = true;
+    },
+
+    _bindChartToggle(container) {
+        const toggle = qs('[data-chart-toggle="srim"]', container);
+        if (!toggle || toggle.dataset.bound === "true") return;
+
+        toggle.checked = true;
+        toggle.addEventListener("change", () => {
+            container.__chartShowSrim = toggle.checked;
+            this._renderCharts(container);
+        });
+        toggle.dataset.bound = "true";
     },
 
     _mergeChartData(container, priceData) {
@@ -889,10 +907,14 @@ export const StockDetailPage = {
             return;
         }
 
+        const showSrim = container.__chartShowSrim !== false;
         const highs = valid.map((d) => Number(d.high));
         const lows = valid.map((d) => Number(d.low));
-        const maxValue = Math.max(...highs);
-        const minValue = Math.min(...lows);
+        const srimValues = showSrim
+            ? viewData.map((d) => Number(d?.fvScenario0)).filter((v) => Number.isFinite(v))
+            : [];
+        const maxValue = Math.max(...highs, ...srimValues);
+        const minValue = Math.min(...lows, ...srimValues);
         const range = Math.max(1, maxValue - minValue);
 
         const yFor = (v) =>
@@ -968,6 +990,10 @@ export const StockDetailPage = {
                 ctx.strokeRect(x - bodyWidth / 2, bodyTop, bodyWidth, bodyHeight);
             }
         });
+
+        if (showSrim) {
+            this._drawSrimLine(ctx, viewData, padding, gap, yFor);
+        }
 
         this._renderYearBoundaries(ctx, viewData, padding, gap, height);
 
@@ -1104,6 +1130,34 @@ export const StockDetailPage = {
         ctx.restore();
     },
 
+    _drawSrimLine(ctx, viewData, padding, gap, yFor) {
+        ctx.save();
+        ctx.strokeStyle = "#2563eb";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+
+        let started = false;
+        viewData.forEach((point, idx) => {
+            const fairValue = Number(point?.fvScenario0);
+            if (!Number.isFinite(fairValue)) {
+                started = false;
+                return;
+            }
+
+            const x = padding.left + idx * gap + gap / 2;
+            const y = yFor(fairValue);
+            if (!started) {
+                ctx.moveTo(x, y);
+                started = true;
+            } else {
+                ctx.lineTo(x, y);
+            }
+        });
+
+        ctx.stroke();
+        ctx.restore();
+    },
+
     _renderCandleSelection(canvas, data, container, padding, gap, yFor) {
         const ctx = canvas.getContext("2d");
         if (!ctx || !container) return;
@@ -1137,7 +1191,7 @@ export const StockDetailPage = {
 
         if (tooltip) {
             tooltip.hidden = false;
-            tooltip.innerHTML = buildCandleTooltipHtml(point);
+            tooltip.innerHTML = buildCandleTooltipHtml(point, container.__chartShowSrim !== false);
             tooltip.style.left = `${x}px`;
             tooltip.style.top = `${padding.top + 6}px`;
         }
@@ -1170,12 +1224,15 @@ function formatDateLabel(value) {
     return String(value).replaceAll("-", ".");
 }
 
-function buildCandleTooltipHtml(point) {
+function buildCandleTooltipHtml(point, showSrim = true) {
     const date = formatDateLabel(point?.date);
     const open = formatNumber(point?.open);
     const high = formatNumber(point?.high);
     const low = formatNumber(point?.low);
     const close = formatNumber(point?.close);
+    const srim = Number.isFinite(Number(point?.fvScenario0))
+        ? `<div>S-RIM ${formatNumber(point?.fvScenario0)}</div>`
+        : "";
 
     return `
         <div>${date}</div>
@@ -1183,6 +1240,7 @@ function buildCandleTooltipHtml(point) {
         <div>고 ${high}</div>
         <div>저 ${low}</div>
         <div>종 ${close}</div>
+        ${showSrim ? srim : ""}
     `;
 }
 

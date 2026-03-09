@@ -8,7 +8,7 @@
                         data-ticker=${stock.tickerKrx},
                         data-stock-id=${stock.stockId},
                         data-company-id=${stock.companyId},
-                        data-api-srim=@{|/api/stocks/${stock.companyId}/srim?basis=YEAR|},
+                        data-api-srim=@{|/api/stocks/${stock.companyId}/srim|},
                         data-api-financial=@{|/api/stocks/${stock.stockId}/financial/annual|},
                         data-api-pricechart=@{|/api/stocks/${stock.companyId}/price-chart|}">
     <div class="detailHead">

@@ -221,16 +221,8 @@ public class PriceChartFacadeService {
 
             YearBaseData base = baseDataByYear.get(financialYear);
             if (base == null && !baseDataByYear.containsKey(financialYear)) {
-                // 아직 시도 안 한 연도
-                try {
-                    base = loadYearBaseData(companyId, financialYear);
-                    baseDataByYear.put(financialYear, base);
-                } catch (Exception e) {
-                    log.warn("연도 기본데이터 로드 실패 (financialYear={}): {}", financialYear, e.getMessage());
-                    baseDataByYear.put(financialYear, null); // 실패 캐시
-                    srimByDate.put(date, null);
-                    continue;
-                }
+                base = loadYearBaseDataWithFallback(companyId, financialYear);
+                baseDataByYear.put(financialYear, base);
             }
             if (base == null) {
                 srimByDate.put(date, null);
@@ -242,7 +234,7 @@ public class PriceChartFacadeService {
                     base.getRoe(),
                     base.getEquityOwner(),
                     ke,
-                    financialYear,
+                    base.getYear(),
                     DEFAULT_RATING,
                     (int) DEFAULT_TENOR_MONTHS
             );
@@ -253,6 +245,34 @@ public class PriceChartFacadeService {
 
         return srimByDate;
     }
+    private YearBaseData loadYearBaseDataWithFallback(Long companyId, int financialYear) {
+        YearBaseData currentYearBaseData = tryLoadYearBaseData(companyId, financialYear);
+        if (currentYearBaseData != null) {
+            return currentYearBaseData;
+        }
+
+        int fallbackYear = financialYear - 1;
+        if (fallbackYear <= 0) {
+            return null;
+        }
+
+        YearBaseData fallbackBaseData = tryLoadYearBaseData(companyId, fallbackYear);
+        if (fallbackBaseData != null) {
+            log.info("가격 차트 S-RIM 기준연도 fallback 사용: requestYear={}, actualYear={}",
+                    financialYear, fallbackYear);
+        }
+        return fallbackBaseData;
+    }
+
+    private YearBaseData tryLoadYearBaseData(Long companyId, int financialYear) {
+        try {
+            return loadYearBaseData(companyId, financialYear);
+        } catch (Exception e) {
+            log.warn("연도 기본데이터 로드 실패 (financialYear={}): {}", financialYear, e.getMessage());
+            return null;
+        }
+    }
+
     private YearBaseData loadYearBaseData(Long companyId, int financialYear) {
 
         // 1) 유통주식수(연도 기준)

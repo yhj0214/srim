@@ -703,6 +703,22 @@ main{
     gap: 6px;
     flex-wrap: wrap;
 }
+.chartToggle{
+    display:flex;
+    align-items:center;
+    gap: 6px;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: #fff;
+    color: #374151;
+    font-size: 12px;
+    font-weight: 700;
+}
+.chartToggle input{
+    margin: 0;
+    accent-color: var(--primary);
+}
 .chartRangeBtn{
     border: 1px solid var(--border);
     background: #fff;

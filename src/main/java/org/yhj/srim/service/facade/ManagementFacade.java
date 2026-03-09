@@ -38,7 +38,7 @@ public class ManagementFacade {
         // 기업 리스트 크롤링 후 저장 및 dartCorpCode갱신
         CrawlAllMarketsResult result = financialFacadeService.marketCrawling();
         // KE 회사채수익률 크롤링 및 저장
-//        financialFacadeService.CrawlAndSaveBondYield(START_DATE, endDate);
+        financialFacadeService.CrawlAndSaveBondYield(START_DATE, endDate);
         return result;
     }
 
