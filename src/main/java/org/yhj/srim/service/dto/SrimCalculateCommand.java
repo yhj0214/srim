@@ -13,7 +13,6 @@ import java.time.LocalDate;
 @Builder
 public class SrimCalculateCommand {
     private Long companyId;
-    private String basis;
     private Integer year;
     private String rating;
     private Integer tenor;

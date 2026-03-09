@@ -15,16 +15,13 @@ import java.time.LocalDate;
 @AllArgsConstructor
 @Builder
 public class SrimRequestDto {
-    private String basis;
     private Integer year;
     private String rating;
     private Integer tenor;
 
     public SrimCalculateCommand toCommand(Long companyId, LocalDate asOf) {
-        String resolvedBasis = (basis == null || basis.isBlank()) ? "YEAR" : basis;
         return SrimCalculateCommand.builder()
                 .companyId(companyId)
-                .basis(resolvedBasis)
                 .year(year)
                 .rating(rating)
                 .tenor(tenor)

@@ -16,7 +16,6 @@ import java.util.List;
 public class SrimResultDto {
 
     // 입력 파라미터
-    private String basis;  // YEAR or QTR
     private String rating; // BBB-
     private Integer tenorMonths; // 60
     private Integer year;

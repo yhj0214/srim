@@ -244,8 +244,7 @@ public class PriceChartFacadeService {
                     ke,
                     financialYear,
                     DEFAULT_RATING,
-                    (int) DEFAULT_TENOR_MONTHS,
-                    "YEAR"
+                    (int) DEFAULT_TENOR_MONTHS
             );
             srimByDate.put(date, srim);
 
@@ -260,7 +259,7 @@ public class PriceChartFacadeService {
         Long sharesOutstanding = srimService.getShareOutStanding(companyId, financialYear, SrimService.SE);
 
         // 2) ROE 가중평균(연도 기준, 비율로 반환되도록 이미 변환해둠: 0.xx)
-        BigDecimal roe = srimService.calculateWeightedAverageRoe(companyId, financialYear, "YEAR");
+        BigDecimal roe = srimService.calculateWeightedAverageRoe(companyId, financialYear);
 
         // 3) 지배주주지분(연도 기준)
         BigDecimal equityOwner = srimService.getEquityOwner(companyId, financialYear);

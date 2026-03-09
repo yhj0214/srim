@@ -13,21 +13,10 @@ import java.util.Optional;
 public interface FinPeriodRepository extends JpaRepository<FinPeriod, Long> {
 
     /**
-     * 회사의 모든 기간 조회 (최신순)
-     */
-    List<FinPeriod> findByCompany_CompanyIdOrderByFiscalYearDescFiscalQuarterDesc(Long companyId);
-
-    /**
      * 회사의 연간 기간 조회 (최신순)
      */
     @Query("SELECT p FROM FinPeriod p WHERE p.company.companyId = :companyId AND p.periodType = 'YEAR' ORDER BY p.fiscalYear DESC")
     List<FinPeriod> findYearlyPeriods(@Param("companyId") Long companyId);
-
-    /**
-     * 회사의 분기 기간 조회 (최신순)
-     */
-    @Query("SELECT p FROM FinPeriod p WHERE p.company.companyId = :companyId AND p.periodType = 'QTR' ORDER BY p.fiscalYear DESC, p.fiscalQuarter DESC")
-    List<FinPeriod> findQuarterlyPeriods(@Param("companyId") Long companyId);
 
     /**
      * 회사의 요청 연도 직전 최근 N개 연간 기간 조회
@@ -63,5 +52,4 @@ public interface FinPeriodRepository extends JpaRepository<FinPeriod, Long> {
 
     Optional<FinPeriod> findByCompany_CompanyIdAndPeriodTypeAndFiscalYearAndIsEstimate(Long companyId, String year, int fiscalYear, boolean b);
 
-    FinPeriod findByCompany_CompanyIdAndFiscalYear(Long companyId,int baseYear);
 }

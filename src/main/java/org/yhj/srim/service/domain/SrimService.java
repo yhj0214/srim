@@ -56,39 +56,40 @@ public class SrimService {
         }
 
         Long companyId = command.getCompanyId();
-        String basis = command.getBasis();
-        Integer year = command.getYear();
+        Integer requestedYear = command.getYear();
         String rating = command.getRating();
         Integer tenorMonths = command.getTenor();
-        LocalDate date = command.getAsOf();
+        LocalDate asOf = command.getAsOf();
 
-        log.debug("S-RIM 계산 시작: companyId={}, basis={}, year={}, rating={}, tenor={}",
-                companyId, basis, year, rating, tenorMonths);
+        log.debug("S-RIM 계산 시작: companyId={}, year={}, rating={}, tenor={}",
+                companyId, requestedYear, rating, tenorMonths);
 
         // 기본값 설정
         if (rating == null) rating = DEFAULT_RATING;
         if (tenorMonths == null) tenorMonths = (int) DEFAULT_TENOR_MONTHS;
-        if (basis == null) basis = "YEAR";
-        if (date == null) date = LocalDate.now();
+        if (asOf == null) asOf = LocalDate.now();
 
-        // 1. 연도별 주식 수 조회,
-        int baseYear = year == null ? LocalDate.now().getYear() - 1 : year;
-        log.debug("기준연도 : year = {}", baseYear);
-        Long sharesOutStanding = getShareOutStanding(companyId, baseYear, SE);
-        log.debug("{}연도 유통주식수 : {}",baseYear, sharesOutStanding);
+        int effectiveYear = requestedYear != null
+                ? requestedYear : resolveEffectiveFiscalYear(companyId, asOf);
+        log.debug("계산 기준연도 : requestedYear={}, effectiveYear={}, asOf={}",
+                requestedYear, effectiveYear, asOf);
+
+        // 1. 연도별 주식 수 조회
+        Long sharesOutStanding = getShareOutStanding(companyId, effectiveYear, SE);
+        log.debug("{}연도 유통주식수 : {}", effectiveYear, sharesOutStanding);
 
 
         // 2. ROE 가중평균 계산 (최근 3개, 가중치 3:2:1)
-        RoeSummary roeSummary = calculateWeightedAverageRoeSummary(companyId, baseYear , basis);
+        RoeSummary roeSummary = calculateWeightedAverageRoeSummary(companyId, effectiveYear);
         BigDecimal roe = roeSummary.avgRoeRatio();
         log.debug("ROE: {}", roe);
 
         // 3. 연도 기준 지배주주지분 조회
-        BigDecimal equityOwner = getEquityOwner(companyId, baseYear);
+        BigDecimal equityOwner = getEquityOwner(companyId, effectiveYear);
         log.debug("자기자본(지배주주지분) : {}", equityOwner);
 
         // 4. Ke (할인율) 조회 - 회사채 수익률
-        BigDecimal ke = getDiscountRate(rating, tenorMonths.shortValue(), date);
+        BigDecimal ke = getDiscountRate(rating, tenorMonths.shortValue(), asOf);
         log.debug("Ke: {}", ke);
 
         // 5. 기본 초과이익 계산 (Equity * (ROE-ke))
@@ -131,8 +132,7 @@ public class SrimService {
             StringBuilder sb = new StringBuilder();
             sb.append("\n=== S-RIM 계산 결과 ===")
                     .append("\n companyId        : ").append(companyId)
-                    .append("\n basis            : ").append(basis)
-                    .append("\n year             : ").append(baseYear)
+                    .append("\n year             : ").append(effectiveYear)
                     .append("\n rating           : ").append(rating)
                     .append("\n tenorMonths      : ").append(tenorMonths)
                     .append("\n sharesOutstanding: ").append(sharesOutStanding)
@@ -154,10 +154,9 @@ public class SrimService {
         }
 
         return SrimResultDto.builder()
-                .basis(basis)
                 .rating(rating)
                 .tenorMonths(tenorMonths)
-                .year(baseYear)
+                .year(effectiveYear)
                 .equity(equityOwner)
                 .roe(roe)
                 .roePercent(roeSummary.avgRoePercent())
@@ -177,15 +176,13 @@ public class SrimService {
             BigDecimal ke,
             int financialYear,
             String rating,
-            Integer tenorMonths,
-            String basis
+            Integer tenorMonths
     ) {
         if (ke == null || ke.compareTo(BigDecimal.ZERO) <= 0) {
             throw new CustomException(SrimError.INVALID_DISCOUNT_RATE, "ke=" + ke);
         }
         if (rating == null) rating = DEFAULT_RATING;
         if (tenorMonths == null) tenorMonths = (int) DEFAULT_TENOR_MONTHS;
-        if (basis == null) basis = "YEAR";
 
         BigDecimal baseExcessEarnings = equityOwner.multiply(roe.subtract(ke));
 
@@ -218,7 +215,6 @@ public class SrimService {
                 : null;
 
         return SrimResultDto.builder()
-                .basis(basis)
                 .rating(rating)
                 .tenorMonths(tenorMonths)
                 .year(financialYear)
@@ -229,6 +225,46 @@ public class SrimService {
                 .sharesOutstanding(sharesOutstanding)
                 .scenarios(scenarioResults)
                 .build();
+    }
+
+    private int resolveEffectiveFiscalYear(Long companyId, LocalDate asOf) {
+
+        int previousYear = asOf.getYear() - 1;
+        if (hasSufficientYearlyRoeData(companyId, previousYear)) {
+            return previousYear;
+        }
+
+        int yearBeforePrevious = previousYear - 1;
+        if (hasSufficientYearlyRoeData(companyId, yearBeforePrevious)) {
+            return yearBeforePrevious;
+        }
+
+        throw new CustomException(
+                SrimError.INSUFFICIENT_ROE_DATA,
+                "companyId=" + companyId + ", asOf=" + asOf
+        );
+    }
+
+    private boolean hasSufficientYearlyRoeData(Long companyId, int baseYear) {
+        if (baseYear <= 0) {
+            return false;
+        }
+
+        List<FinPeriod> periods = finPeriodRepository.findRecentYearlyPeriods(companyId, baseYear, 3);
+        if (periods.size() < 3) {
+            return false;
+        }
+
+        for (FinPeriod period : periods) {
+            boolean hasRoe = finMetricValueRepository
+                    .findByCompanyIdAndPeriodAndMetricCode(companyId, period, "ROE")
+                    .isPresent();
+            if (!hasRoe) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     // to-do ErrorCode 수정
@@ -249,7 +285,7 @@ public class SrimService {
     }
 
     public Long getShareOutStanding(Long companyId, int baseYear, String se) {
-        log.debug("companyId : {}, baseYear : {}, basis : {}", companyId, baseYear, se);
+        log.debug("companyId : {}, baseYear : {}, se : {}", companyId, baseYear, se);
 
         // 해당연도 이하 가장 최신데이터
         StockShareStatus s =
@@ -267,18 +303,14 @@ public class SrimService {
     /**
      * ROE 가중평균 계산 (최근 3개, 가중치 3:2:1)
      */
-    public BigDecimal calculateWeightedAverageRoe(Long companyId, int baseYear, String basis) {
-        return calculateWeightedAverageRoeSummary(companyId, baseYear, basis).avgRoeRatio();
+    public BigDecimal calculateWeightedAverageRoe(Long companyId, int baseYear) {
+        return calculateWeightedAverageRoeSummary(companyId, baseYear).avgRoeRatio();
     }
 
-    private RoeSummary calculateWeightedAverageRoeSummary(Long companyId, int baseYear, String basis) {
+    private RoeSummary calculateWeightedAverageRoeSummary(Long companyId, int baseYear) {
         List<FinPeriod> periods;
 
-        if ("YEAR".equals(basis)) {
-            periods = finPeriodRepository.findRecentYearlyPeriods(companyId, baseYear, 3);
-        } else {
-            periods = finPeriodRepository.findRecentQuarterlyPeriods(companyId, 3);
-        }
+        periods = finPeriodRepository.findRecentYearlyPeriods(companyId, baseYear, 3);
 
         if (periods.size() < 3) {
             throw new CustomException(SrimError.INSUFFICIENT_ROE_DATA);

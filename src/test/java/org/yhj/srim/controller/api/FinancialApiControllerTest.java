@@ -127,7 +127,6 @@ class FinancialApiControllerTest {
     @DisplayName("S-RIM 계산 API가 성공한다.")
     void srim_success() throws Exception {
         SrimResultDto dto = SrimResultDto.builder()
-                .basis("YEAR")
                 .rating("BBB-")
                 .tenorMonths(60)
                 .year(2024)
@@ -174,11 +173,9 @@ class FinancialApiControllerTest {
         BDDMockito.given(srimService.calculate(BDDMockito.any()))
                 .willReturn(dto);
 
-        mockMvc.perform(get("/api/stocks/1/srim")
-                        .param("basis", "YEAR"))
+        mockMvc.perform(get("/api/stocks/1/srim"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.basis").value("YEAR"))
                 .andExpect(jsonPath("$.data.year").value(2024))
                 .andExpect(jsonPath("$.data.scenarios[0].fairValuePerShare").value(26100));
     }
@@ -189,8 +186,7 @@ class FinancialApiControllerTest {
         BDDMockito.given(srimService.calculate(BDDMockito.any()))
                 .willThrow(new IllegalArgumentException("invalid srim request"));
 
-        mockMvc.perform(get("/api/stocks/1/srim")
-                        .param("basis", "YEAR"))
+        mockMvc.perform(get("/api/stocks/1/srim"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error.code").value("COMMON-001"))
@@ -205,8 +201,7 @@ class FinancialApiControllerTest {
         BDDMockito.given(srimService.calculate(BDDMockito.any()))
                 .willThrow(new CustomException(CommonError.INVALID_INPUT, "custom srim error"));
 
-        mockMvc.perform(get("/api/stocks/1/srim")
-                        .param("basis", "YEAR"))
+        mockMvc.perform(get("/api/stocks/1/srim"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error.code").value("COMMON-001"))
@@ -221,8 +216,7 @@ class FinancialApiControllerTest {
         BDDMockito.given(srimService.calculate(BDDMockito.any()))
                 .willThrow(new RuntimeException("unexpected error"));
 
-        mockMvc.perform(get("/api/stocks/1/srim")
-                        .param("basis", "YEAR"))
+        mockMvc.perform(get("/api/stocks/1/srim"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error.code").value("COMMON-002"))
