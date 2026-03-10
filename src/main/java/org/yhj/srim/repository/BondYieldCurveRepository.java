@@ -26,21 +26,6 @@ public interface BondYieldCurveRepository extends JpaRepository<BondYieldCurve, 
             LocalDate asOf
     );
 
-    /**
-     * 특정 기준일의 모든 수익률 조회
-     */
-    List<BondYieldCurve> findByAsOf(LocalDate asOf);
-
-    /**
-     * 특정 기준일의 데이터 삭제
-     */
-    void deleteByAsOf(LocalDate asOf);
-
-    /**
-     * 가장 최근 기준일 조회
-     */
-    @Query("SELECT MAX(b.asOf) FROM BondYieldCurve b")
-    Optional<LocalDate> findLatestAsOf();
 
     @Modifying
     @Transactional

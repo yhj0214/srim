@@ -80,13 +80,12 @@ public class StockService {
     }
 
     public List<Long> findAllStockIds() {
-        return stockCodeRepository.findStockIdBy();
+        return stockCodeRepository.findAllStockIds();
     }
 
     public Long getStockIdByTickerKrx(String tickerKrx) {
         return stockCodeRepository.findStockIdByTickerKrx(tickerKrx)
-                .orElseThrow(() -> new CustomException(StockError.STOCK_NOT_FOUND))
-                .getStockId();
+                .orElseThrow(() -> new CustomException(StockError.STOCK_NOT_FOUND));
     }
 
     /**

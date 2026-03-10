@@ -28,7 +28,9 @@ public interface StockCodeRepository extends JpaRepository<StockCode, Long> {
     Page<StockCode> findAll(Pageable pageable);
 
 
-    List<Long> findStockIdBy();
+    @Query("SELECT s.stockId FROM StockCode s")
+    List<Long> findAllStockIds();
 
-    Optional<StockCode> findStockIdByTickerKrx(String tickerKrx);
+    @Query("SELECT s.stockId FROM StockCode s WHERE s.tickerKrx = :tickerKrx")
+    Optional<Long> findStockIdByTickerKrx(@Param("tickerKrx") String tickerKrx);
 }

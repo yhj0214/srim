@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.reactive.function.client.WebClient;
 
@@ -47,6 +48,17 @@ public class WebClientConfig {
                 .readTimeout(Duration.ofMillis(readTimeoutMs))
                 .additionalInterceptors(List.of(userAgentInterceptor))
                 .build();
+    }
+
+    @Bean(name = "bondYieldTaskExecutor")
+    public ThreadPoolTaskExecutor bondYieldTaskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(4);
+        executor.setMaxPoolSize(4);
+        executor.setQueueCapacity(64);
+        executor.setThreadNamePrefix("bond-yield-");
+        executor.initialize();
+        return executor;
     }
 
 }

@@ -2,15 +2,12 @@ package org.yhj.srim.client;
 
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.yhj.srim.client.dto.KisSpreadRow;
 
 import java.time.LocalDate;
-import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 @Slf4j
@@ -19,7 +16,7 @@ class KisSpreadClientTest {
     @Autowired KisSpreadClient kisSpreadClient;
 
     @Test
-    void fetchSpread_sucess(){
+    void fetchSpreadHtml_success() {
         // given
         LocalDate date = LocalDate.of(2025, 12, 03);
 
@@ -29,20 +26,8 @@ class KisSpreadClientTest {
         // then
         log.debug(result);
         Assertions.assertNotNull(result);
+        Assertions.assertFalse(result.isBlank());
+        Assertions.assertTrue(result.contains("검색결과") || result.contains("table"));
+        log.debug("KIS HTML length={}", result.length());
     }
-
-    @Test
-    void fetchSpreadRows_success(){
-        // given
-        LocalDate date = LocalDate.of(2025, 12, 03);
-
-        // when
-        List<KisSpreadRow> result = kisSpreadClient.fetchSpreadRows(date);
-
-        // then
-        for(KisSpreadRow row : result) log.debug(row.toString());
-
-        Assertions.assertFalse(result.isEmpty());
-    }
-
 }

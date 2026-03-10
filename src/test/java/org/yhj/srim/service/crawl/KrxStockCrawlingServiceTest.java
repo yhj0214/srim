@@ -1,9 +1,9 @@
 package org.yhj.srim.service.crawl;
 
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.yhj.srim.common.exception.CustomException;
@@ -30,8 +30,12 @@ class KrxStockCrawlingServiceTest {
     @Mock
     KrxParser csvParser;
 
-    @InjectMocks
     KrxStockCrawlingService service;
+
+    @BeforeEach
+    void setUp() {
+        service = new KrxStockCrawlingService(krxHttpClient, List.of(htmlParser, csvParser));
+    }
 
     @Test
     @DisplayName("HTML 내용일 때 HTML 파서가 선택된다.")
@@ -40,7 +44,6 @@ class KrxStockCrawlingServiceTest {
         String html = "<html><table></table></html>";
         when(krxHttpClient.get(anyString())).thenReturn(html);
         when(htmlParser.supports(html)).thenReturn(true);
-        when(csvParser.supports(html)).thenReturn(false);
         when(htmlParser.parse(html, "KOSPI")).thenReturn(List.of());
 
         // when
@@ -94,7 +97,6 @@ class KrxStockCrawlingServiceTest {
         String content = "<html><table></table></html>";
         when(krxHttpClient.get(anyString())).thenReturn(content);
         when(htmlParser.supports(content)).thenReturn(true);
-        when(csvParser.supports(content)).thenReturn(true);
         when(htmlParser.parse(content, "KOSPI")).thenReturn(List.of());
 
         // when

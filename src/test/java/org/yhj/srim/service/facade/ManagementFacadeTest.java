@@ -25,12 +25,6 @@ class ManagementFacadeTest {
     @Mock
     FinancialFacadeService financialFacadeService;
 
-    @Mock
-    PriceChartFacadeService priceChartFacadeService;
-
-    @Mock
-    StockService stockService;
-
     @Test
     @DisplayName("step1은 시장 동기화 결과를 반환하고 채권수익률을 수집한다.")
     void step1_market_sync_and_bond_yield() {
@@ -42,7 +36,7 @@ class ManagementFacadeTest {
         assertThat(actual.getCrawledCount()).isEqualTo(10);
         assertThat(actual.getMappedCount()).isEqualTo(8);
         verify(financialFacadeService).marketCrawling();
-//        verify(financialFacadeService).CrawlAndSaveBondYield(any(LocalDate.class), any(LocalDate.class));
+        verify(financialFacadeService).crawlAndSaveBondYield(any(LocalDate.class), any(LocalDate.class));
     }
 
 

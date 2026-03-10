@@ -88,3 +88,7 @@ test {
         excludeTags "manual"
     }
 }
+
+bootRun {
+    systemProperty "javax.net.ssl.trustStoreType", "Windows-ROOT"
+}
