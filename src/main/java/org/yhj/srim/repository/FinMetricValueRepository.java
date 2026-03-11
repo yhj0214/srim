@@ -51,4 +51,6 @@ public interface FinMetricValueRepository extends JpaRepository<FinMetricValue, 
     );
 
     long deleteByCompanyIdAndPeriod_PeriodId(Long companyId, Long periodId);
+
+    long deleteByCompanyId(Long companyId);
 }

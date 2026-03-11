@@ -45,4 +45,6 @@ public interface StockPriceRepository extends JpaRepository<StockPrice, Long> {
     LocalDate findMaxTradeDateByCompany(@Param("companyId") Long companyId);
 
     List<StockPrice> findByCompany_companyIdOrderByTradeDateAsc(Long companyId);
+
+    long deleteByCompany_CompanyId(Long companyId);
 }

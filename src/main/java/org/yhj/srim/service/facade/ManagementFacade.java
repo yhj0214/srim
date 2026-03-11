@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.yhj.srim.controller.dto.CrawlAllMarketsResult;
 import org.yhj.srim.repository.entity.Company;
+import org.yhj.srim.service.domain.CompanyResetService;
 import org.yhj.srim.service.domain.StockService;
 
 import java.time.LocalDate;
@@ -18,6 +19,7 @@ public class ManagementFacade {
     private final FinancialFacadeService financialFacadeService;
     private final PriceChartFacadeService priceChartFacadeService;
     private final StockService stockService;
+    private final CompanyResetService companyResetService;
 
     private static final LocalDate START_DATE = LocalDate.of(2015, 1, 1);
 
@@ -72,6 +74,11 @@ public class ManagementFacade {
 
         LocalDate endDate = LocalDate.now();
         initCompany(stockId, endDate);
+    }
+
+    public void resetSingleCompanyByTickerKrx(String tickerKrx) {
+        Long stockId = stockService.getStockIdByTickerKrx(tickerKrx);
+        companyResetService.resetByStockId(stockId);
     }
 
     // 개별 회사 단위 재무/주가/주가기반지표 초기화

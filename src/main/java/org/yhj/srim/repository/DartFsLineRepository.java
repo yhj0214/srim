@@ -12,4 +12,6 @@ public interface DartFsLineRepository extends JpaRepository<DartFsLine, Long> {
 
 
     void deleteByFiling_FsFilingId(Long fsFilingId);
+
+    long deleteByCompanyId(Long companyId);
 }

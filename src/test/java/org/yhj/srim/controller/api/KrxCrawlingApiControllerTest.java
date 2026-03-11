@@ -38,4 +38,15 @@ class KrxCrawlingApiControllerTest {
                 .andExpect(jsonPath("$.data.mappedCount").value(80));
 
     }
+
+    @Test
+    @DisplayName("단일 종목 reset 요청에 성공한다.")
+    void single_stock_reset_success() throws Exception {
+        mockMvc.perform(post("/api/crawling/krx/stocks/005930/reset"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data").isEmpty());
+
+        BDDMockito.then(managementFacade).should().resetSingleCompanyByTickerKrx("005930");
+    }
 }

@@ -1,4 +1,4 @@
-package org.yhj.srim.service.domain;
+package org.yhj.srim.service.crawl.parser;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;

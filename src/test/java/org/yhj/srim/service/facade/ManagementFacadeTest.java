@@ -7,6 +7,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.yhj.srim.controller.dto.CrawlAllMarketsResult;
+import org.yhj.srim.service.domain.CompanyResetService;
 import org.yhj.srim.service.domain.StockService;
 
 import java.time.LocalDate;
@@ -25,6 +26,15 @@ class ManagementFacadeTest {
     @Mock
     FinancialFacadeService financialFacadeService;
 
+    @Mock
+    StockService stockService;
+
+    @Mock
+    PriceChartFacadeService priceChartFacadeService;
+
+    @Mock
+    CompanyResetService companyResetService;
+
     @Test
     @DisplayName("step1은 시장 동기화 결과를 반환하고 채권수익률을 수집한다.")
     void step1_market_sync_and_bond_yield() {
@@ -40,4 +50,14 @@ class ManagementFacadeTest {
     }
 
 
+    @Test
+    @DisplayName("단일 종목 reset은 stockId 조회 후 reset 서비스를 호출한다.")
+    void reset_single_company_by_ticker() {
+        given(stockService.getStockIdByTickerKrx("005930")).willReturn(1L);
+
+        managementFacade.resetSingleCompanyByTickerKrx("005930");
+
+        verify(stockService).getStockIdByTickerKrx("005930");
+        verify(companyResetService).resetByStockId(1L);
+    }
 }

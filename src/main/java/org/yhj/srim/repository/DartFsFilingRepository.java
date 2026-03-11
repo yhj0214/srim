@@ -7,4 +7,6 @@ import java.util.Optional;
 
 public interface DartFsFilingRepository extends JpaRepository<DartFsFiling, Long> {
     Optional<DartFsFiling> findByRceptNoAndReprtCodeAndFsDiv(String rceptNo, String reprtCode, String fsDiv);
+
+    long deleteByCompanyId(Long companyId);
 }

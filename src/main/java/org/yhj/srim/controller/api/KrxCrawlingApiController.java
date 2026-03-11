@@ -67,5 +67,13 @@ public class KrxCrawlingApiController {
         return ApiResponse.success(null);
     }
 
+    @GetMapping("/stocks/{tickerKrx}/reset")
+    public ApiResponse<Void> resetStockInfo(@PathVariable String tickerKrx) {
+        log.info("단일 종목 초기화 데이터 삭제 tickerKrx : {}", tickerKrx);
+        managementFacade.resetSingleCompanyByTickerKrx(tickerKrx);
+        log.info("단일 종목 초기화 데이터 삭제 종료 tickerKrx : {}", tickerKrx);
+        return ApiResponse.success(null);
+    }
+
 
 }

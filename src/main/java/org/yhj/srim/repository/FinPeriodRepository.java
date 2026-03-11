@@ -52,4 +52,5 @@ public interface FinPeriodRepository extends JpaRepository<FinPeriod, Long> {
 
     Optional<FinPeriod> findByCompany_CompanyIdAndPeriodTypeAndFiscalYearAndIsEstimate(Long companyId, String year, int fiscalYear, boolean b);
 
+    long deleteByCompany_CompanyId(Long companyId);
 }

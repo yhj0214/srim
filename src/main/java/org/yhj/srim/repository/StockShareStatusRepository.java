@@ -26,4 +26,6 @@ public interface StockShareStatusRepository extends JpaRepository<StockShareStat
     );
 
     long deleteByCompany_CompanyIdAndBsnsYear(Long companyId, Integer bsnsYear);
+
+    long deleteByCompany_CompanyId(Long companyId);
 }
