@@ -123,12 +123,10 @@ public class PriceChartFacadeService {
         boolean hasData = stockPriceService.existsByCompanyId(companyId);
 
         if (!hasData) {
-            LocalDate backfillStart = end.minusYears(INITIAL_BACKFILL_YEARS);
-            if (backfillStart.isBefore(MIN_AVAILABLE_DATE)) {
-                backfillStart = MIN_AVAILABLE_DATE;
-            }
-            log.info("주가 데이터 최초 조회. companyId={} → {} ~ {} ({}년치) 백필 크롤링",
-                    companyId, backfillStart, end, INITIAL_BACKFILL_YEARS);
+            LocalDate backfillStart = MIN_AVAILABLE_DATE;
+
+            log.info("주가 데이터 최초 조회. companyId={} → {} ~ {} 크롤링",
+                    companyId, backfillStart, end);
 
             try {
                 crawlAndSavePrices(companyId, backfillStart, end);

@@ -634,7 +634,7 @@ public class FinancialService {
 
     private Optional<BigDecimal> calcEps(Long companyId, int fiscalYear, BigDecimal netIncOwner) {
         if (netIncOwner == null) {
-            log.debug("[FS-DB][EPS] netIncOwner is null - companyId={}, year={}", companyId, fiscalYear);
+            log.info("[FS-DB][EPS] netIncOwner is null - companyId={}, year={}", companyId, fiscalYear);
             return Optional.empty();
         }
 
@@ -643,7 +643,7 @@ public class FinancialService {
                 .map(shares -> netIncOwner.divide(shares, 2, RoundingMode.HALF_UP));
 
         if (eps.isEmpty()) {
-            log.debug("[FS-DB][EPS] common shares not found or zero - companyId={}, year={}", companyId, fiscalYear);
+            log.info("[FS-DB][EPS] common shares not found or zero - companyId={}, year={}", companyId, fiscalYear);
         } else {
             log.debug("[FS-DB][EPS] ok - companyId={}, year={}, netIncOwner={}, eps={}",
                     companyId, fiscalYear, netIncOwner, eps.get());
@@ -809,15 +809,16 @@ public class FinancialService {
         if(!"SCE".equalsIgnoreCase(key.sj)) return null;
 
         // 지배주주 귀속 당기순이익
-        if ((key.id.equals("ifrs-full_ProfitLoss") || key.id.contains("미사용"))
+        if ((key.id.equals("ifrs-full_ProfitLoss") || key.id.contains("미사용") || key.id.contains("ifrs_ProfitLoss"))
                 && (key.nm.contains("당기순이익") || key.nm.contains("당기순손실") || key.nm.contains("당기순손익"))
-                && key.detail.contains("지배기업")) {
+                && key.detail.contains("지배기업")
+                && !key.detail.contains("기타자본") && !key.detail.contains("이익잉여") && !key.detail.contains("자본금") && !key.detail.contains("주식발행")) {
 
             return "NET_INC_OWNER";
         }
 
         // 비지배주주 귀속 당기순이익
-        if ((key.id.equals("ifrs-full_ProfitLoss") || key.id.contains("미사용"))
+        if ((key.id.equals("ifrs-full_ProfitLoss") || key.id.contains("미사용") || key.id.contains("ifrs_ProfitLoss"))
                 && (key.nm.contains("당기순이익") || key.nm.contains("당기순손실") || key.nm.contains("당기순손익"))
                 && key.detail.contains("비지배")) {
             return "NET_INC_NONCONT";

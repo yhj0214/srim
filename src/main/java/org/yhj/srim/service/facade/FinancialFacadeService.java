@@ -185,7 +185,7 @@ public class FinancialFacadeService {
         Long companyId = company.getCompanyId();
 
 
-        log.info("전체 파이프라인 실행 - companyId={}, corpCode={}, year {}~{}",
+        log.debug("전체 파이프라인 실행 - companyId={}, corpCode={}, year {}~{}",
                 companyId, corpCode, startYear, endYear);
 
         for (int year = endYear - 1; year >= startYear; year--) {
