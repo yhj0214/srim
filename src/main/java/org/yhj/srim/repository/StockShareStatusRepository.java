@@ -1,6 +1,7 @@
 package org.yhj.srim.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.yhj.srim.repository.entity.ShareClassType;
 import org.yhj.srim.repository.entity.StockShareStatus;
 
 import java.time.LocalDate;
@@ -9,20 +10,22 @@ import java.util.Optional;
 
 public interface StockShareStatusRepository extends JpaRepository<StockShareStatus, Long> {
 
-    Optional<StockShareStatus> findByCompany_CompanyIdAndBsnsYearAndSe(
-            Long companyId, Integer bsnsYear, String se
+    List<StockShareStatus> findByCompany_CompanyIdAndBsnsYearAndShareClassTypeIn(
+            Long companyId, Integer bsnsYear, List<ShareClassType> shareClassTypes
     );
 
-    List<StockShareStatus> findByCompany_CompanyIdAndBsnsYearAndSeIn(
-            Long companyId, Integer bsnsYear, List<String> seList
+    Optional<StockShareStatus> findTopByCompany_CompanyIdAndSettlementDateLessThanEqualAndShareClassTypeOrderBySettlementDateDesc(
+            Long companyId, LocalDate baseDate, ShareClassType shareClassType
     );
 
-    Optional<StockShareStatus> findTopByCompany_CompanyIdAndSettlementDateLessThanEqualAndSeOrderBySettlementDateDesc(Long companyId, LocalDate baseDate, String 합계);
+    Optional<StockShareStatus> findTopByCompany_CompanyIdAndShareClassTypeOrderBySettlementDateDesc(
+            Long companyId, ShareClassType shareClassType
+    );
 
     Optional<StockShareStatus> findTopByCompany_CompanyIdOrderByUpdatedAtDesc(Long companyId);
 
-    Optional<StockShareStatus> findTopByCompany_CompanyIdAndSeAndBsnsYearLessThanEqualOrderByBsnsYearDesc(
-            Long companyId, String se, Integer bsnsYear
+    Optional<StockShareStatus> findTopByCompany_CompanyIdAndShareClassTypeAndBsnsYearLessThanEqualOrderByBsnsYearDesc(
+            Long companyId, ShareClassType shareClassType, Integer bsnsYear
     );
 
     long deleteByCompany_CompanyIdAndBsnsYear(Long companyId, Integer bsnsYear);

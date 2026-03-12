@@ -172,7 +172,8 @@ CREATE TABLE `stock_share_status` (
       `company_id`       BIGINT       NOT NULL COMMENT 'FK: company.company_id',
       `bsns_year`        INT          NOT NULL COMMENT '사업연도(예: 2024)',
       `stlm_dt`          DATE         NOT NULL COMMENT '결산일(예: 2018-12-31)',
-      `se`               VARCHAR(100)  NOT NULL COMMENT '주식 종류(보통주/우선주/합계 등)',
+      `se`               VARCHAR(100) NOT NULL COMMENT 'DART 원본 주식 구분명(보통주/우선주1/종류주식/합계 등)',
+      `share_class_type` VARCHAR(30)  NULL COMMENT '정규화 주식 구분(COMMON/PREFERRED/TOTAL/OTHER)',
 
       `isu_stock_totqy`  BIGINT       NULL COMMENT '발행할 주식의 총수(정관상 한도)',
       `istc_totqy`       BIGINT       NULL COMMENT '발행주식의 총수(Ⅱ-Ⅲ, DART istc_totqy)',

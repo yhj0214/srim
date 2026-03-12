@@ -35,7 +35,7 @@ public class SrimService {
     private static final String DEFAULT_RATING = "BBB-";
     private static final short DEFAULT_TENOR_MONTHS = 60;
     private static final int DEFAULT_SCALE = 2;
-    public static final String SE = "보통주";
+    public static final ShareClassType DEFAULT_SHARE_TYPE = ShareClassType.COMMON;
 
     // 감소율 시나리오
     private static final BigDecimal[] REDUCTION_RATES = {
@@ -75,7 +75,7 @@ public class SrimService {
                 requestedYear, effectiveYear, asOf);
 
         // 1. 연도별 주식 수 조회
-        Long sharesOutStanding = getShareOutStanding(companyId, effectiveYear, SE);
+        Long sharesOutStanding = getShareOutStanding(companyId, effectiveYear, DEFAULT_SHARE_TYPE);
         log.debug("{}연도 유통주식수 : {}", effectiveYear, sharesOutStanding);
 
 
@@ -284,13 +284,15 @@ public class SrimService {
         return v.getValueNum();
     }
 
-    public Long getShareOutStanding(Long companyId, int baseYear, String se) {
-        log.debug("companyId : {}, baseYear : {}, se : {}", companyId, baseYear, se);
+    public Long getShareOutStanding(Long companyId, int baseYear, ShareClassType shareClassType) {
+        log.debug("companyId : {}, baseYear : {}, shareClassType : {}", companyId, baseYear, shareClassType);
 
         // 해당연도 이하 가장 최신데이터
         StockShareStatus s =
                 stockShareStatusRepository
-                        .findTopByCompany_CompanyIdAndSeAndBsnsYearLessThanEqualOrderByBsnsYearDesc(companyId, se, baseYear)
+                        .findTopByCompany_CompanyIdAndShareClassTypeAndBsnsYearLessThanEqualOrderByBsnsYearDesc(
+                                companyId, shareClassType, baseYear
+                        )
                         .orElseThrow(() -> new CustomException(SrimError.SHARES_OUTSTANDING_NOT_FOUND));
 
 

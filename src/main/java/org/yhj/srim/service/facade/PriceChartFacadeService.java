@@ -23,6 +23,8 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.*;
 
+import static org.yhj.srim.repository.entity.ShareClassType.*;
+
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -274,7 +276,7 @@ public class PriceChartFacadeService {
     private YearBaseData loadYearBaseData(Long companyId, int financialYear) {
 
         // 1) 유통주식수(연도 기준)
-        Long sharesOutstanding = srimService.getShareOutStanding(companyId, financialYear, SrimService.SE);
+        Long sharesOutstanding = srimService.getShareOutStanding(companyId, financialYear, COMMON);
 
         // 2) ROE 가중평균(연도 기준, 비율로 반환되도록 이미 변환해둠: 0.xx)
         BigDecimal roe = srimService.calculateWeightedAverageRoe(companyId, financialYear);

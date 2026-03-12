@@ -46,6 +46,11 @@ public class StockShareStatus {
     @Comment("주식종류(보통주/우선주/합계 등)")
     private String se;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "share_class_type", length = 30)
+    @Comment("정규화 주식 구분(COMMON/PREFERRED/TOTAL/OTHER)")
+    private ShareClassType shareClassType;
+
     @Column(name = "isu_stock_totqy")
     @Comment("발행할 주식의 총수(정관상 한도)")
     private Long isuStockTotqy;
@@ -88,6 +93,7 @@ public class StockShareStatus {
             int bsnsYear,
             LocalDate stlmDt,
             String se,
+            ShareClassType shareClassType,
             Long isuStockTotqy,
             Long istcTotqy,
             Long tesstkCo,
@@ -103,6 +109,7 @@ public class StockShareStatus {
         s.bsnsYear = bsnsYear;
         s.settlementDate = stlmDt;
         s.se = se;
+        s.shareClassType = shareClassType;
         s.isuStockTotqy = isuStockTotqy;
         s.istcTotqy = istcTotqy;
         s.tesstkCo = tesstkCo;

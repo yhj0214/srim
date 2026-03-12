@@ -2,9 +2,9 @@ package org.yhj.srim.client.dto;
 
 import lombok.*;
 import org.yhj.srim.repository.entity.Company;
+import org.yhj.srim.repository.entity.ShareClassType;
 import org.yhj.srim.repository.entity.StockShareStatus;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Getter
@@ -47,12 +47,12 @@ public class DartShareStatusRow {
         Long self = row.getTesstkCo();
         Long distb = row.getDistbStockCo();
 
-
         return StockShareStatus.create(
                 company,
                 bsnsYear,
                 row.getStlmDt(),
                 row.getSe(),
+                ShareClassType.from(row.getSe()),
                 row.getIsuStockTotqy(),
                 istc,
                 self,

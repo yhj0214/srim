@@ -19,6 +19,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -423,8 +424,8 @@ public class FinancialService {
         }
 
         return stockShareStatusRepository
-                .findTopByCompany_CompanyIdAndSettlementDateLessThanEqualAndSeOrderBySettlementDateDesc(
-                        companyId, baseDate, "합계"
+                .findTopByCompany_CompanyIdAndSettlementDateLessThanEqualAndShareClassTypeOrderBySettlementDateDesc(
+                        companyId, baseDate, ShareClassType.TOTAL
                 )
                 .map(status -> {
                     Long shares = status.getDistbStockCo();
@@ -655,8 +656,8 @@ public class FinancialService {
 
     private Optional<BigDecimal> findTotalIssuedShares(Long companyId, int fiscalYear) {
         List<StockShareStatus> statuses =
-                stockShareStatusRepository.findByCompany_CompanyIdAndBsnsYearAndSeIn(
-                        companyId, fiscalYear, List.of("보통주", "우선주")
+                stockShareStatusRepository.findByCompany_CompanyIdAndBsnsYearAndShareClassTypeIn(
+                        companyId, fiscalYear, List.of(ShareClassType.COMMON, ShareClassType.PREFERRED)
                 );
 
         if (statuses.isEmpty()) {
