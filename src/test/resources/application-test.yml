@@ -1,0 +1,43 @@
+spring:
+  application:
+    name: srim
+
+  jackson:
+    time-zone: Asia/Seoul
+    serialization:
+      write-dates-as-timestamps: false
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: true
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: Asia/Seoul
+
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${TEST_DB_URL}
+    username: ${TEST_DB_USERNAME}
+    password: ${TEST_DB_PASSWORD}
+
+# DART API 설정
+dart:
+  api:
+    key: ${TEST_DART_API_KEY}
+
+app:
+  crawl:
+    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    delay-ms: 1200
+    max-retries: 3
+    initial-backoff-ms: 800
+
+
+logging:
+  level:
+    org.yhj.srim: ${TEST_APP_LOG_LEVEL:DEBUG}
+    org.hibernate.SQL: ${TEST_SQL_LOG_LEVEL:DEBUG}
+    org.hibernate.type.descriptor.sql.BasicBinder: ${TEST_BINDER_LOG_LEVEL:TRACE}
