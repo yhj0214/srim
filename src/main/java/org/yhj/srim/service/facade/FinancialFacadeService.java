@@ -18,6 +18,7 @@ import org.yhj.srim.service.crawl.dto.StockCodeDraft;
 import org.yhj.srim.service.crawl.KisSpreadCrawlingService;
 import org.yhj.srim.service.domain.BondYieldCurveService;
 import org.yhj.srim.service.domain.DartCorpCodeSyncService;
+import org.yhj.srim.service.domain.FailedJobService;
 import org.yhj.srim.service.domain.FinancialMetricService;
 import org.yhj.srim.service.domain.FinancialService;
 import org.yhj.srim.service.crawl.KrxStockCrawlingService;
@@ -48,6 +49,7 @@ public class FinancialFacadeService {
     private final FinancialService financialService;
     private final FinancialMetricService financialMetricService;
     private final BondYieldCurveService bondYieldCurveService;
+    private final FailedJobService failedJobService;
 
     private final ThreadPoolTaskExecutor bondYieldTaskExecutor;
 
@@ -344,8 +346,26 @@ public class FinancialFacadeService {
                     e.getErrorCode().getCode(),
                     date,
                     e.getDetail());
+            failedJobService.enqueueBondYieldFailure(date, buildBondYieldFailureDetail(e));
             return DailyBondYieldFetchResult.failure(date);
         }
+    }
+
+    public void retryBondYieldForDate(LocalDate date) {
+        List<KisSpreadRow> rows = kisSpreadCrawlingService.fetchSpreadRows(date);
+        if (rows.isEmpty()) {
+            throw new CustomException(CrawlingError.KIS_REQUEST_FAILED, "date=" + date + ", empty rows");
+        }
+
+        int upsertCount = bondYieldCurveService.upsertDailyRows(date, rows);
+        log.info("BondYield retry success date={} upserts={}", date, upsertCount);
+    }
+
+    private String buildBondYieldFailureDetail(CustomException e) {
+        if (e.getDetail() == null || e.getDetail().isBlank()) {
+            return e.getMessage();
+        }
+        return e.getMessage() + " (" + e.getDetail() + ")";
     }
 
     private record MonthBondYieldResult(int processedDays, int upsertCount, int skippedDays) {

@@ -27,5 +27,8 @@ app:
       cron: "0 0 3 * * *"
     bond-yield:
       cron: "0 30 3 * * *"
+    bond-yield-retry:
+      fixed-delay-ms: 300000
+      initial-delay-ms: 300000
     financial-statement:
       cron: "0 30 4 * * *"

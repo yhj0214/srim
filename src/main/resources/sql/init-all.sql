@@ -378,110 +378,34 @@ INSERT INTO fin_metric_def (metric_code, name_kor, unit, display_order, descript
     ('DIVIDEND_YIELD',  '시가배당률',   '%',    112, 'DPS / 주가 * 100'),
     ('PAYOUT_RATIO',    '배당성향',     '%',    113, '배당금총액 / 당기순이익 * 100'),
     ('RETENTION_RATIO', '유보율',       '%',    114, '이익잉여금 / 자본총계 또는 (1-배당성향)');
--- 4) 삼성전자 재무 기간 (2020~2024)
--- INSERT INTO fin_period (company_id, period_type, fiscal_year, fiscal_quarter, is_estimate, label)
--- SELECT
---     c.company_id,
---     'YEAR',
---     y.yr,
---     NULL,
---     0,
---     CONCAT(y.yr, '/12')
--- FROM company c
--- JOIN stock_code sc ON sc.stock_id = c.stock_id AND sc.ticker_krx = '005930'
--- CROSS JOIN (
---     SELECT 2024 AS yr UNION ALL
---     SELECT 2023 UNION ALL
---     SELECT 2022 UNION ALL
---     SELECT 2021 UNION ALL
---     SELECT 2020
--- ) AS y;
---
--- -- 5) 삼성전자 재무 데이터 (2024년)
--- INSERT INTO fin_metric_value (company_id, period_id, metric_code, value_num, source)
--- SELECT
---     c.company_id,
---     p.period_id,
---     m.metric_code,
---     CASE m.metric_code
---         WHEN 'SALES'      THEN 302000000000000
---         WHEN 'OP_INC'     THEN  54000000000000
---         WHEN 'NET_INC'    THEN  35000000000000
---         WHEN 'OPM'        THEN 0.18
---         WHEN 'DEBT_RATIO' THEN 0.45
---         WHEN 'ROE'        THEN 0.085
---         WHEN 'ROA'        THEN 0.055
---         WHEN 'EPS'        THEN 5800
---         WHEN 'BPS'        THEN 68000
---         WHEN 'PER'        THEN 12.5
---         WHEN 'PBR'        THEN 1.1
---     END,
---     'MANUAL'
--- FROM company c
--- JOIN stock_code sc ON sc.stock_id = c.stock_id AND sc.ticker_krx = '005930'
--- JOIN fin_period p ON p.company_id = c.company_id AND p.fiscal_year = 2024 AND p.period_type = 'YEAR'
--- JOIN fin_metric_def m ON m.metric_code IN ('SALES','OP_INC','NET_INC','OPM','DEBT_RATIO','ROE','ROA','EPS','BPS','PER','PBR');
---
--- -- 6) 삼성전자 재무 데이터 (2023년)
--- INSERT INTO fin_metric_value (company_id, period_id, metric_code, value_num, source)
--- SELECT
---     c.company_id,
---     p.period_id,
---     m.metric_code,
---     CASE m.metric_code
---         WHEN 'SALES'      THEN 258000000000000
---         WHEN 'OP_INC'     THEN  62000000000000
---         WHEN 'NET_INC'    THEN  41000000000000
---         WHEN 'OPM'        THEN 0.24
---         WHEN 'DEBT_RATIO' THEN 0.42
---         WHEN 'ROE'        THEN 0.095
---         WHEN 'ROA'        THEN 0.062
---         WHEN 'EPS'        THEN 6850
---         WHEN 'BPS'        THEN 72000
---         WHEN 'PER'        THEN 11.2
---         WHEN 'PBR'        THEN 1.05
---     END,
---     'MANUAL'
--- FROM company c
--- JOIN stock_code sc ON sc.stock_id = c.stock_id AND sc.ticker_krx = '005930'
--- JOIN fin_period p ON p.company_id = c.company_id AND p.fiscal_year = 2023 AND p.period_type = 'YEAR'
--- JOIN fin_metric_def m ON m.metric_code IN ('SALES','OP_INC','NET_INC','OPM','DEBT_RATIO','ROE','ROA','EPS','BPS','PER','PBR');
---
--- -- 7) 삼성전자 재무 데이터 (2022년)
--- INSERT INTO fin_metric_value (company_id, period_id, metric_code, value_num, source)
--- SELECT
---     c.company_id,
---     p.period_id,
---     m.metric_code,
---     CASE m.metric_code
---         WHEN 'SALES'      THEN 302000000000000
---         WHEN 'OP_INC'     THEN  43000000000000
---         WHEN 'NET_INC'    THEN  55000000000000
---         WHEN 'OPM'        THEN 0.14
---         WHEN 'DEBT_RATIO' THEN 0.38
---         WHEN 'ROE'        THEN 0.125
---         WHEN 'ROA'        THEN 0.075
---         WHEN 'EPS'        THEN 9200
---         WHEN 'BPS'        THEN 74000
---         WHEN 'PER'        THEN  8.2
---         WHEN 'PBR'        THEN  1.02
---     END,
---     'MANUAL'
--- FROM company c
--- JOIN stock_code sc ON sc.stock_id = c.stock_id AND sc.ticker_krx = '005930'
--- JOIN fin_period p ON p.company_id = c.company_id AND p.fiscal_year = 2022 AND p.period_type = 'YEAR'
--- JOIN fin_metric_def m ON m.metric_code IN ('SALES','OP_INC','NET_INC','OPM','DEBT_RATIO','ROE','ROA','EPS','BPS','PER','PBR');
--- 추가: 회사채 수익률 데이터
-INSERT INTO bond_yield_curve (as_of, rating, tenor_months, yield_rate, source) VALUES
--- 2024-11-06 기준 5년물 수익률 (표의 5년 컬럼 값 / 100)
-('2024-11-06', 'KTB',  60, 0.0323, 'KOFIA'),  -- 국고채 3.23%
-('2024-11-06', 'AAA',  60, 0.0355, 'KOFIA'),  -- 3.55%
-('2024-11-06', 'AA+',  60, 0.0362, 'KOFIA'),  -- 3.62%
-('2024-11-06', 'AA',   60, 0.0369, 'KOFIA'),  -- 3.69%
-('2024-11-06', 'AA-',  60, 0.0379, 'KOFIA'),  -- 3.79%
-('2024-11-06', 'A+',   60, 0.0451, 'KOFIA'),  -- 4.51%
-('2024-11-06', 'A',    60, 0.0495, 'KOFIA'),  -- 4.95%
-('2024-11-06', 'A-',   60, 0.0555, 'KOFIA'),  -- 5.55%
-('2024-11-06', 'BBB+', 60, 0.0744, 'KOFIA'),  -- 7.44%
-('2024-11-06', 'BBB',  60, 0.0849, 'KOFIA'),  -- 8.49%
-('2024-11-06', 'BBB-', 60, 0.0991, 'KOFIA');  -- 9.91%
+
+CREATE TABLE `failed_job` (
+                              `failed_job_id`   BIGINT       NOT NULL AUTO_INCREMENT COMMENT 'PK: 실패 작업 ID',
+                              `dedupe_key`      VARCHAR(200) NOT NULL COMMENT '중복 적재 방지 키',
+                              `job_type`        VARCHAR(50)  NOT NULL COMMENT '작업 유형',
+                              `status`          VARCHAR(20)  NOT NULL COMMENT '작업 상태',
+                              `target_id`       BIGINT       NULL COMMENT '재시도 대상 숫자 ID',
+                              `target_key`      VARCHAR(100) NULL COMMENT '재시도 대상 문자열 키',
+                              `target_date`     DATE         NULL COMMENT '재시도 대상 날짜',
+                              `payload`         JSON         NULL COMMENT '작업 파라미터 JSON',
+                              `error_code`      VARCHAR(50)  NULL COMMENT '마지막 실패 코드',
+                              `error_message`   VARCHAR(500) NULL COMMENT '마지막 실패 메시지',
+                              `retry_count`     INT          NOT NULL DEFAULT 0 COMMENT '재시도 횟수',
+                              `max_retry_count` INT          NOT NULL DEFAULT 5 COMMENT '최대 재시도 횟수',
+                              `next_retry_at`   DATETIME     NOT NULL COMMENT '다음 재시도 시각',
+                              `last_attempt_at` DATETIME     NULL COMMENT '마지막 시도 시각',
+                              `processed_at`    DATETIME     NULL COMMENT '최종 처리 완료 시각',
+                              `created_at`      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성 시각',
+                              `updated_at`      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '수정 시각',
+                              CONSTRAINT `PK_FAILED_JOB` PRIMARY KEY (`failed_job_id`),
+                              CONSTRAINT `UNQ_FAILED_JOB_DEDUPE` UNIQUE (`dedupe_key`),
+                              CONSTRAINT `CK_FAILED_JOB_TYPE` CHECK (`job_type` IN ('KIS_SPREAD', 'STOCK_PRICE', 'COMPANY_INIT')),
+                              CONSTRAINT `CK_FAILED_JOB_STATUS` CHECK (`status` IN ('PENDING', 'RETRYING', 'DONE', 'FAILED'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='재시도 대상 실패 작업 큐';
+
+CREATE INDEX `IDX_FAILED_JOB_STATUS_NEXT_RETRY`
+    ON `failed_job` (`status`, `next_retry_at`);
+
+CREATE INDEX `IDX_FAILED_JOB_TYPE_TARGET`
+    ON `failed_job` (`job_type`, `target_id`, `target_key`, `target_date`);
+

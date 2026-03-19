@@ -41,6 +41,8 @@ public class ManagementFacade {
         CrawlAllMarketsResult result = financialFacadeService.marketCrawling();
         // KE 회사채수익률 크롤링 및 저장
         financialFacadeService.crawlAndSaveBondYield(START_DATE, endDate);
+
+        log.info("STEP1 종료");
         return result;
     }
 

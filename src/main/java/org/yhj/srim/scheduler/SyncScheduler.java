@@ -30,4 +30,10 @@ public class SyncScheduler {
         log.info("[SCHED-FS] trigger");
         scheduledSyncFacade.syncAnnualFinancialStatements();
     }
+
+    @Scheduled(fixedDelayString = "${app.scheduler.bond-yield-retry.fixed-delay-ms:300000}", initialDelayString = "${app.scheduler.bond-yield-retry.initial-delay-ms:300000}")
+    public void retryFailedBondYields() {
+        log.info("[SCHED-BOND-RETRY] trigger");
+        scheduledSyncFacade.retryFailedBondYields();
+    }
 }
