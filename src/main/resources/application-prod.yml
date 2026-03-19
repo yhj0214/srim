@@ -20,3 +20,5 @@ dart:
 logging:
   level:
     org.yhj.srim: ${PROD_LOG_LEVEL:INFO}
+  file:
+    name: /app/logs/srim.log
