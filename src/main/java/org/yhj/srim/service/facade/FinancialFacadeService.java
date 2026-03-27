@@ -187,7 +187,7 @@ public class FinancialFacadeService {
         Long companyId = company.getCompanyId();
 
 
-        log.debug("전체 파이프라인 실행 - companyId={}, corpCode={}, year {}~{}",
+        log.info("재무정보 조회 전체 파이프라인 실행 - companyId={}, corpCode={}, year {}~{}",
                 companyId, corpCode, startYear, endYear);
 
         for (int year = endYear - 1; year >= startYear; year--) {
@@ -204,8 +204,8 @@ public class FinancialFacadeService {
             stockService.replaceShareStatus(company, year,shareStatusRows);
 
         }
-
-        financialService.updateCompanyShareInfo(companyId);
+        log.info("재무정보 크롤링 및 저장 완료");
+//        financialService.updateCompanyShareInfo(companyId);
     }
     public CrawlAllMarketsResult marketCrawling() {
         // 크롤링 및 데이터 추출
