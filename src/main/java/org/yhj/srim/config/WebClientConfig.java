@@ -7,11 +7,17 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.reactive.function.client.WebClient;
 
-import java.time.Duration;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.security.GeneralSecurityException;
+import java.security.SecureRandom;
 import java.util.List;
 
 @Configuration
@@ -35,17 +41,30 @@ public class WebClientConfig {
             @Value("${dart.api.connect-timeout-ms:3000}") long connectTimeoutMs,
             @Value("${dart.api.read-timeout-ms:10000}") long readTimeoutMs,
             @Value("${app.crawl.userAgent:Mozilla/5.0}") String userAgent
-    ) {
+    ) throws GeneralSecurityException {
 
         ClientHttpRequestInterceptor userAgentInterceptor = (request, body, execution) -> {
             request.getHeaders().set(HttpHeaders.USER_AGENT, userAgent);
             return execution.execute(request, body);
         };
 
+        SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
+        sslContext.init(null, null, new SecureRandom());
+
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory() {
+            @Override
+            protected void prepareConnection(HttpURLConnection connection, String httpMethod) throws IOException {
+                super.prepareConnection(connection, httpMethod);
+                if (connection instanceof HttpsURLConnection httpsConnection) {
+                    httpsConnection.setSSLSocketFactory(sslContext.getSocketFactory());
+                }
+            }
+        };
+        requestFactory.setConnectTimeout((int) connectTimeoutMs);
+        requestFactory.setReadTimeout((int) readTimeoutMs);
 
         return builder
-                .connectTimeout(Duration.ofMillis(connectTimeoutMs))
-                .readTimeout(Duration.ofMillis(readTimeoutMs))
+                .requestFactory(() -> requestFactory)
                 .additionalInterceptors(List.of(userAgentInterceptor))
                 .build();
     }
