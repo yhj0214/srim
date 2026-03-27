@@ -13,6 +13,7 @@ import org.yhj.srim.service.facade.ManagementFacade;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
 @WebMvcTest(controllers = KrxCrawlingApiController.class)
 class KrxCrawlingApiControllerTest {
@@ -42,7 +43,7 @@ class KrxCrawlingApiControllerTest {
     @Test
     @DisplayName("단일 종목 reset 요청에 성공한다.")
     void single_stock_reset_success() throws Exception {
-        mockMvc.perform(post("/api/crawling/krx/stocks/005930/reset"))
+        mockMvc.perform(get("/api/crawling/krx/stocks/005930/reset"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data").isEmpty());
