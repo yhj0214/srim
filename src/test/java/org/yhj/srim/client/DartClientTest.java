@@ -3,6 +3,7 @@ package org.yhj.srim.client;
 import lombok.extern.slf4j.Slf4j;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -17,6 +18,7 @@ import java.util.List;
 
 @SpringBootTest
 @Slf4j
+@Tag("manual") // 수동 테스트 (실제 API 호출이 필요한 테스트)
 @ActiveProfiles("test")
 class DartClientTest {
 
