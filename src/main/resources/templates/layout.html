@@ -6,7 +6,7 @@
     <title th:text="${title} ?: 'S-RIM'">S-RIM</title>
     <link rel="stylesheet" th:href="@{/css/app.css}">
 </head>
-<body>
+<body class="layout">
     <header class="topbar">
         <div class="topbar__inner">
             <a class="brand" th:href="@{/}">SRIM</a>
@@ -14,18 +14,17 @@
             <nav class="nav">
                 <a class="nav__link" th:href="@{/}">홈</a>
                 <a class="nav__link" th:href="@{/stocks}">종목 목록</a>
-                <a class="nav__link" th:href="@{/bond-yields}">회사채 수익률</a>
             </nav>
         </div>
     </header>
 
-    <main>
+    <main class="layout__main">
         <th:block th:replace="${content}"></th:block>
     </main>
 
 
-    <footer>
-        <small>© S-RIM</small>
+    <footer class="layout__footer">
+        <small class="layout__footerText">© S-RIM</small>
     </footer>
 
     <script type="module" th:src="@{/js/app/main.js}"></script>

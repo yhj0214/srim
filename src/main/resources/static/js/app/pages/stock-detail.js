@@ -1054,6 +1054,7 @@ export const StockDetailPage = {
         const maxValue = Math.max(...perValues);
         const minValue = Math.min(...perValues);
         const range = Math.max(1, maxValue - minValue);
+        const guidePerValue = 10;
 
         const yFor = (v) =>
             padding.top + ((maxValue - v) / range) * plotHeight;
@@ -1077,6 +1078,23 @@ export const StockDetailPage = {
             const text = formatPerValue(v);
             ctx.fillText(text, 6, y + (i === 0 ? 4 : 3));
         });
+
+        if (guidePerValue >= minValue && guidePerValue <= maxValue) {
+            const guideY = yFor(guidePerValue);
+            ctx.save();
+            ctx.setLineDash([6, 4]);
+            ctx.strokeStyle = "#f59e0b";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(padding.left, guideY);
+            ctx.lineTo(width - padding.right, guideY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = "#b45309";
+            ctx.font = "11px sans-serif";
+            ctx.fillText("PER 10", padding.left + 6, guideY - 6);
+            ctx.restore();
+        }
 
         const count = viewData.length;
         const gap = plotWidth / Math.max(1, count);

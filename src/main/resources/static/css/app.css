@@ -16,6 +16,12 @@ body{
     background:var(--bg);
 }
 
+.layout{
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
 .topbar{
     background: var(--topbar);
     color:#fff;
@@ -49,6 +55,24 @@ main{
     max-width: var(--max);
     margin: 0 auto;
     padding: 42px 18px 60px;
+}
+
+.layout__main{
+    width: 100%;
+    flex: 1 0 auto;
+}
+
+.layout__footer{
+    width: 100%;
+    padding: 20px 18px 28px;
+    text-align: center;
+    color: var(--muted);
+    flex-shrink: 0;
+}
+
+.layout__footerText{
+    display: inline-block;
+    font-size: 13px;
 }
 
 .hero{
