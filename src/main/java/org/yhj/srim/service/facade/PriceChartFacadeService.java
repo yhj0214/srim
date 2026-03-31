@@ -35,6 +35,7 @@ public class PriceChartFacadeService {
     private static final String DEFAULT_RATING = "BBB-";
     private static final Short DEFAULT_TENOR_MONTHS = 60;
     private static final String METRIC_EPS = "EPS";
+    private static final String METRIC_BPS = "BPS";
 
     private final BondYieldCurveRepository bondYieldCurveRepository;
     private final FinPeriodRepository finPeriodRepository;
@@ -95,12 +96,13 @@ public class PriceChartFacadeService {
         Map<LocalDate, SrimResultDto> srimByDate =
                 calculateSrimForDates(companyId, stockPrices);
 
-        // 4-1. 일별 PER 계산용 EPS 맵 구성 (주가 연도 → 전년도 EPS)
-        Map<Integer, BigDecimal> epsByYear = buildEpsByYear(companyId, stockPrices);
+        // 4-1. 일별 PER/PBR 계산용 재무지표 맵 구성 (주가 연도 → 전년도 EPS/BPS)
+        Map<Integer, BigDecimal> epsByYear = buildMetricByYear(companyId, stockPrices, METRIC_EPS);
+        Map<Integer, BigDecimal> bpsByYear = buildMetricByYear(companyId, stockPrices, METRIC_BPS);
         // 5. DTO 변환 (주가 + 적정주가 결합)
         List<StockPriceDto.PriceData> priceDataList =
                 stockPrices.stream()
-                        .map(sp -> convertToPriceData(sp, srimByDate, epsByYear))
+                        .map(sp -> convertToPriceData(sp, srimByDate, epsByYear, bpsByYear))
                         .toList();
 
         log.info("PriceChart 조회 완료 - 응답 데이터 개수: {}", priceDataList.size());
@@ -321,7 +323,8 @@ public class PriceChartFacadeService {
      */
     private StockPriceDto.PriceData convertToPriceData(StockPrice stockPrice,
                                                        Map<LocalDate, SrimResultDto> srimByDate,
-                                                       Map<Integer, BigDecimal> epsByYear) {
+                                                       Map<Integer, BigDecimal> epsByYear,
+                                                       Map<Integer, BigDecimal> bpsByYear) {
 
         // tradeDate 사용
         LocalDate tradeDate = stockPrice.getTradeDate();
@@ -343,16 +346,10 @@ public class PriceChartFacadeService {
         } else {
             log.debug("주가에 대한 S-RIM 데이터 없음 (date: {})", tradeDate);
         }
-
-
-        BigDecimal per = null;
         BigDecimal close = stockPrice.getPrice();
-        if (close != null) {
-            BigDecimal eps = epsByYear.get(tradeDate.getYear() - 1);
-            if (eps != null && eps.compareTo(BigDecimal.ZERO) != 0) {
-                per = close.divide(eps, 2, RoundingMode.HALF_UP);
-            }
-        }
+        int baseYear = tradeDate.getYear() - 1;
+        BigDecimal per = calculateRatio(close, epsByYear.get(baseYear));
+        BigDecimal pbr = calculateRatio(close, bpsByYear.get(baseYear));
 
         StockPriceDto.PriceData.PriceDataBuilder builder =
                 StockPriceDto.PriceData.builder()
@@ -362,7 +359,8 @@ public class PriceChartFacadeService {
                         .low(stockPrice.getLowPrice())
                         .close(close)        // 종가
                         .volume(stockPrice.getVolume())
-                        .per(per);
+                        .per(per)
+                        .pbr(pbr);
         // S-RIM 계산 실패 또는 데이터 없음 -> fv 필드는 설정하지 않음(null)
         if (srim == null) {
             log.debug("S-RIM 데이터 없음 (date={})", tradeDate);
@@ -384,7 +382,16 @@ public class PriceChartFacadeService {
         }
     }
 
-    private Map<Integer, BigDecimal> buildEpsByYear(Long companyId, List<StockPrice> stockPrices) {
+    private BigDecimal calculateRatio(BigDecimal numerator, BigDecimal denominator) {
+        if (numerator == null || denominator == null || denominator.compareTo(BigDecimal.ZERO) == 0) {
+            return null;
+        }
+        return numerator.divide(denominator, 2, RoundingMode.HALF_UP);
+    }
+
+    private Map<Integer, BigDecimal> buildMetricByYear(Long companyId,
+                                                       List<StockPrice> stockPrices,
+                                                       String metricCode) {
         if (stockPrices.isEmpty()) return Collections.emptyMap();
 
         LocalDate firstDate = stockPrices.get(0).getTradeDate();
@@ -414,31 +421,31 @@ public class PriceChartFacadeService {
 
         if (periodIds.isEmpty()) return Collections.emptyMap();
 
-        List<FinMetricValue> epsValues = finMetricValueRepository
-                .findByCompanyIdAndPeriodIdsAndMetricCode(companyId, periodIds, METRIC_EPS);
-        Map<Long, BigDecimal> epsByPeriodId = new HashMap<>();
-        for (FinMetricValue v : epsValues) {
+        List<FinMetricValue> metricValues = finMetricValueRepository
+                .findByCompanyIdAndPeriodIdsAndMetricCode(companyId, periodIds, metricCode);
+        Map<Long, BigDecimal> metricByPeriodId = new HashMap<>();
+        for (FinMetricValue v : metricValues) {
             Long pid = v.getPeriod() != null ? v.getPeriod().getPeriodId() : null;
             if (pid == null) continue;
-            epsByPeriodId.put(pid, v.getValueNum());
+            metricByPeriodId.put(pid, v.getValueNum());
         }
 
-        Map<Integer, BigDecimal> epsByYear = new HashMap<>();
+        Map<Integer, BigDecimal> metricByYear = new HashMap<>();
         for (int year = minYear; year <= maxYear; year++) {
-            BigDecimal eps = null;
+            BigDecimal metricValue = null;
             for (int y = year; y >= minPeriodYear; y--) {
                 FinPeriod period = periodByYear.get(y);
                 if (period == null || period.getPeriodId() == null) continue;
-                BigDecimal value = epsByPeriodId.get(period.getPeriodId());
+                BigDecimal value = metricByPeriodId.get(period.getPeriodId());
                 if (value != null && value.compareTo(BigDecimal.ZERO) != 0) {
-                    eps = value;
+                    metricValue = value;
                     break;
                 }
             }
-            if (eps == null) continue;
-            epsByYear.put(year, eps);
+            if (metricValue == null) continue;
+            metricByYear.put(year, metricValue);
         }
 
-        return epsByYear;
+        return metricByYear;
     }
 }

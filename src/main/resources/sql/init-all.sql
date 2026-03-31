@@ -373,11 +373,12 @@ INSERT INTO fin_metric_def (metric_code, name_kor, unit, display_order, descript
     ('BPS',             'BPS',          'KRW',  107, '주당순자산'),
     ('QUICK_RATIO',     '유동비율',     '%',    108, '유동자산 / 유동부채'),
     ('PER',             'PER',          '배',   109, '주가 / EPS'),
-    ('PBR',             'PBR',          '배',   110, '주가 / BPS'),
-    ('DPS',             'DPS',          'KRW',  111, '주당배당금'),
-    ('DIVIDEND_YIELD',  '시가배당률',   '%',    112, 'DPS / 주가 * 100'),
-    ('PAYOUT_RATIO',    '배당성향',     '%',    113, '배당금총액 / 당기순이익 * 100'),
-    ('RETENTION_RATIO', '유보율',       '%',    114, '이익잉여금 / 자본총계 또는 (1-배당성향)');
+    ('PBR',             'PBR',          '배',   110, '주가 / BPS');
+
+-- ('DPS',             'DPS',          'KRW',  111, '주당배당금'),
+--     ('DIVIDEND_YIELD',  '시가배당률',   '%',    112, 'DPS / 주가 * 100'),
+--     ('PAYOUT_RATIO',    '배당성향',     '%',    113, '배당금총액 / 당기순이익 * 100'),
+--     ('RETENTION_RATIO', '유보율',       '%',    114, '이익잉여금 / 자본총계 또는 (1-배당성향)')
 
 CREATE TABLE `failed_job` (
                               `failed_job_id`   BIGINT       NOT NULL AUTO_INCREMENT COMMENT 'PK: 실패 작업 ID',

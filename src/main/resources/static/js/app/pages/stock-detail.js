@@ -420,6 +420,7 @@ export const StockDetailPage = {
         this._initChartState(container, "2w");
         container.__chartRoot = root;
         this._renderMetricShell();
+        this._bindMetricToggles(container);
         await this._fetchAndRenderChart(root, container, "3y", "2w");
     },
 
@@ -469,11 +470,17 @@ export const StockDetailPage = {
         container.dataset.loaded = "true";
         container.innerHTML = `
             <div class="metricChartCard">
-                <h3 class="metricChartTitle">PER 추이</h3>
-                <div class="chartCanvasWrap">
-                    <canvas class="metricChartCanvas" data-chart="per-line"></canvas>
+                <div class="chartHead">
+                    <h3 class="metricChartTitle" data-metric-title>PER 추이</h3>
+                    <div class="chartControls">
+                        <button class="chartRangeBtn is-active" type="button" data-metric-mode="per">PER</button>
+                        <button class="chartRangeBtn" type="button" data-metric-mode="pbr">PBR</button>
+                    </div>
                 </div>
-                <div class="chartNote">일별 PER = 종가 / 전년도 EPS</div>
+                <div class="chartCanvasWrap">
+                    <canvas class="metricChartCanvas" data-chart="metric-line"></canvas>
+                </div>
+                <div class="chartNote" data-metric-note>일별 PER = 종가 / 전년도 EPS</div>
             </div>
         `;
     },
@@ -538,7 +545,7 @@ export const StockDetailPage = {
 
         const render = () => {
             this._renderCandleChart(canvas, container);
-            this._renderPerChart(container);
+            this._renderMetricChart(container);
         };
         render();
 
@@ -563,6 +570,7 @@ export const StockDetailPage = {
         container.__chartFetchedRanges = new Set();
         container.__chartLastPrefetchAt = 0;
         container.__chartShowSrim = true;
+        container.__chartMetricMode = "per";
     },
 
     _bindChartToggle(container) {
@@ -575,6 +583,48 @@ export const StockDetailPage = {
             this._renderCharts(container);
         });
         toggle.dataset.bound = "true";
+    },
+
+    _bindMetricToggles(container) {
+        const metricContainer = qs("#metricChartContainer");
+        if (!metricContainer || metricContainer.dataset.toggleBound === "true") return;
+
+        const buttons = qsa("[data-metric-mode]", metricContainer);
+        buttons.forEach((button) => {
+            button.addEventListener("click", () => {
+                const mode = button.dataset.metricMode === "pbr" ? "pbr" : "per";
+                if (container.__chartMetricMode === mode) return;
+                container.__chartMetricMode = mode;
+                this._syncMetricControls(container);
+                this._renderCharts(container);
+            });
+        });
+
+        metricContainer.dataset.toggleBound = "true";
+        this._syncMetricControls(container);
+    },
+
+    _syncMetricControls(container) {
+        const metricContainer = qs("#metricChartContainer");
+        if (!metricContainer) return;
+
+        const mode = container.__chartMetricMode === "pbr" ? "pbr" : "per";
+        const title = qs("[data-metric-title]", metricContainer);
+        const note = qs("[data-metric-note]", metricContainer);
+        const buttons = qsa("[data-metric-mode]", metricContainer);
+
+        buttons.forEach((button) => {
+            button.classList.toggle("is-active", button.dataset.metricMode === mode);
+        });
+
+        if (title) {
+            title.textContent = mode === "pbr" ? "PBR 추이" : "PER 추이";
+        }
+        if (note) {
+            note.textContent = mode === "pbr"
+                ? "일별 PBR = 종가 / 전년도 BPS"
+                : "일별 PER = 종가 / 전년도 EPS";
+        }
     },
 
     _mergeChartData(container, priceData) {
@@ -1012,13 +1062,13 @@ export const StockDetailPage = {
         const canvas = qs('canvas[data-chart="price-candle"]', container);
         if (!canvas) return;
         this._renderCandleChart(canvas, container);
-        this._renderPerChart(container);
+        this._renderMetricChart(container);
     },
 
-    _renderPerChart(container) {
+    _renderMetricChart(container) {
         const metricContainer = qs("#metricChartContainer");
         if (!metricContainer) return;
-        const canvas = qs('canvas[data-chart="per-line"]', metricContainer);
+        const canvas = qs('canvas[data-chart="metric-line"]', metricContainer);
         if (!canvas) return;
 
         const viewData = container.__chartViewData || [];
@@ -1041,20 +1091,24 @@ export const StockDetailPage = {
         const plotHeight = height - padding.top - padding.bottom;
         if (plotWidth <= 0 || plotHeight <= 0) return;
 
-        const perValues = viewData
-            .map((d) => Number(d?.per))
+        const mode = container.__chartMetricMode === "pbr" ? "pbr" : "per";
+        const activeSeries = mode === "pbr"
+            ? { key: "pbr", label: "PBR", color: "#dc2626", guideValue: 1, guideLabel: "PBR 1" }
+            : { key: "per", label: "PER", color: "#2563eb", guideValue: 10, guideLabel: "PER 10" };
+
+        const metricValues = viewData
+            .map((d) => Number(d?.[activeSeries.key]))
             .filter((v) => Number.isFinite(v));
-        if (perValues.length === 0) {
+        if (metricValues.length === 0) {
             ctx.fillStyle = "#6b7280";
             ctx.font = "12px sans-serif";
-            ctx.fillText("PER 데이터 없음", padding.left, padding.top + 12);
+            ctx.fillText(`${activeSeries.label} 데이터 없음`, padding.left, padding.top + 12);
             return;
         }
 
-        const maxValue = Math.max(...perValues);
-        const minValue = Math.min(...perValues);
+        const maxValue = Math.max(...metricValues);
+        const minValue = Math.min(...metricValues);
         const range = Math.max(1, maxValue - minValue);
-        const guidePerValue = 10;
 
         const yFor = (v) =>
             padding.top + ((maxValue - v) / range) * plotHeight;
@@ -1079,8 +1133,8 @@ export const StockDetailPage = {
             ctx.fillText(text, 6, y + (i === 0 ? 4 : 3));
         });
 
-        if (guidePerValue >= minValue && guidePerValue <= maxValue) {
-            const guideY = yFor(guidePerValue);
+        if (activeSeries.guideValue >= minValue && activeSeries.guideValue <= maxValue) {
+            const guideY = yFor(activeSeries.guideValue);
             ctx.save();
             ctx.setLineDash([6, 4]);
             ctx.strokeStyle = "#f59e0b";
@@ -1092,21 +1146,21 @@ export const StockDetailPage = {
             ctx.setLineDash([]);
             ctx.fillStyle = "#b45309";
             ctx.font = "11px sans-serif";
-            ctx.fillText("PER 10", padding.left + 6, guideY - 6);
+            ctx.fillText(activeSeries.guideLabel, padding.left + 6, guideY - 6);
             ctx.restore();
         }
 
         const count = viewData.length;
         const gap = plotWidth / Math.max(1, count);
-        ctx.strokeStyle = "#2563eb";
+        ctx.strokeStyle = activeSeries.color;
         ctx.lineWidth = 2;
         ctx.beginPath();
         let started = false;
         viewData.forEach((d, idx) => {
-            const per = Number(d?.per);
-            if (!Number.isFinite(per)) return;
+            const metricValue = Number(d?.[activeSeries.key]);
+            if (!Number.isFinite(metricValue)) return;
             const x = padding.left + idx * gap + gap / 2;
-            const y = yFor(per);
+            const y = yFor(metricValue);
             if (!started) {
                 ctx.moveTo(x, y);
                 started = true;
