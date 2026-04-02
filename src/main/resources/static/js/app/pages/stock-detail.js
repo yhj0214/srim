@@ -147,11 +147,11 @@ export const StockDetailPage = {
         const calcExcessEarnings = formatNumber(baseScenario?.excessEarnings);
         const calcFairValue = formatNumber(baseScenario?.fairValuePerShare);
         const calcEquity = formatNumber(data?.equity);
-        const calcKe = formatPercent(data?.ke);
+        const calcKe = formatRatePercent(data?.ke);
         const calcRoe = formatPercent(data?.roePercent);
         const calcShares = formatNumber(data?.sharesOutstanding);
 
-        const keChip = `<span class="chip chip--neutral">Ke ${formatPercent(data?.ke)}</span>`;
+        const keChip = `<span class="chip chip--neutral">Ke ${formatRatePercent(data?.ke)}</span>`;
         const yearChip = data?.year ? `<span class="chip chip--muted">${escapeHtml(data.year)}년</span>` : "";
         const priceChip = data?.currentPrice
             ? `<span class="chip chip--dark">현재가 ${formatNumber(data?.currentPrice)}원</span>`
@@ -176,7 +176,7 @@ export const StockDetailPage = {
                                 <tr>
                                     <th class="srimTable__head">시나리오</th>
                                     <th class="srimTable__head">적정주가(원)</th>
-                                    <th class="srimTable__head">기업가치(백만원)</th>
+                                    <th class="srimTable__head">기업가치(원)</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -202,11 +202,11 @@ export const StockDetailPage = {
                         <tbody>
                             <tr>
                                 <th class="srimTable__rowHead">기업가치 = 지배주주지분 + (초과이익 / 할인율)</th>
-                                <td class="srimTable__cell">${calcEnterpriseValue} (백만원)</td>
+                                <td class="srimTable__cell">${calcEnterpriseValue}원</td>
                             </tr>
                             <tr>
                                 <th class="srimTable__rowHead">초과이익 = 자기자본 × (가중평균 ROE − 할인율)</th>
-                                <td class="srimTable__cell">${calcExcessEarnings} (백만원)</td>
+                                <td class="srimTable__cell">${calcExcessEarnings}원</td>
                             </tr>
                             <tr>
                                 <th class="srimTable__rowHead">ROE = 당기순이익 / 평균자기자본</th>
@@ -221,7 +221,7 @@ export const StockDetailPage = {
                 </div>
                 <div class="srimCalcNote">
                     기준 시나리오: ${escapeHtml(baseScenarioLabel)} ·
-                    지배주주지분 ${calcEquity} (백만원) ·
+                    지배주주지분 ${calcEquity}원 ·
                     할인율 ${calcKe} ·
                     유통주식수 ${calcShares}주
                 </div>
@@ -242,11 +242,11 @@ export const StockDetailPage = {
                                 </tr>
                                 <tr>
                                     <th class="srimTable__rowHead">지배주주지분</th>
-                                    <td class="srimTable__cell">${formatNumber(data?.equity)} (백만원)</td>
+                                    <td class="srimTable__cell">${formatNumber(data?.equity)}원</td>
                                 </tr>
                                 <tr>
                                     <th class="srimTable__rowHead">할인율(Ke)</th>
-                                    <td class="srimTable__cell">${formatPercent(data?.ke)}</td>
+                                    <td class="srimTable__cell">${formatRatePercent(data?.ke)}</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -1280,6 +1280,12 @@ function formatPercent(v) {
     const n = Number(v);
     if (!Number.isFinite(n)) return "-";
     return n.toFixed(2) + "%";
+}
+
+function formatRatePercent(v) {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return "-";
+    return (n * 100).toFixed(2) + "%";
 }
 
 function formatFinancialValue(v) {
