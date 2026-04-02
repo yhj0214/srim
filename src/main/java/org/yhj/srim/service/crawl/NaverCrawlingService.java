@@ -10,6 +10,7 @@ import org.yhj.srim.service.crawl.parser.NaverPriceParser;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -75,5 +76,16 @@ public class NaverCrawlingService {
                 tickerKrx, start, end, lastPage, result.size());
 
         return result;
+    }
+
+    public Optional<DaliyPrice> fetchLatestPrice(String tickerKrx) {
+        String content = naverPriceHttpClient.getDailyPricePage(tickerKrx, 1);
+        List<DaliyPrice> pagePrices = naverPriceParser.parse(content);
+        if (pagePrices.isEmpty()) {
+            return Optional.empty();
+        }
+        return pagePrices.stream()
+                .filter(price -> price != null && price.getDate() != null)
+                .findFirst();
     }
 }

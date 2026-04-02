@@ -53,7 +53,11 @@ public class PriceChartFacadeService {
      */
     public StockPriceDto getPriceChart(Long companyId, LocalDate startDate, LocalDate endDate) {
 
-        LocalDate end = (endDate != null) ? endDate : LocalDate.now();
+        LocalDate today = LocalDate.now();
+        LocalDate requestedEnd = (endDate != null) ? endDate : today;
+        boolean shouldAppendTodayPrice = !requestedEnd.isBefore(today);
+
+        LocalDate end = requestedEnd;
         LocalDate start = (startDate != null) ? startDate : end.minusYears(1);
 
         if (start.isBefore(MIN_AVAILABLE_DATE)) {
@@ -80,9 +84,10 @@ public class PriceChartFacadeService {
             return StockPriceDto.builder().priceData(List.of()).build();
         }
 
-        // 3. DB에서 주가 데이터 조회 (tradeDate 기준)
-        List<StockPrice> stockPrices = stockPriceService
-                .findPricesByCompanyIdAndTradeDateBetween(companyId, start, end);
+        List<StockPrice> stockPrices = new ArrayList<>(
+                stockPriceService.findPricesByCompanyIdAndTradeDateBetween(companyId, start, end)
+        );
+        appendTodayPriceIfNeeded(companyId, shouldAppendTodayPrice, today, stockPrices);
         log.info("조회된 주가 데이터 개수: {}", stockPrices.size());
 
         if (stockPrices.isEmpty()) {
@@ -110,6 +115,34 @@ public class PriceChartFacadeService {
         return StockPriceDto.builder()
                 .priceData(priceDataList)
                 .build();
+    }
+
+    private void appendTodayPriceIfNeeded(Long companyId,
+                                          boolean shouldAppendTodayPrice,
+                                          LocalDate today,
+                                          List<StockPrice> stockPrices) {
+        if (!shouldAppendTodayPrice) {
+            return;
+        }
+
+        boolean alreadyContainsToday = stockPrices.stream()
+                .anyMatch(price -> today.equals(price.getTradeDate()));
+        if (alreadyContainsToday) {
+            return;
+        }
+
+        String tickerKrx = stockPriceService.findTickerKrxByCompanyId(companyId);
+        try {
+            Optional<DaliyPrice> latestPrice = naverCrawlingService.fetchLatestPrice(tickerKrx);
+            if (latestPrice.isEmpty() || !today.equals(latestPrice.get().getDate())) {
+                return;
+            }
+
+            stockPrices.add(toTransientStockPrice(latestPrice.get()));
+            stockPrices.sort(Comparator.comparing(StockPrice::getTradeDate));
+        } catch (Exception e) {
+            log.warn("오늘 주가 보정 실패 - companyId={}, ticker={}: {}", companyId, tickerKrx, e.getMessage());
+        }
     }
 
     /**
@@ -183,6 +216,18 @@ public class PriceChartFacadeService {
         String tickerKrx = stockPriceService.findTickerKrxByCompanyId(companyId);
         List<DaliyPrice> dailyPrices = naverCrawlingService.fetchDailyPrices(tickerKrx, start, end);
         return stockPriceService.savePrices(companyId, dailyPrices);
+    }
+
+    private StockPrice toTransientStockPrice(DaliyPrice dailyPrice) {
+        return StockPrice.builder()
+                .tradeDate(dailyPrice.getDate())
+                .price(dailyPrice.getClose())
+                .openPrice(dailyPrice.getOpen())
+                .highPrice(dailyPrice.getHigh())
+                .lowPrice(dailyPrice.getLow())
+                .volume(dailyPrice.getVolume())
+                .source(StockPrice.MarketSnapshotSource.NAVER)
+                .build();
     }
 
     /**
