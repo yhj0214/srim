@@ -11,9 +11,11 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriUtils;
 import org.yhj.srim.common.exception.CustomException;
+import org.yhj.srim.service.domain.CompanyViewService;
 import org.yhj.srim.service.domain.StockService;
 import org.yhj.srim.service.dto.StockDto;
 
+import jakarta.servlet.http.HttpSession;
 import java.nio.charset.StandardCharsets;
 
 @Controller
@@ -22,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 @Slf4j
 public class StockViewController {
 
+    private final CompanyViewService companyViewService;
     private final StockService stockService;
 
     /**
@@ -51,10 +54,12 @@ public class StockViewController {
     public String detail(
             @PathVariable String market,
             @PathVariable String ticker,
+            HttpSession session,
             Model model) {
         
         try {
             StockDto stock = stockService.getByTicker(market, ticker);
+            companyViewService.recordView(stock.getCompanyId(), session.getId());
             log.debug(stock.toString());
             model.addAttribute("stock", stock);
             return "stock-detail";

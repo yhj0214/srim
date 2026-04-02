@@ -9,12 +9,15 @@ import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 import org.yhj.srim.controller.dto.ApiResponse;
+import org.yhj.srim.service.domain.CompanyViewService;
 import org.yhj.srim.service.facade.PriceChartFacadeService;
 import org.yhj.srim.service.domain.StockService;
+import org.yhj.srim.service.dto.PopularStockDto;
 import org.yhj.srim.service.dto.StockDto;
 import org.yhj.srim.service.dto.StockPriceDto;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/stocks")
@@ -22,6 +25,7 @@ import java.time.LocalDate;
 @Slf4j
 public class StockApiController {
 
+    private final CompanyViewService companyViewService;
     private final StockService stockService;
     private final PriceChartFacadeService priceChartFacadeService;
 
@@ -59,6 +63,13 @@ public class StockApiController {
 
         StockDto stock = stockService.getByTicker(market, ticker);
         return ApiResponse.success(stock);
+    }
+
+    @GetMapping("/popular")
+    public ApiResponse<List<PopularStockDto>> getPopularStocks(
+            @RequestParam(defaultValue = "7") int days,
+            @RequestParam(defaultValue = "10") int limit) {
+        return ApiResponse.success(companyViewService.findPopularStocks(days, limit));
     }
     
     /**

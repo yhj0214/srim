@@ -64,6 +64,21 @@ CREATE TABLE `stock_price` (
     CONSTRAINT `CK_MS_SOURCE`       CHECK (`source` IN ('NAVER','KRX','FNG','CSV','MANUAL'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='시세 스냅샷(가격/시총/밸류 지표 히스토리)';
 
+CREATE TABLE `company_view_event` (
+    `view_event_id` BIGINT       NOT NULL AUTO_INCREMENT COMMENT 'PK: 조회 이벤트 ID',
+    `company_id`    BIGINT       NOT NULL COMMENT 'FK → company.company_id',
+    `session_id`    VARCHAR(128) NOT NULL COMMENT '세션 식별자',
+    `viewed_at`     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '조회 시각',
+    CONSTRAINT `PK_COMPANY_VIEW_EVENT` PRIMARY KEY (`view_event_id`),
+    CONSTRAINT `FK_CVE_COMPANY` FOREIGN KEY (`company_id`) REFERENCES `company`(`company_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='회사 상세 조회 이벤트';
+
+CREATE INDEX `IDX_CVE_COMPANY_VIEWED_AT`
+    ON `company_view_event` (`company_id`, `viewed_at`);
+
+CREATE INDEX `IDX_CVE_SESSION_COMPANY_VIEWED_AT`
+    ON `company_view_event` (`session_id`, `company_id`, `viewed_at`);
+
 /* 4) 재무 기간 */
 CREATE TABLE `fin_period` (
     `period_id`      BIGINT       NOT NULL AUTO_INCREMENT COMMENT 'PK: 기간 ID',

@@ -7,7 +7,7 @@
     b는 a안에 정의돈 fragment 이름 th:fragment="b"
  -->
 <body>
-<section class="hero" data-page="home">
+<section class="hero" data-page="home" data-api-popular="/api/stocks/popular?days=7&limit=10">
 
     <div class="hero__logo">
         <svg class="logoIcon" viewBox="0 0 64 64" aria-hidden="true">
@@ -44,6 +44,17 @@
     <p id="homeSearchHint" class="hint" style="display:none;">
         검색어를 입력하세요.
     </p>
+
+    <section class="popularStocks" aria-labelledby="popularStocksTitle">
+        <div class="popularStocks__head">
+            <h2 id="popularStocksTitle" class="popularStocks__title">인기 종목</h2>
+            <p class="popularStocks__subtitle">최근 조회가 많은 회사 기준</p>
+        </div>
+
+        <div id="popularStocksContainer" class="popularStocks__grid">
+            <div class="popularStocks__empty">인기 종목을 불러오는 중입니다.</div>
+        </div>
+    </section>
 
 </section>
 </body>

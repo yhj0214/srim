@@ -18,6 +18,10 @@ public interface CompanyRepository extends JpaRepository<Company, Long> {
     @Query("SELECT c FROM Company c ORDER BY c.companyId ASC")
     List<Company> findAllWithStockCode();
 
+    @EntityGraph(attributePaths = "stockCode")
+    @Query("SELECT c FROM Company c WHERE c.companyId IN :companyIds")
+    List<Company> findAllWithStockCodeByCompanyIdIn(@Param("companyIds") List<Long> companyIds);
+
     /**
      * StockCode의 ID로 Company 조회
      */
