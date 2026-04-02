@@ -93,6 +93,24 @@ public class StockPrice {
         }
     }
 
+    public void updateDailySnapshot(
+            LocalDateTime asOf,
+            BigDecimal price,
+            BigDecimal openPrice,
+            BigDecimal highPrice,
+            BigDecimal lowPrice,
+            Long volume,
+            MarketSnapshotSource source
+    ) {
+        this.asOf = asOf;
+        this.price = price;
+        this.openPrice = openPrice;
+        this.highPrice = highPrice;
+        this.lowPrice = lowPrice;
+        this.volume = volume;
+        this.source = source;
+    }
+
     public enum MarketSnapshotSource {
         NAVER,
         KRX,

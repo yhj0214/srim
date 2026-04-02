@@ -25,6 +25,7 @@ app:
     zone: Asia/Seoul
     price:
       cron: "0 0 3 * * *"
+      backfill-days: 3
     bond-yield:
       cron: "0 30 3 * * *"
     bond-yield-retry:

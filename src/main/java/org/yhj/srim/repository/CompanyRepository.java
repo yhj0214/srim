@@ -1,6 +1,7 @@
 package org.yhj.srim.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -8,9 +9,14 @@ import org.yhj.srim.repository.entity.Company;
 import org.yhj.srim.repository.entity.StockCode;
 
 import java.util.Optional;
+import java.util.List;
 
 @Repository
 public interface CompanyRepository extends JpaRepository<Company, Long> {
+
+    @EntityGraph(attributePaths = "stockCode")
+    @Query("SELECT c FROM Company c ORDER BY c.companyId ASC")
+    List<Company> findAllWithStockCode();
 
     /**
      * StockCode의 ID로 Company 조회

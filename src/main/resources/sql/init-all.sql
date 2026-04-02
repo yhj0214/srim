@@ -60,6 +60,7 @@ CREATE TABLE `stock_price` (
     `created_at`     DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '행 생성시각',
     CONSTRAINT `PK_STOCK_PRICE` PRIMARY KEY (`price_id`),
     CONSTRAINT `FK_MS_COMPANY`      FOREIGN KEY (`company_id`) REFERENCES `company`(`company_id`),
+    CONSTRAINT `UN_STOCK_PRICE_COMPANY_DATE` UNIQUE (`company_id`, `trade_date`),
     CONSTRAINT `CK_MS_SOURCE`       CHECK (`source` IN ('NAVER','KRX','FNG','CSV','MANUAL'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='시세 스냅샷(가격/시총/밸류 지표 히스토리)';
 
