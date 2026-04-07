@@ -81,19 +81,20 @@ public class FinancialService {
         return getFinancialTable(company, limit, PeriodType.ANNUAL);
     }
 
-    private FinPeriod saveOrUpdatePeriod(Long companyId, int fiscalYear, int fiscalMonth, boolean isQuarter) {
+    private FinPeriod saveOrUpdatePeriod(Long companyId, DartReportType reportType, int fiscalYear) {
         Company company = companyRepository.findById(companyId)
                 .orElseThrow(() -> new CustomException(StockError.COMPANY_NOT_FOUND, "companyId=" + companyId));
 
-        String periodType = "YEAR"; // 사업보고서는 연간 데이터
-        Integer fiscalQuarter = null;
+        String periodType = reportType.periodType();
+        Integer fiscalQuarter = reportType.fiscalQuarter();
 
         Optional<FinPeriod> existing = finPeriodRepository
-                .findByCompany_CompanyIdAndPeriodTypeAndFiscalYearAndFiscalQuarter(
-                        companyId, periodType, fiscalYear, fiscalQuarter);
+                .findByCompany_CompanyIdAndPeriodTypeAndFiscalYearAndFiscalQuarterAndIsEstimate(
+                        companyId, periodType, fiscalYear, fiscalQuarter, false);
 
         if (existing.isPresent()) {
-            log.debug("기존 기간 사용: {}년", fiscalYear);
+            log.debug("기존 기간 사용: companyId={}, type={}, year={}, quarter={}",
+                    companyId, periodType, fiscalYear, fiscalQuarter);
             return existing.get();
         }
 
@@ -102,14 +103,15 @@ public class FinancialService {
                 .periodType(periodType)
                 .fiscalYear(fiscalYear)
                 .fiscalQuarter(fiscalQuarter)
-                .periodStart(LocalDate.of(fiscalYear, 1, 1))
-                .periodEnd(LocalDate.of(fiscalYear, 12, 31))
-                .label(fiscalYear + ".12") // YYYY.12 형식으로 통일
+                .periodStart(reportType.periodStart(fiscalYear))
+                .periodEnd(reportType.periodEnd(fiscalYear))
+                .label(reportType.periodLabel(fiscalYear))
                 .isEstimate(false)
                 .build();
 
         FinPeriod saved = finPeriodRepository.save(period);
-        log.debug("새 기간 저장: {}년", fiscalYear);
+        log.debug("새 기간 저장: companyId={}, type={}, year={}, quarter={}",
+                companyId, periodType, fiscalYear, fiscalQuarter);
         return saved;
     }
 
@@ -404,6 +406,13 @@ public class FinancialService {
     }
 
     @Transactional(readOnly = true)
+    public Optional<FinPeriod> findQuarterPeriod(Long companyId, int fiscalYear, int fiscalQuarter) {
+        return finPeriodRepository.findByCompany_CompanyIdAndPeriodTypeAndFiscalYearAndFiscalQuarterAndIsEstimate(
+                companyId, "QTR", fiscalYear, fiscalQuarter, false
+        );
+    }
+
+    @Transactional(readOnly = true)
     public Optional<BigDecimal> findMetricValue(Long companyId, FinPeriod period, String metricCode) {
         return finMetricValueRepository.findByCompanyIdAndPeriodAndMetricCode(companyId, period, metricCode)
                 .map(FinMetricValue::getValueNum);
@@ -470,13 +479,54 @@ public class FinancialService {
     }
 
     FsRawBundle loadRawBundle(Long companyId, int fiscalYear) {
-        List<DartFsLine> lines = dartFsLineRepository.findByFiling_CompanyIdAndFiling_BsnsYear(companyId, fiscalYear);
-        if (lines.isEmpty()) {
-            log.warn("재무제표 라인 데이터가 없습니다. companyId={}, year={}", companyId, fiscalYear);
+        FinPeriod period = findAnnualPeriod(companyId, fiscalYear).orElse(null);
+        if (period == null) {
+            log.warn("연간 FinPeriod가 없습니다. companyId={}, year={}", companyId, fiscalYear);
             return new FsRawBundle(new LinkedHashMap<>(), new LinkedHashMap<>());
         }
-        log.debug("==== {}년 조회된 재무제표 라인 수 : {}", fiscalYear, lines.size());
+
+        return loadRawBundle(companyId, period);
+    }
+
+    FsRawBundle loadRawBundle(Long companyId, FinPeriod period) {
+        DartReportType reportType = resolveReportType(period);
+        List<DartFsLine> lines = dartFsLineRepository.findByFiling_CompanyIdAndFiling_BsnsYearAndFiling_ReprtCode(
+                companyId, period.getFiscalYear(), reportType.code());
+        if (lines.isEmpty()) {
+            log.warn("재무제표 라인 데이터가 없습니다. companyId={}, year={}, reprtCode={}",
+                    companyId, period.getFiscalYear(), reportType.code());
+            return new FsRawBundle(new LinkedHashMap<>(), new LinkedHashMap<>());
+        }
+        log.debug("==== companyId={}, year={}, reprtCode={} 조회된 재무제표 라인 수 : {}",
+                companyId, period.getFiscalYear(), reportType.code(), lines.size());
         return collectRawBundle(lines);
+    }
+
+    private DartReportType resolveReportType(FinPeriod period) {
+        if (period == null || period.getFiscalYear() == null) {
+            throw new CustomException(CommonError.INVALID_INPUT, "period 정보가 올바르지 않습니다.");
+        }
+
+        String periodType = period.getPeriodType();
+        Integer fiscalQuarter = period.getFiscalQuarter();
+
+        if ("YEAR".equals(periodType)) {
+            return DartReportType.ANNUAL;
+        }
+
+        if (!"QTR".equals(periodType) || fiscalQuarter == null) {
+            throw new CustomException(CommonError.INVALID_INPUT,
+                    "지원하지 않는 기간 유형입니다. periodType=" + periodType + ", fiscalQuarter=" + fiscalQuarter);
+        }
+
+        return switch (fiscalQuarter) {
+            case 1 -> DartReportType.FIRST_QUARTER;
+            case 2 -> DartReportType.HALF_YEAR;
+            case 3 -> DartReportType.THIRD_QUARTER;
+            default -> throw new CustomException(
+                    CommonError.INVALID_INPUT, "지원하지 않는 분기 값입니다. fiscalQuarter=" + fiscalQuarter
+            );
+        };
     }
 
     private FsRawBundle collectRawBundle(List<DartFsLine> lines) {
@@ -941,9 +991,11 @@ public class FinancialService {
         if(rows.isEmpty()) return;
 
         DartFsRow meta = rows.get(0);
+        DartReportType reportType = DartReportType.fromCode(meta.getReprtCode());
 
         // FsFiling 생성 및 저장
         DartFsFiling filing = getOrCreateFiling(corpCode, companyId, meta);
+        saveOrUpdatePeriod(companyId, reportType, meta.getBsnsYear());
 
         // FsLine 생성 및 저장
         replaceFsLines(filing, companyId, rows);
