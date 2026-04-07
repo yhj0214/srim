@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.yhj.srim.client.DartReportType;
 import org.yhj.srim.client.dto.DartFsRow;
 import org.yhj.srim.common.exception.CustomException;
 import org.yhj.srim.common.exception.code.CommonError;
@@ -935,7 +936,7 @@ public class FinancialService {
     }
 
     @Transactional
-    public void replaceAnnualFinancial(String corpCode, Long companyId, List<DartFsRow> rows) {
+    public void replaceFinancialStatements(String corpCode, Long companyId, List<DartFsRow> rows) {
 
         if(rows.isEmpty()) return;
 
@@ -965,6 +966,7 @@ public class FinancialService {
         String rceptNo = firstRow.getRceptNo();
         String reprtCode = firstRow.getReprtCode();
         String fsDiv = firstRow.getFsDiv();
+        DartReportType reportType = DartReportType.fromCode(reprtCode);
 
         // to-do dart접수번호기준 조회 고려할것 , 현재 접수번호, 보고서번호, 재무제표종류
         Optional<DartFsFiling> existingOpt = filingRepository.findByRceptNoAndReprtCodeAndFsDiv(rceptNo, reprtCode, fsDiv);
@@ -990,7 +992,7 @@ public class FinancialService {
                 .reprtCode(reprtCode)
                 .bsnsYear(firstRow.getBsnsYear())
                 .fsDiv(fsDiv)
-                .reportTp("연간")
+                .reportTp(reportType.label())
                 .currency(firstRow.getCurrency())
                 .rceptDt(rceptDt)
                 .build();

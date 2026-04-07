@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
+import org.yhj.srim.client.DartReportType;
 import org.yhj.srim.client.dto.DartFsRow;
 import org.yhj.srim.client.dto.DartShareStatusRow;
 import org.yhj.srim.client.dto.KisSpreadRow;
@@ -39,6 +40,12 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 public class FinancialFacadeService {
+    private static final List<DartReportType> INITIAL_FINANCIAL_REPORT_TYPES = List.of(
+            DartReportType.FIRST_QUARTER,
+            DartReportType.HALF_YEAR,
+            DartReportType.THIRD_QUARTER,
+            DartReportType.ANNUAL
+    );
 
     private final KrxStockCrawlingService krxStockCrawlingService;
     private final DartCrawlingService dartCrawlingService;
@@ -194,9 +201,12 @@ public class FinancialFacadeService {
             log.debug("{}년 크롤링 및 계산 진행", year);
 
             // 재무제표 크롤링
-            List<DartFsRow> fsRows = dartCrawlingService.crawlAnnualFinancial(corpCode, year);
+            List<DartCrawlingService.FinancialStatementBatch> batches =
+                    dartCrawlingService.crawlFinancialStatements(corpCode, year, INITIAL_FINANCIAL_REPORT_TYPES);
             // 재무제표 정보 저장 Line, Filing
-            financialService.replaceAnnualFinancial(corpCode, companyId, fsRows);
+            for (DartCrawlingService.FinancialStatementBatch batch : batches) {
+                financialService.replaceFinancialStatements(corpCode, companyId, batch.rows());
+            }
 
             // 주식개수정보 크롤링
             List<DartShareStatusRow> shareStatusRows = dartCrawlingService.crawlShareStatus(corpCode, year);

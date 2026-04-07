@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.env.Environment;
 import org.springframework.test.context.ActiveProfiles;
+import org.yhj.srim.client.DartReportType;
 import org.yhj.srim.client.dto.DartFsRow;
 import org.yhj.srim.client.dto.DartShareStatusRow;
 import org.yhj.srim.service.crawl.DartCrawlingService;
@@ -45,7 +46,7 @@ class DartClientTest {
         }
 
         // when
-        List<DartFsRow> rows = dartCrawlingService.crawlAnnualFinancial("00126380", 2021);
+        List<DartFsRow> rows = dartCrawlingService.crawlFinancial("00126380", 2021, DartReportType.ANNUAL);
 
         // then
         String meta = rows.get(0).toString();

@@ -12,7 +12,7 @@ public class DartFsRow {
 
     // 공시 공통 헤더 영역
     private String rceptNo;         // 접수번호
-    private String reprtCode;       // 보고서 코드(11011, 11012, 11013), 11011만 다룸
+    private String reprtCode;       // 보고서 코드(11011, 11012, 11013, 11014)
     private int    bsnsYear;        // 사업연도
     private String fsDiv;           // 재무제표 구분 CFS(연결)/OFS(개별)
     private String rceptDt;         // 접수일 (YYYYMMDD 문자열 그대로)
