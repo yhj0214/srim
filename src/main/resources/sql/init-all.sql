@@ -68,6 +68,8 @@ CREATE TABLE `company_view_event` (
     `view_event_id` BIGINT       NOT NULL AUTO_INCREMENT COMMENT 'PK: 조회 이벤트 ID',
     `company_id`    BIGINT       NOT NULL COMMENT 'FK → company.company_id',
     `session_id`    VARCHAR(128) NOT NULL COMMENT '세션 식별자',
+    `ip_address`    VARCHAR(64)  NOT NULL COMMENT '클라이언트 IP',
+    `user_agent`    VARCHAR(300) NULL COMMENT '요청 User-Agent',
     `viewed_at`     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '조회 시각',
     CONSTRAINT `PK_COMPANY_VIEW_EVENT` PRIMARY KEY (`view_event_id`),
     CONSTRAINT `FK_CVE_COMPANY` FOREIGN KEY (`company_id`) REFERENCES `company`(`company_id`)
@@ -78,6 +80,9 @@ CREATE INDEX `IDX_CVE_COMPANY_VIEWED_AT`
 
 CREATE INDEX `IDX_CVE_SESSION_COMPANY_VIEWED_AT`
     ON `company_view_event` (`session_id`, `company_id`, `viewed_at`);
+
+CREATE INDEX `IDX_CVE_SESSION_IP_COMPANY_VIEWED_AT`
+    ON `company_view_event` (`session_id`, `ip_address`, `company_id`, `viewed_at`);
 
 /* 4) 재무 기간 */
 CREATE TABLE `fin_period` (

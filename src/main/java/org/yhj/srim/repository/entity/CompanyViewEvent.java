@@ -31,6 +31,14 @@ public class CompanyViewEvent {
     @Comment("세션 식별자")
     private String sessionId;
 
+    @Column(name = "ip_address", nullable = false, length = 64)
+    @Comment("클라이언트 IP")
+    private String ipAddress;
+
+    @Column(name = "user_agent", length = 300)
+    @Comment("요청 User-Agent")
+    private String userAgent;
+
     @Column(name = "viewed_at", nullable = false)
     @Comment("조회 시각")
     private LocalDateTime viewedAt;

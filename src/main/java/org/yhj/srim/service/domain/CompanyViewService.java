@@ -25,21 +25,41 @@ import java.util.stream.Collectors;
 public class CompanyViewService {
 
     private static final long DEDUPE_MINUTES = 30L;
+    private static final List<String> BOT_USER_AGENT_KEYWORDS = List.of(
+            "bot",
+            "crawler",
+            "spider",
+            "preview",
+            "headless",
+            "slackbot",
+            "facebookexternalhit",
+            "twitterbot",
+            "discordbot",
+            "whatsapp",
+            "curl",
+            "python-requests"
+    );
 
     private final CompanyRepository companyRepository;
     private final CompanyViewEventRepository companyViewEventRepository;
 
     @Transactional
-    public void recordView(Long companyId, String sessionId) {
-        if (companyId == null || sessionId == null || sessionId.isBlank()) {
+    public void recordView(Long companyId, String sessionId, String ipAddress, String userAgent) {
+        if (companyId == null || sessionId == null || sessionId.isBlank() || ipAddress == null || ipAddress.isBlank()) {
+            return;
+        }
+        if (isBotUserAgent(userAgent)) {
+            log.debug("회사 조회수 봇 요청 스킵 - companyId={}, userAgent={}", companyId, userAgent);
             return;
         }
 
         LocalDateTime dedupeThreshold = LocalDateTime.now().minusMinutes(DEDUPE_MINUTES);
         boolean alreadyCounted = companyViewEventRepository
-                .existsByCompany_CompanyIdAndSessionIdAndViewedAtAfter(companyId, sessionId, dedupeThreshold);
+                .existsByCompany_CompanyIdAndSessionIdAndIpAddressAndViewedAtAfter(
+                        companyId, sessionId, ipAddress, dedupeThreshold
+                );
         if (alreadyCounted) {
-            log.debug("회사 조회수 중복 스킵 - companyId={}, sessionId={}", companyId, sessionId);
+            log.debug("회사 조회수 중복 스킵 - companyId={}, sessionId={}, ip={}", companyId, sessionId, ipAddress);
             return;
         }
 
@@ -49,8 +69,26 @@ public class CompanyViewService {
         companyViewEventRepository.save(CompanyViewEvent.builder()
                 .company(company)
                 .sessionId(sessionId)
+                .ipAddress(ipAddress)
+                .userAgent(trimUserAgent(userAgent))
                 .viewedAt(LocalDateTime.now())
                 .build());
+    }
+
+    private boolean isBotUserAgent(String userAgent) {
+        if (userAgent == null || userAgent.isBlank()) {
+            return false;
+        }
+
+        String normalized = userAgent.toLowerCase(Locale.ROOT);
+        return BOT_USER_AGENT_KEYWORDS.stream().anyMatch(normalized::contains);
+    }
+
+    private String trimUserAgent(String userAgent) {
+        if (userAgent == null || userAgent.isBlank()) {
+            return null;
+        }
+        return userAgent.length() <= 300 ? userAgent : userAgent.substring(0, 300);
     }
 
     public List<PopularStockDto> findPopularStocks(int days, int limit) {

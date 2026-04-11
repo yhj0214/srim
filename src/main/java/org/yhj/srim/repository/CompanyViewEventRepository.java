@@ -14,7 +14,9 @@ import java.util.List;
 @Repository
 public interface CompanyViewEventRepository extends JpaRepository<CompanyViewEvent, Long> {
 
-    boolean existsByCompany_CompanyIdAndSessionIdAndViewedAtAfter(Long companyId, String sessionId, LocalDateTime viewedAt);
+    boolean existsByCompany_CompanyIdAndSessionIdAndIpAddressAndViewedAtAfter(
+            Long companyId, String sessionId, String ipAddress, LocalDateTime viewedAt
+    );
 
     long deleteByCompany_CompanyId(Long companyId);
 

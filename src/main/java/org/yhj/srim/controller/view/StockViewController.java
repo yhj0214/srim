@@ -10,11 +10,11 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriUtils;
-import org.yhj.srim.common.exception.CustomException;
 import org.yhj.srim.service.domain.CompanyViewService;
 import org.yhj.srim.service.domain.StockService;
 import org.yhj.srim.service.dto.StockDto;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import java.nio.charset.StandardCharsets;
 
@@ -54,20 +54,20 @@ public class StockViewController {
     public String detail(
             @PathVariable String market,
             @PathVariable String ticker,
+            HttpServletRequest request,
             HttpSession session,
             Model model) {
-        
-        try {
-            StockDto stock = stockService.getByTicker(market, ticker);
-            companyViewService.recordView(stock.getCompanyId(), session.getId());
-            log.debug(stock.toString());
-            model.addAttribute("stock", stock);
-            return "stock-detail";
-        } catch (CustomException e) {
-            log.error("종목을 찾을 수 없음: market={}, ticker={}", market, ticker);
-            model.addAttribute("error", e.getMessage());
-            return "error";
-        }
+
+        StockDto stock = stockService.getByTicker(market, ticker);
+        companyViewService.recordView(
+                stock.getCompanyId(),
+                session.getId(),
+                extractClientIp(request),
+                request.getHeader("User-Agent")
+        );
+        log.debug(stock.toString());
+        model.addAttribute("stock", stock);
+        return "stock-detail";
     }
 
     /**
@@ -78,5 +78,17 @@ public class StockViewController {
         // 한글 검색어 URL 인코딩 처리
         String encodedQuery = UriUtils.encode(q, StandardCharsets.UTF_8);
         return "redirect:/stocks?q=" + encodedQuery;
+    }
+
+    private String extractClientIp(HttpServletRequest request) {
+        String forwardedFor = request.getHeader("X-Forwarded-For");
+        if (forwardedFor != null && !forwardedFor.isBlank()) {
+            return forwardedFor.split(",")[0].trim();
+        }
+        String realIp = request.getHeader("X-Real-IP");
+        if (realIp != null && !realIp.isBlank()) {
+            return realIp.trim();
+        }
+        return request.getRemoteAddr();
     }
 }
