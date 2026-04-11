@@ -50,7 +50,7 @@ public class FinPeriod {
     private Boolean isEstimate = false;
 
     @Column(name = "label", nullable = false, length = 20)
-    @Comment("표시용 라벨(YYYY/12, YYYY.Q#)")
+    @Comment("표시용 라벨(YYYY/12)")
     private String label;
 
     @Column(name = "period_start")

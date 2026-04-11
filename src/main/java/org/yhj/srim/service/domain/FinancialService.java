@@ -27,6 +27,14 @@ import java.util.stream.Stream;
 @Transactional(readOnly = true)
 @Slf4j
 public class FinancialService {
+    private static final List<String> FLOW_METRIC_CODES = List.of(
+            "SALES",
+            "OP_INC",
+            "NET_INC",
+            "NET_INC_OWNER",
+            "NET_INC_NONCONT"
+    );
+
     private static final List<String> BASE_METRIC_CODES = List.of(
             "SALES",
             "OP_INC",
@@ -112,6 +120,63 @@ public class FinancialService {
         FinPeriod saved = finPeriodRepository.save(period);
         log.debug("새 기간 저장: companyId={}, type={}, year={}, quarter={}",
                 companyId, periodType, fiscalYear, fiscalQuarter);
+        return saved;
+    }
+
+    private FinPeriod saveOrUpdateQuarterPeriod(Long companyId, int fiscalYear, int fiscalQuarter) {
+        Company company = companyRepository.findById(companyId)
+                .orElseThrow(() -> new CustomException(StockError.COMPANY_NOT_FOUND, "companyId=" + companyId));
+
+        Optional<FinPeriod> existing = finPeriodRepository
+                .findByCompany_CompanyIdAndPeriodTypeAndFiscalYearAndFiscalQuarterAndIsEstimate(
+                        companyId, "QTR", fiscalYear, fiscalQuarter, false
+                );
+
+        if (existing.isPresent()) {
+            log.debug("기존 분기 기간 사용: companyId={}, year={}, quarter={}", companyId, fiscalYear, fiscalQuarter);
+            return existing.get();
+        }
+
+        LocalDate periodStart;
+        LocalDate periodEnd;
+        String label;
+        switch (fiscalQuarter) {
+            case 1 -> {
+                periodStart = LocalDate.of(fiscalYear, 1, 1);
+                periodEnd = LocalDate.of(fiscalYear, 3, 31);
+                label = fiscalYear + "/03";
+            }
+            case 2 -> {
+                periodStart = LocalDate.of(fiscalYear, 4, 1);
+                periodEnd = LocalDate.of(fiscalYear, 6, 30);
+                label = fiscalYear + "/06";
+            }
+            case 3 -> {
+                periodStart = LocalDate.of(fiscalYear, 7, 1);
+                periodEnd = LocalDate.of(fiscalYear, 9, 30);
+                label = fiscalYear + "/09";
+            }
+            case 4 -> {
+                periodStart = LocalDate.of(fiscalYear, 10, 1);
+                periodEnd = LocalDate.of(fiscalYear, 12, 31);
+                label = fiscalYear + "/12";
+            }
+            default -> throw new CustomException(CommonError.INVALID_INPUT, "지원하지 않는 분기 값입니다. fiscalQuarter=" + fiscalQuarter);
+        }
+
+        FinPeriod period = FinPeriod.builder()
+                .company(company)
+                .periodType("QTR")
+                .fiscalYear(fiscalYear)
+                .fiscalQuarter(fiscalQuarter)
+                .periodStart(periodStart)
+                .periodEnd(periodEnd)
+                .label(label)
+                .isEstimate(false)
+                .build();
+
+        FinPeriod saved = finPeriodRepository.save(period);
+        log.debug("새 분기 기간 저장: companyId={}, year={}, quarter={}", companyId, fiscalYear, fiscalQuarter);
         return saved;
     }
 
@@ -465,6 +530,14 @@ public class FinancialService {
                 Map.of(metricCode, value), List.of(metricCode));
     }
 
+    public int replaceSingleMetric(Long companyId, FinPeriod period, String metricCode, BigDecimal value) {
+        if (period == null || metricCode == null || metricCode.isBlank() || value == null) {
+            return 0;
+        }
+
+        return replaceMetricsByCodes(companyId, period, Map.of(metricCode, value), List.of(metricCode));
+    }
+
     private List<String> metricCodesFor(MetricStage stage) {
         if (stage == null) {
             return List.of();
@@ -502,6 +575,29 @@ public class FinancialService {
         return collectRawBundle(lines);
     }
 
+    FsRawBundle loadQuarterRawBundle(Long companyId, int fiscalYear, int fiscalQuarter) {
+        FinPeriod period = findQuarterPeriod(companyId, fiscalYear, fiscalQuarter).orElse(null);
+        if (period == null) {
+            log.warn("분기 FinPeriod가 없습니다. companyId={}, year={}, quarter={}", companyId, fiscalYear, fiscalQuarter);
+            return new FsRawBundle(new LinkedHashMap<>(), new LinkedHashMap<>());
+        }
+
+        FsRawBundle current = loadRawBundle(companyId, period);
+        if (fiscalQuarter == 1) {
+            return current;
+        }
+
+        FinPeriod previousQuarterPeriod = findQuarterPeriod(companyId, fiscalYear, fiscalQuarter - 1).orElse(null);
+        if (previousQuarterPeriod == null) {
+            log.warn("직전 분기 FinPeriod가 없습니다. companyId={}, year={}, quarter={}",
+                    companyId, fiscalYear, fiscalQuarter - 1);
+            return current;
+        }
+
+        FsRawBundle previous = loadRawBundle(companyId, previousQuarterPeriod);
+        return buildSingleQuarterBundle(current, previous);
+    }
+
     private DartReportType resolveReportType(FinPeriod period) {
         if (period == null || period.getFiscalYear() == null) {
             throw new CustomException(CommonError.INVALID_INPUT, "period 정보가 올바르지 않습니다.");
@@ -523,10 +619,37 @@ public class FinancialService {
             case 1 -> DartReportType.FIRST_QUARTER;
             case 2 -> DartReportType.HALF_YEAR;
             case 3 -> DartReportType.THIRD_QUARTER;
+            case 4 -> DartReportType.ANNUAL;
             default -> throw new CustomException(
                     CommonError.INVALID_INPUT, "지원하지 않는 분기 값입니다. fiscalQuarter=" + fiscalQuarter
             );
         };
+    }
+
+    private FsRawBundle buildSingleQuarterBundle(FsRawBundle cumulativeBundle, FsRawBundle previousCumulativeBundle) {
+        Map<String, BigDecimal> curr = new LinkedHashMap<>();
+        Map<String, BigDecimal> prev = new LinkedHashMap<>();
+
+        Map<String, BigDecimal> currentCurr = cumulativeBundle.curr();
+        Map<String, BigDecimal> previousCurr = previousCumulativeBundle.curr();
+
+        for (Map.Entry<String, BigDecimal> entry : currentCurr.entrySet()) {
+            String metricCode = entry.getKey();
+            BigDecimal currentValue = entry.getValue();
+            if (currentValue == null) {
+                continue;
+            }
+
+            if (FLOW_METRIC_CODES.contains(metricCode)) {
+                BigDecimal previousValue = previousCurr.get(metricCode);
+                curr.put(metricCode, previousValue == null ? currentValue : currentValue.subtract(previousValue));
+            } else {
+                curr.put(metricCode, currentValue);
+            }
+        }
+
+        prev.putAll(previousCurr);
+        return new FsRawBundle(curr, prev);
     }
 
     private FsRawBundle collectRawBundle(List<DartFsLine> lines) {
@@ -965,6 +1088,42 @@ public class FinancialService {
         return entities.size();
     }
 
+    @Transactional
+    public int replaceMetrics(Long companyId, FinPeriod period, MetricStage stage, Map<String, BigDecimal> metrics) {
+        return replaceMetricsByCodes(companyId, period, metrics, metricCodesFor(stage));
+    }
+
+    @Transactional
+    public int replaceMetricsByCodes(Long companyId, FinPeriod period,
+                                     Map<String, BigDecimal> metrics, List<String> stageMetricCodes) {
+        if (period == null || period.getPeriodId() == null || stageMetricCodes == null || stageMetricCodes.isEmpty()) {
+            return 0;
+        }
+
+        finMetricValueRepository.deleteByCompanyIdAndPeriod_PeriodIdAndMetricCodeIn(
+                companyId, period.getPeriodId(), stageMetricCodes
+        );
+
+        if (metrics == null || metrics.isEmpty()) {
+            return 0;
+        }
+
+        List<FinMetricValue> entities = metrics.entrySet().stream()
+                .filter(entry -> stageMetricCodes.contains(entry.getKey()))
+                .filter(entry -> entry.getValue() != null)
+                .map(entry -> FinMetricValue.builder()
+                        .companyId(companyId)
+                        .period(period)
+                        .metricCode(entry.getKey())
+                        .valueNum(entry.getValue())
+                        .source("DART")
+                        .build())
+                .toList();
+
+        finMetricValueRepository.saveAll(entities);
+        return entities.size();
+    }
+
     public void updateCompanyShareInfo(Long companyId) {
 
         StockShareStatus latest = stockShareStatusRepository
@@ -996,6 +1155,9 @@ public class FinancialService {
         // FsFiling 생성 및 저장
         DartFsFiling filing = getOrCreateFiling(corpCode, companyId, meta);
         saveOrUpdatePeriod(companyId, reportType, meta.getBsnsYear());
+        if (reportType == DartReportType.ANNUAL) {
+            saveOrUpdateQuarterPeriod(companyId, meta.getBsnsYear(), 4);
+        }
 
         // FsLine 생성 및 저장
         replaceFsLines(filing, companyId, rows);

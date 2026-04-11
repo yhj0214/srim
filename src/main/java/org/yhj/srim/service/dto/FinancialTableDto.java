@@ -19,7 +19,7 @@ public class FinancialTableDto {
     
     /**
      * 테이블 헤더 (기간 라벨)
-     * 예: ["2024/12", "2023/12", "2022/12"]
+     * 예: ["2024/12", "2024/09", "2024/06", "2024/03"]
      */
     private List<PeriodHeaderDto> headers;
     
@@ -38,7 +38,7 @@ public class FinancialTableDto {
     @Builder
     public static class PeriodHeaderDto {
         private Long periodId;
-        private String label;  // 예: "2024/12", "2024.Q3"
+        private String label;  // 예: "2024/12", "2024/09"
         private Integer fiscalYear;
         private Integer fiscalQuarter;  // 연간이면 null
         private Boolean isEstimate; // 추정치 여부

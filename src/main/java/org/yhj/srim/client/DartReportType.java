@@ -61,10 +61,10 @@ public enum DartReportType {
 
     public String periodLabel(int fiscalYear) {
         return switch (this) {
-            case FIRST_QUARTER -> fiscalYear + ".03";
-            case HALF_YEAR -> fiscalYear + ".06";
-            case THIRD_QUARTER -> fiscalYear + ".09";
-            case ANNUAL -> fiscalYear + ".12";
+            case FIRST_QUARTER -> fiscalYear + "/03";
+            case HALF_YEAR -> fiscalYear + "/06";
+            case THIRD_QUARTER -> fiscalYear + "/09";
+            case ANNUAL -> fiscalYear + "/12";
         };
     }
 

@@ -87,7 +87,7 @@ CREATE TABLE `fin_period` (
     `fiscal_year`    INT          NOT NULL COMMENT '회계연도(예: 2024)',
     `fiscal_quarter` TINYINT      NULL COMMENT '분기(1~4, 연간이면 NULL)',
     `is_estimate`    TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '추정치 여부(E)',
-    `label`          VARCHAR(20)  NOT NULL COMMENT '표시용 라벨(YYYY/12, YYYY.Q#)',
+    `label`          VARCHAR(20)  NOT NULL COMMENT '표시용 라벨(YYYY/12)',
     `period_start`   DATE         NULL COMMENT '기간 시작일(선택)',
     `period_end`     DATE         NULL COMMENT '기간 종료일(선택)',
     `created_at`     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '행 생성시각',

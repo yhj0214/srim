@@ -32,6 +32,7 @@ public class FinancialMetricService {
         int updated = 0;
         for (int year = endYear - 1; year >= startYear; year--) {
             updated += rebuildAnnualMetrics(companyId, year);
+            updated += rebuildQuarterlyMetrics(companyId, year);
         }
         updated += rebuildMarketMetrics(companyId, startYear, endYear);
 
@@ -47,6 +48,29 @@ public class FinancialMetricService {
         int bpsSaved = rebuildBpsMetric(companyId, year);
 
         total += epsSaved + bpsSaved;
+        return total;
+    }
+
+    public int rebuildQuarterlyMetrics(Long companyId, int year) {
+        int total = 0;
+
+        for (int quarter = 1; quarter <= 4; quarter++) {
+            FinPeriod period = financialService.findQuarterPeriod(companyId, year, quarter).orElse(null);
+            if (period == null) {
+                continue;
+            }
+
+            FsRawBundle rawBundle = financialService.loadQuarterRawBundle(companyId, year, quarter);
+            if (rawBundle.curr().isEmpty()) {
+                continue;
+            }
+
+            total += rebuildStage(companyId, period, MetricStage.BASE, rawBundle);
+            total += rebuildStage(companyId, period, MetricStage.DERIVED, rawBundle);
+            total += rebuildStage(companyId, period, MetricStage.PER_SHARE, rawBundle);
+            total += rebuildBpsMetric(companyId, period);
+        }
+
         return total;
     }
 
@@ -95,6 +119,11 @@ public class FinancialMetricService {
         return saved;
     }
 
+    private int rebuildStage(Long companyId, FinPeriod period, MetricStage stage, FsRawBundle rawBundle) {
+        Map<String, BigDecimal> metrics = financialService.buildMetrics(companyId, period.getFiscalYear(), rawBundle, stage);
+        return financialService.replaceMetrics(companyId, period, stage, metrics);
+    }
+
     private int rebuildStage(Long companyId, int fiscalYear, MetricStage stage, Map<String, BigDecimal> metrics) {
         return financialService.replaceMetrics(companyId, fiscalYear, stage, metrics);
     }
@@ -120,5 +149,25 @@ public class FinancialMetricService {
 
         BigDecimal bps = equityOwner.divide(shares, 0, RoundingMode.HALF_UP);
         return financialService.replaceSingleMetric(companyId, fiscalYear, METRIC_BPS, bps);
+    }
+
+    private int rebuildBpsMetric(Long companyId, FinPeriod period) {
+        // 지배주주 자본 조회
+        BigDecimal equityOwner = financialService.findMetricValue(companyId, period, METRIC_EQUITY_OWNER)
+                .orElse(null);
+        if (equityOwner == null) {
+            return 0;
+        }
+
+        // 주식 수 조회
+        BigDecimal shares = financialService.findLatestShareCountForPeriod(companyId, period)
+                .or(() -> financialService.findCompanyShareCount(companyId))
+                .orElse(null);
+        if (shares == null || shares.compareTo(BigDecimal.ZERO) == 0) {
+            return 0;
+        }
+
+        BigDecimal bps = equityOwner.divide(shares, 0, RoundingMode.HALF_UP);
+        return financialService.replaceSingleMetric(companyId, period, METRIC_BPS, bps);
     }
 }
