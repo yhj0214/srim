@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.yhj.srim.repository.CompanyViewEventRepository;
 import org.yhj.srim.repository.CompanyRepository;
 import org.yhj.srim.repository.DartFsFilingRepository;
 import org.yhj.srim.repository.DartFsLineRepository;
@@ -19,6 +20,7 @@ import org.yhj.srim.repository.entity.Company;
 @Slf4j
 public class CompanyResetService {
 
+    private final CompanyViewEventRepository companyViewEventRepository;
     private final CompanyRepository companyRepository;
     private final StockPriceRepository stockPriceRepository;
     private final FinMetricValueRepository finMetricValueRepository;
@@ -35,6 +37,7 @@ public class CompanyResetService {
         }
 
         Long companyId = company.getCompanyId();
+        companyViewEventRepository.deleteByCompany_CompanyId(companyId);
         stockPriceRepository.deleteByCompany_CompanyId(companyId);
         finMetricValueRepository.deleteByCompanyId(companyId);
         finPeriodRepository.deleteByCompany_CompanyId(companyId);

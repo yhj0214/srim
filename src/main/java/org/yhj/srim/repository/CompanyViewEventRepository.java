@@ -16,6 +16,8 @@ public interface CompanyViewEventRepository extends JpaRepository<CompanyViewEve
 
     boolean existsByCompany_CompanyIdAndSessionIdAndViewedAtAfter(Long companyId, String sessionId, LocalDateTime viewedAt);
 
+    long deleteByCompany_CompanyId(Long companyId);
+
     @Query("""
             SELECT new org.yhj.srim.service.dto.CompanyViewCountDto(
                 e.company.companyId,
