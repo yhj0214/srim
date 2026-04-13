@@ -923,6 +923,36 @@ main{
     margin-bottom: 10px;
 }
 
+.finToolbar{
+    margin-bottom: 12px;
+}
+
+.finPeriodSwitch{
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: #f8fafc;
+}
+
+.finPeriodSwitch__button{
+    border: 0;
+    border-radius: 999px;
+    padding: 8px 14px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.finPeriodSwitch__button.is-active{
+    background: var(--text);
+    color: #fff;
+}
+
 .finSection{
     margin-top: 18px;
 }

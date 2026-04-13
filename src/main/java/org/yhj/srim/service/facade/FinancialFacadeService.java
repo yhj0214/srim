@@ -26,6 +26,7 @@ import org.yhj.srim.service.crawl.KrxStockCrawlingService;
 import org.yhj.srim.service.facade.dto.DailyBondYieldFetchResult;
 import org.yhj.srim.service.domain.StockService;
 import org.yhj.srim.service.dto.FinancialTableDto;
+import org.yhj.srim.service.dto.PeriodType;
 
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
@@ -77,116 +78,16 @@ public class FinancialFacadeService {
                 });
     }
 
-    public FinancialTableDto getAnnualTable(Long stockId, int limit) {
+    public FinancialTableDto getFinancialTable(Long stockId, int limit, PeriodType periodType) {
         Company company = financialService.findCompanyByStockId(stockId)
                 .orElseThrow(() -> new CustomException(StockError.COMPANY_NOT_FOUND));
 
-        FinancialTableDto dto = buildAnnualTableDto(company, limit, LocalDate.now());
-
-        return dto;
+        return financialService.getFinancialTable(company, limit, periodType);
     }
 
     public int rebuildCompanyMetrics(Long companyId, int startYear, int endYear) {
         return financialMetricService.rebuildCompanyMetrics(companyId, startYear, endYear);
     }
-
-    private FinancialTableDto buildAnnualTableDto(Company company, int limit, LocalDate asOfDate) {
-        Long companyId = company.getCompanyId();
-        int currentYear = (asOfDate != null ? asOfDate : LocalDate.now()).getYear();
-        int startYear = currentYear - limit + 1;
-
-        List<FinPeriod> periods = financialService.findAnnualPeriodsBetween(companyId, startYear, currentYear);
-
-        if (periods.isEmpty()) {
-            log.warn("FinPeriod 없음 - companyId={}, years={}~{}", companyId, startYear, currentYear);
-            return new FinancialTableDto(List.of(), List.of());
-        }
-
-        List<FinancialTableDto.PeriodHeaderDto> headers = buildPeriodHeaders(periods);
-        List<Long> periodIds = extractPeriodIds(periods);
-        List<FinMetricValue> metricValues = financialService.findMetricValuesByPeriodIds(companyId, periodIds);
-        Map<String, Map<Long, BigDecimal>> metricCodeToPeriodValueMap = indexMetricValuesByCode(metricValues);
-
-        List<FinMetricDef> metricDefs = financialService.findMetricDefinitions();
-        List<FinancialTableDto.MetricRowDto> rows =
-                buildMetricRows(metricDefs, periodIds, metricCodeToPeriodValueMap);
-
-        return FinancialTableDto.builder()
-                .headers(headers)
-                .rows(rows)
-                .build();
-    }
-
-    private List<FinancialTableDto.PeriodHeaderDto> buildPeriodHeaders(List<FinPeriod> periods) {
-        return periods.stream()
-                .map(p -> FinancialTableDto.PeriodHeaderDto.builder()
-                        .periodId(p.getPeriodId())
-                        .label(p.getLabel())              // ex) "2024/12"
-                        .fiscalYear(p.getFiscalYear())
-                        .fiscalQuarter(p.getFiscalQuarter())
-                        .isEstimate(p.getIsEstimate())
-                        .build())
-                .collect(Collectors.toList());
-    }
-
-    private List<Long> extractPeriodIds(List<FinPeriod> periods) {
-        return periods.stream()
-                .map(FinPeriod::getPeriodId)
-                .collect(Collectors.toList());
-    }
-
-    private Map<String, Map<Long, BigDecimal>> indexMetricValuesByCode(List<FinMetricValue> metricValues) {
-        Map<String, Map<Long, BigDecimal>> metricCodeToPeriodValueMap = new HashMap<>();
-
-        for (FinMetricValue v : metricValues) {
-            String metricCode = v.getMetricCode();
-            Long periodId = v.getPeriod().getPeriodId();
-            BigDecimal value = v.getValueNum();
-
-            metricCodeToPeriodValueMap
-                    .computeIfAbsent(metricCode, k -> new HashMap<>())
-                    .put(periodId, value);
-        }
-
-        return metricCodeToPeriodValueMap;
-    }
-
-    private List<FinancialTableDto.MetricRowDto> buildMetricRows(
-            List<FinMetricDef> metricDefs,
-            List<Long> periodIds,
-            Map<String, Map<Long, BigDecimal>> metricCodeToPeriodValueMap
-    ) {
-        List<FinancialTableDto.MetricRowDto> rows = new ArrayList<>();
-
-        for (FinMetricDef def : metricDefs) {
-            String metricCode = def.getMetricCode();
-            String nameKor = def.getNameKor();
-            String unit = def.getUnit();
-
-            Map<Long, BigDecimal> periodValueMap =
-                    metricCodeToPeriodValueMap.getOrDefault(metricCode, Collections.emptyMap());
-
-            Map<Long, BigDecimal> valueCopy = new LinkedHashMap<>();
-            for (Long periodId : periodIds) {
-                if (periodValueMap.containsKey(periodId)) {
-                    valueCopy.put(periodId, periodValueMap.get(periodId));
-                }
-            }
-
-            FinancialTableDto.MetricRowDto row = FinancialTableDto.MetricRowDto.builder()
-                    .metricCode(metricCode)
-                    .metricName(nameKor)
-                    .unit(unit)
-                    .displayOrder(def.getDisplayOrder())
-                    .values(valueCopy)
-                    .build();
-
-            rows.add(row);
-        }
-
-        return rows;
-    }
-
 
     // 회사 초기화용 원천 데이터 적재
     private void initializeCompanyData(Company company, int startYear, int endYear) {

@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.*;
 import org.yhj.srim.controller.dto.ApiResponse;
 import org.yhj.srim.controller.dto.SrimRequestDto;
 import org.yhj.srim.service.facade.FinancialFacadeService;
+import org.yhj.srim.service.dto.PeriodType;
 import org.yhj.srim.service.domain.SrimService;
 import org.yhj.srim.service.dto.FinancialTableDto;
 import org.yhj.srim.service.dto.SrimCalculateCommand;
@@ -22,14 +23,21 @@ public class FinancialApiController {
     private final SrimService srimService;
 
     /**
-     * 연간 재무 테이블 API (stockId 기반)
+     * 재무 테이블 API (stockId 기반)
      */
-    @GetMapping("/{stockId}/financial/annual")
-    public ApiResponse<FinancialTableDto> getAnnualTableByStockId(
+    @GetMapping("/{stockId}/financial")
+    public ApiResponse<FinancialTableDto> getFinancialTableByStockId(
             @PathVariable Long stockId,
+            @RequestParam(defaultValue = "annual") String period,
             @RequestParam(defaultValue = "15") int limit) {
-        log.debug("연간 재무 테이블 요청 - stockId: {}, limit: {}", stockId, limit);
-        FinancialTableDto result = financialFacadeService.getAnnualTable(stockId, limit);
+        String normalizedPeriod = period == null ? "annual" : period.trim().toLowerCase();
+        PeriodType periodType = switch (normalizedPeriod) {
+            case "", "annual" -> PeriodType.ANNUAL;
+            case "quarter" -> PeriodType.QUARTER;
+            default -> throw new IllegalArgumentException("invalid period: " + period);
+        };
+        log.debug("재무 테이블 요청 - stockId: {}, period: {}, limit: {}", stockId, periodType, limit);
+        FinancialTableDto result = financialFacadeService.getFinancialTable(stockId, limit, periodType);
 
         return ApiResponse.success(result);
     }

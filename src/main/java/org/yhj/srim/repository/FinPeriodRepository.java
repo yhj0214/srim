@@ -26,6 +26,7 @@ public interface FinPeriodRepository extends JpaRepository<FinPeriod, Long> {
         FROM fin_period 
         WHERE company_id = :companyId 
           AND period_type = 'YEAR' 
+          AND is_estimate = false
           AND fiscal_year <= :baseYear
         ORDER BY fiscal_year DESC 
         LIMIT :limit

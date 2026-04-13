@@ -308,10 +308,11 @@ public class FinancialService {
         log.info("companyId: {}, limit: {}", company.getCompanyId(), limit);
 
         Long companyId = company.getCompanyId();
+        int currentYear = LocalDate.now().getYear();
 
         // 1) DB 조회
         List<FinPeriod> periods = switch (type) {
-            case ANNUAL -> finPeriodRepository.findRecentYearlyPeriods(companyId,0, limit);
+            case ANNUAL -> finPeriodRepository.findRecentYearlyPeriods(companyId, currentYear, limit);
             case QUARTER -> finPeriodRepository.findRecentQuarterlyPeriods(companyId, limit);
         };
 
@@ -354,7 +355,7 @@ public class FinancialService {
                 .collect(Collectors.toList());
 
         // 4. 모든 지표 값 조회
-        List<FinMetricValue> allValues = finMetricValueRepository.findByCompanyIdAndPeriodIds(companyId, periodIds);
+        List<FinMetricValue> allValues = finMetricValueRepository.findByCompanyIdAndPeriod_PeriodIdIn(companyId, periodIds);
         log.info("지표 값 개수: {}", allValues.size());
 
         // 5. periodId + metricCode로 빠른 조회를 위한 맵 생성

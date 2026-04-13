@@ -9,7 +9,7 @@
                         data-stock-id=${stock.stockId},
                         data-company-id=${stock.companyId},
                         data-api-srim=@{|/api/stocks/${stock.companyId}/srim|},
-                        data-api-financial=@{|/api/stocks/${stock.stockId}/financial/annual|},
+                        data-api-financial=@{|/api/stocks/${stock.stockId}/financial|},
                         data-api-pricechart=@{|/api/stocks/${stock.companyId}/price-chart|}">
     <div class="detailHead">
         <div>
@@ -38,6 +38,15 @@
         </div>
 
         <div class="tabPanel" data-panel="financial" hidden>
+            <div class="card finToolbar">
+                <div class="finHeader">
+                    <h3>재무정보</h3>
+                    <div class="finPeriodSwitch" role="tablist" aria-label="재무 기간 선택">
+                        <button class="finPeriodSwitch__button is-active" type="button" data-financial-period="annual">연간</button>
+                        <button class="finPeriodSwitch__button" type="button" data-financial-period="quarter">분기</button>
+                    </div>
+                </div>
+            </div>
             <div id="financialContainer"></div>
             <div class="card finNote">
                 <div class="finHeader">

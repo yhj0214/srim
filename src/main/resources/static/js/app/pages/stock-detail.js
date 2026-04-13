@@ -7,6 +7,7 @@ export const StockDetailPage = {
         if(!root) return;
 
         this._bindTabs(root);
+        this._bindFinancialPeriodControls(root);
 
 
         // 기본 탭: srim
@@ -430,7 +431,11 @@ export const StockDetailPage = {
         const container = qs("#financialContainer", root);
         if(!container) return;
 
-        if(container.dataset.loaded === "true") return;
+        if (root.dataset.financialInitialized !== "true") {
+            root.dataset.financialPeriod = "annual";
+            root.dataset.financialInitialized = "true";
+            this._syncFinancialPeriodControls(root);
+        }
 
         const companyId = root.dataset.companyId;
         if (!companyId) {
@@ -438,11 +443,18 @@ export const StockDetailPage = {
             return;
         }
 
+        const period = this._getFinancialPeriod(root);
+        const cache = root.__financialCache ?? (root.__financialCache = new Map());
+        if (cache.has(period)) {
+            this._renderFinancial(container, cache.get(period), period);
+            return;
+        }
 
         container.innerHTML = `<div class="alert">재무 데이터를 불러오는 중입니다...</div>`;
 
         const apiUrl = root.dataset.apiFinancial;
-        const res = await apiGetJSON(apiUrl);
+        const connector = apiUrl.includes("?") ? "&" : "?";
+        const res = await apiGetJSON(`${apiUrl}${connector}period=${encodeURIComponent(period)}`);
 
         if (!res.ok) {
             container.innerHTML = `<div class="alert alert--error">${escapeHtml(res.message || "요청에 실패했습니다.")}</div>`;
@@ -455,15 +467,16 @@ export const StockDetailPage = {
             return;
         }
 
-        container.dataset.loaded = "true";
-        this._renderFinancial(container, body.data);
+        cache.set(period, body.data);
+        this._renderFinancial(container, body.data, period);
     },
-    _renderFinancial(container, data) {
+    _renderFinancial(container, data, period = "annual") {
         const headers = Array.isArray(data?.headers) ? data.headers : [];
         const rows = Array.isArray(data?.rows) ? data.rows : [];
+        const periodLabel = period === "quarter" ? "분기" : "연간";
 
         if (headers.length === 0 || rows.length === 0) {
-            container.innerHTML = `<div class="alert">재무 데이터가 없습니다.</div>`;
+            container.innerHTML = `<div class="alert">${periodLabel} 재무 데이터가 없습니다.</div>`;
             return;
         }
 
@@ -531,12 +544,44 @@ export const StockDetailPage = {
         container.innerHTML = `
             <div class="card">
                 <div class="finHeader">
-                    <h3>재무정보</h3>
+                    <h3>${periodLabel} 재무정보</h3>
                 </div>
                 ${renderTable("원천 지표", rawRows)}
                 ${renderTable("계산 지표", calcRows)}
             </div>
         `;
+    },
+
+    _bindFinancialPeriodControls(root) {
+        const buttons = qsa("[data-financial-period]", root);
+        if (buttons.length === 0) return;
+
+        root.dataset.financialPeriod = root.dataset.financialPeriod || "annual";
+        root.dataset.financialInitialized = root.dataset.financialInitialized || "false";
+        this._syncFinancialPeriodControls(root);
+
+        buttons.forEach((button) => {
+            button.addEventListener("click", async () => {
+                const period = button.dataset.financialPeriod === "quarter" ? "quarter" : "annual";
+                if (root.dataset.financialPeriod === period) return;
+                root.dataset.financialPeriod = period;
+                this._syncFinancialPeriodControls(root);
+                await this._loadFinancial(root);
+            });
+        });
+    },
+
+    _syncFinancialPeriodControls(root) {
+        const activePeriod = this._getFinancialPeriod(root);
+        qsa("[data-financial-period]", root).forEach((button) => {
+            const isActive = button.dataset.financialPeriod === activePeriod;
+            button.classList.toggle("is-active", isActive);
+            button.setAttribute("aria-pressed", String(isActive));
+        });
+    },
+
+    _getFinancialPeriod(root) {
+        return root.dataset.financialPeriod === "quarter" ? "quarter" : "annual";
     },
 
     async _loadChart(root) {
