@@ -31,6 +31,7 @@ public class SrimResultDto {
 
     private List<RoeDetail> roeDetails;  // 연도별 ROE (최신 3개)
     private List<ScenarioResult> scenarios; // 시나리오별 결과
+    private QuarterlyResult quarterly;   // 최신 분기 기준 계산 결과
 
     /**
      * 시나리오 결과
@@ -56,5 +57,22 @@ public class SrimResultDto {
         private Integer fiscalYear;
         private BigDecimal roePercent;
         private BigDecimal equityOwner;
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class QuarterlyResult {
+        private String periodLabel;
+        private Integer fiscalYear;
+        private Integer fiscalQuarter;
+        private BigDecimal equity;
+        private BigDecimal roe;
+        private BigDecimal roePercent;
+        private BigDecimal ke;
+        private Long sharesOutstanding;
+        private List<ScenarioResult> scenarios;
     }
 }

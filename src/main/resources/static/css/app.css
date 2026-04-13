@@ -472,12 +472,134 @@ main{
     grid-template-columns: 1fr;
     gap: 12px;
 }
+.srimTopGrid{
+    display: grid;
+    grid-template-columns: minmax(340px, 420px) max-content;
+    gap: 12px;
+    align-items: stretch;
+    justify-content: space-between;
+}
+@media (max-width: 1100px){
+    .srimTopGrid{
+        grid-template-columns: 1fr;
+    }
+}
+
+.srimResultGrid{
+    display:grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+}
+@media (max-width: 1100px){
+    .srimResultGrid{
+        grid-template-columns: 1fr;
+    }
+}
 
 .srimCard{
     border: 1px solid var(--border);
     border-radius: 12px;
     padding: 14px;
     background: #fff;
+}
+.srimSideSlot{
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    background: #f8fafc;
+    min-height: 100%;
+    padding: 14px;
+}
+.srimSideSlot__content{
+    display: grid;
+    gap: 10px;
+}
+.srimTitle--stack{
+    display: block;
+    margin-bottom: 0;
+}
+.srimMiniTableWrap{
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    background: #fff;
+}
+.srimMiniTable{
+    width: 100%;
+    border-collapse: collapse;
+}
+.srimMiniTable__head,
+.srimMiniTable__rowHead,
+.srimMiniTable__cell{
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    font-size: 12px;
+}
+.srimMiniTable__head:last-child,
+.srimMiniTable__rowHead:last-child,
+.srimMiniTable__cell:last-child{
+    border-right: none;
+}
+.srimMiniTable__head{
+    text-align: center;
+    color: var(--muted);
+    background: #f7f7fb;
+    font-weight: 600;
+}
+.srimMiniTable__rowHead{
+    text-align: left;
+    width: 40%;
+    background: #fbfbff;
+    font-weight: 600;
+    color: #2d3640;
+}
+.srimMiniTable__cell{
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    color: #1f2933;
+}
+.srimMiniTable tbody tr:last-child .srimMiniTable__rowHead,
+.srimMiniTable tbody tr:last-child .srimMiniTable__cell{
+    border-bottom: none;
+}
+.srimMetaTableWrap{
+    margin-top: 6px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    background: #fff;
+}
+.srimMetaTable{
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+.srimMetaTable__head,
+.srimMetaTable__cell{
+    padding: 10px 12px;
+    border-right: 1px solid var(--border);
+    font-size: 13px;
+}
+.srimMetaTable__head:last-child,
+.srimMetaTable__cell:last-child{
+    border-right: none;
+}
+.srimMetaTable__head{
+    text-align: center;
+    color: var(--muted);
+    background: #f7f7fb;
+    font-weight: 600;
+}
+.srimMetaTable__cell{
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    color: #1f2933;
+    font-weight: 600;
+}
+.srimCard--empty{
+    display:flex;
+    align-items:center;
 }
 
 .srimTitle{
@@ -663,30 +785,91 @@ main{
     height: 100%;
     align-items: end;
 }
+.srimBars--grouped{
+    grid-template-columns: repeat(5, minmax(88px, 1fr));
+    justify-content: stretch;
+    gap: 18px;
+}
+.srimBarGroup{
+    display: grid;
+    grid-template-rows: 1fr auto;
+    gap: 2px;
+    min-width: 0;
+    justify-items: center;
+    width: 100%;
+}
+.srimBarPair{
+    display: inline-flex;
+    justify-content: center;
+    gap: 0;
+    align-items: end;
+    height: 100%;
+}
 .srimBarWrap{
     display: grid;
-    grid-template-rows: 1fr auto auto;
+    grid-template-rows: auto 1fr auto;
     align-items: end;
-    gap: 6px;
+    gap: 4px;
     height: 100%;
     text-align: center;
+}
+.srimBarWrap--grouped{
+    grid-template-rows: auto 1fr auto;
+    gap: 1px;
+    width: 30px;
+}
+.srimBarMeter{
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: flex-end;
+    height: 100%;
+    min-height: 120px;
 }
 .srimBar{
     width: 100%;
     max-width: 56px;
     justify-self: center;
-    background: linear-gradient(180deg, #7c9cff, #3c62ff);
-    border-radius: 10px 10px 6px 6px;
+    background: linear-gradient(180deg, #f87171, #dc2626);
+    border-radius: 3px 3px 1px 1px;
     box-shadow: inset 0 0 0 1px rgba(255,255,255,0.35);
+}
+.srimBar--annual{
+    background: linear-gradient(180deg, #f87171, #dc2626);
+}
+.srimBar--quarterly{
+    background: linear-gradient(180deg, #60a5fa, #2563eb);
+}
+.srimChart--grouped{
+    height: 228px;
+    width: 100%;
+    margin-left: 0;
+}
+.srimBar--compact{
+    max-width: 24px;
 }
 .srimBarLabel{
     font-size: 11px;
     color: var(--muted);
+    margin-top: 2px;
+    line-height: 1.2;
+    text-align: center;
+}
+.srimBarSeries{
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1;
 }
 .srimBarValue{
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 700;
     color: #111827;
+    line-height: 1.1;
+    white-space: nowrap;
+}
+.srimBarValue--floating{
+    margin-bottom: 4px;
+    align-self: center;
 }
 .srimLine{
     position: absolute;
@@ -705,6 +888,16 @@ main{
     color: #fff;
     padding: 2px 6px;
     border-radius: 999px;
+}
+@media (max-width: 720px){
+    .srimChart--grouped{
+        height: auto;
+        min-height: 260px;
+    }
+    .srimBars--grouped{
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
 }
 
 .alert{

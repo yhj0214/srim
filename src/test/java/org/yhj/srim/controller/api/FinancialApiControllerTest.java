@@ -135,6 +135,7 @@ class FinancialApiControllerTest {
                 .roePercent(new BigDecimal("12.34"))
                 .ke(new BigDecimal("0.045"))
                 .sharesOutstanding(5969782550L)
+                .bps(new BigDecimal("42000"))
                 .currentPrice(new BigDecimal("71000"))
                 .currentPriceDate("2026-03-04")
                 .roeDetails(List.of(
@@ -168,6 +169,25 @@ class FinancialApiControllerTest {
                                 .fairValuePerShare(new BigDecimal("25600"))
                                 .build()
                 ))
+                .quarterly(SrimResultDto.QuarterlyResult.builder()
+                        .periodLabel("2024/12")
+                        .fiscalYear(2024)
+                        .fiscalQuarter(4)
+                        .equity(new BigDecimal("130000"))
+                        .roe(new BigDecimal("0.1534"))
+                        .roePercent(new BigDecimal("15.34"))
+                        .ke(new BigDecimal("0.045"))
+                        .sharesOutstanding(5969782550L)
+                        .bps(new BigDecimal("43000"))
+                        .scenarios(List.of(
+                                SrimResultDto.ScenarioResult.builder()
+                                        .reductionRate(BigDecimal.ZERO)
+                                        .excessEarnings(new BigDecimal("18000"))
+                                        .enterpriseValue(new BigDecimal("166000"))
+                                        .fairValuePerShare(new BigDecimal("27800"))
+                                        .build()
+                        ))
+                        .build())
                 .build();
 
         BDDMockito.given(srimService.calculate(BDDMockito.any()))
@@ -177,7 +197,9 @@ class FinancialApiControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.year").value(2024))
-                .andExpect(jsonPath("$.data.scenarios[0].fairValuePerShare").value(26100));
+                .andExpect(jsonPath("$.data.scenarios[0].fairValuePerShare").value(26100))
+                .andExpect(jsonPath("$.data.quarterly.periodLabel").value("2024/12"))
+                .andExpect(jsonPath("$.data.quarterly.scenarios[0].fairValuePerShare").value(27800));
     }
 
     @Test

@@ -277,11 +277,8 @@ public class PriceChartFacadeService {
             }
 
             SrimResultDto srim = srimService.calculateFromBaseData(
-                    base.getSharesOutstanding(),
-                    base.getRoe(),
-                    base.getEquityOwner(),
+                    base,
                     ke,
-                    base.getYear(),
                     DEFAULT_RATING,
                     (int) DEFAULT_TENOR_MONTHS
             );

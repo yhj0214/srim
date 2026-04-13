@@ -78,42 +78,77 @@ export const StockDetailPage = {
     },
 
     _renderSrim(container, data) {
-        // data.scenarios: 시나리오별 fairValuePerShare 목록이 있다고 가정(기존 코드와 동일)
-        const scenarios = Array.isArray(data?.scenarios) ? data.scenarios : [];
-        if (scenarios.length === 0) {
+        const annualScenarios = Array.isArray(data?.scenarios) ? data.scenarios : [];
+        if (annualScenarios.length === 0) {
             container.innerHTML = `<div class="alert alert--error">S-RIM 결과가 비어 있습니다.</div>`;
             return;
         }
 
         const labels = ["초과이익 지속", "10% 감소", "20% 감소", "30% 감소", "50% 감소"];
-        const scenarioData = scenarios.slice(0, 5);
-        const fairValues = scenarioData.map((s) => Number(s?.fairValuePerShare ?? 0));
-        const excessValues = scenarioData.map((s) => Number(s?.excessEarnings ?? 0));
+        const annualResult = {
+            title: "연간 기준 적정주가",
+            hint: data?.year ? `${escapeHtml(data.year)}년 가중평균 ROE 기준` : "최근 3개 연간 ROE 기준",
+            periodLabel: data?.year ? `${escapeHtml(data.year)}/12` : "-",
+            roePercent: data?.roePercent,
+            equity: data?.equity,
+            sharesOutstanding: data?.sharesOutstanding,
+            ke: data?.ke,
+            scenarios: annualScenarios.slice(0, 5),
+            calcRoeFormula: "ROE = 최근 3개 연간 ROE 가중평균",
+            calcExcessFormula: "초과이익 = 자기자본 × (가중평균 ROE − 할인율)"
+        };
 
-        const scenarioRows = scenarioData.map((s, i) => {
-            const label = labels[i] ?? `시나리오 ${i + 1}`;
-            const fairValue = formatNumber(s?.fairValuePerShare);
-            const enterpriseValue = formatNumber(s?.enterpriseValue);
-            return `
-                <tr>
-                    <th class="srimTable__rowHead">${escapeHtml(label)}</th>
-                    <td class="srimTable__cell">${fairValue}</td>
-                    <td class="srimTable__cell">${enterpriseValue}</td>
-                </tr>
-            `;
-        }).join("");
+        const quarterlyData = data?.quarterly;
+        const quarterlyResult = Array.isArray(quarterlyData?.scenarios) && quarterlyData.scenarios.length > 0
+            ? {
+                title: "최신 분기 기준 적정주가",
+                hint: quarterlyData?.periodLabel
+                    ? `${escapeHtml(quarterlyData.periodLabel)} 분기 단독 실적 연율화 기준`
+                    : "최신 분기 기준",
+                periodLabel: quarterlyData?.periodLabel ?? "-",
+                roePercent: quarterlyData?.roePercent,
+                equity: quarterlyData?.equity,
+                sharesOutstanding: quarterlyData?.sharesOutstanding,
+                ke: quarterlyData?.ke,
+                scenarios: quarterlyData.scenarios.slice(0, 5),
+                calcRoeFormula: "ROE = 분기 지배주주순이익(연율화) / 평균 지배주주지분",
+                calcExcessFormula: "초과이익 = 분기말 지배주주지분 × (분기 연율화 ROE − 할인율)"
+            }
+            : null;
 
-        const buildBarChart = (values, labelList, opts = {}) => {
-            const safeValues = values.map((v) => (Number.isFinite(v) ? v : 0));
-            const maxValue = Math.max(1, ...safeValues, Number(opts.lineValue ?? 0));
-            const bars = safeValues.map((v, i) => {
-                const pct = Math.max(0, Math.min(100, (v / maxValue) * 100));
-                const label = labelList[i] ?? `시나리오 ${i + 1}`;
+        const buildComparisonChart = (annualScenarioData, quarterlyScenarioData, labelList, opts = {}) => {
+            const pairs = labelList.map((label, index) => ({
+                label,
+                annualValue: Number(annualScenarioData?.[index]?.fairValuePerShare ?? 0),
+                quarterlyValue: Number(quarterlyScenarioData?.[index]?.fairValuePerShare ?? 0)
+            }));
+            const allValues = pairs.flatMap((pair) => [pair.annualValue, pair.quarterlyValue]);
+            const rawMaxValue = Math.max(1, ...allValues, Number(opts.lineValue ?? 0));
+            const maxValue = rawMaxValue * 1.08;
+
+            const groups = pairs.map((pair) => {
+                const annualHeight = Math.max(0, Math.min(100, (pair.annualValue / maxValue) * 100));
+                const quarterlyHeight = Math.max(0, Math.min(100, (pair.quarterlyValue / maxValue) * 100));
+
                 return `
-                    <div class="srimBarWrap">
-                        <div class="srimBar" style="height:${pct}%"></div>
-                        <div class="srimBarLabel">${escapeHtml(label)}</div>
-                        <div class="srimBarValue">${formatNumber(v)}</div>
+                    <div class="srimBarGroup">
+                        <div class="srimBarPair">
+                            <div class="srimBarWrap srimBarWrap--grouped">
+                                <div class="srimBarMeter">
+                                    <div class="srimBarValue srimBarValue--floating">${formatNumber(pair.annualValue)}</div>
+                                    <div class="srimBar srimBar--annual srimBar--compact" style="height:${annualHeight}%"></div>
+                                </div>
+                                <div class="srimBarSeries">연간</div>
+                            </div>
+                            <div class="srimBarWrap srimBarWrap--grouped">
+                                <div class="srimBarMeter">
+                                    <div class="srimBarValue srimBarValue--floating">${formatNumber(pair.quarterlyValue)}</div>
+                                    <div class="srimBar srimBar--quarterly srimBar--compact" style="height:${quarterlyHeight}%"></div>
+                                </div>
+                                <div class="srimBarSeries">분기</div>
+                            </div>
+                        </div>
+                        <div class="srimBarLabel">${escapeHtml(pair.label)}</div>
                     </div>
                 `;
             }).join("");
@@ -126,50 +161,42 @@ export const StockDetailPage = {
                 : "";
 
             return `
-                <div class="srimChart">
+                <div class="srimChart srimChart--grouped">
                     ${showLine ? `<div class="srimLine" style="top:${linePct}%"><span>${lineLabel}</span></div>` : ""}
-                    <div class="srimBars">${bars}</div>
+                    <div class="srimBars srimBars--grouped">${groups}</div>
                 </div>
             `;
         };
 
-        const roeDetails = Array.isArray(data?.roeDetails) ? data.roeDetails : [];
-        const roeYears = roeDetails.slice(0, 3).map((r) => r?.fiscalYear ?? "-");
-        const roeValues = roeDetails.slice(0, 3).map((r) => formatPercent(r?.roePercent));
-        const equityValues = roeDetails.slice(0, 3).map((r) => formatNumber(r?.equityOwner));
-        while (roeYears.length < 3) roeYears.push("-");
-        while (roeValues.length < 3) roeValues.push("-");
-        while (equityValues.length < 3) equityValues.push("-");
-        const roeAvg = formatPercent(data?.roePercent);
-        const baseScenario = scenarioData[0] ?? {};
-        const baseScenarioLabel = labels[0] ?? "시나리오 1";
-        const calcEnterpriseValue = formatNumber(baseScenario?.enterpriseValue);
-        const calcExcessEarnings = formatNumber(baseScenario?.excessEarnings);
-        const calcFairValue = formatNumber(baseScenario?.fairValuePerShare);
-        const calcEquity = formatNumber(data?.equity);
-        const calcKe = formatRatePercent(data?.ke);
-        const calcRoe = formatPercent(data?.roePercent);
-        const calcShares = formatNumber(data?.sharesOutstanding);
+        const renderScenarioCard = (result) => {
+            const scenarioData = Array.isArray(result?.scenarios) ? result.scenarios : [];
+            const scenarioRows = scenarioData.map((s, i) => {
+                const label = labels[i] ?? `시나리오 ${i + 1}`;
+                const fairValue = formatNumber(s?.fairValuePerShare);
+                const enterpriseValue = formatNumber(s?.enterpriseValue);
+                return `
+                    <tr>
+                        <th class="srimTable__rowHead">${escapeHtml(label)}</th>
+                        <td class="srimTable__cell">${fairValue}</td>
+                        <td class="srimTable__cell">${enterpriseValue}</td>
+                    </tr>
+                `;
+            }).join("");
 
-        const keChip = `<span class="chip chip--neutral">Ke ${formatRatePercent(data?.ke)}</span>`;
-        const yearChip = data?.year ? `<span class="chip chip--muted">${escapeHtml(data.year)}년</span>` : "";
-        const priceChip = data?.currentPrice
-            ? `<span class="chip chip--dark">현재가 ${formatNumber(data?.currentPrice)}원</span>`
-            : "";
+            const baseScenario = scenarioData[0] ?? {};
 
-        container.innerHTML = `
-        <div class="srimGrid">
-            <div class="srimCard">
-                <div class="srimTitle">
-                    <h3>S-RIM 적정주가</h3>
-                    <div class="srimChips">
-                        ${keChip}
-                        ${yearChip}
-                        ${priceChip}
+            return `
+                <div class="srimCard">
+                    <div class="srimTitle">
+                        <div>
+                            <h3>${escapeHtml(result.title)}</h3>
+                            <div class="srimHint">${escapeHtml(result.hint)}</div>
+                        </div>
+                        <div class="srimChips">
+                            <span class="chip chip--muted">${escapeHtml(result.periodLabel)}</span>
+                            <span class="chip chip--neutral">ROE ${formatPercent(result.roePercent)}</span>
+                        </div>
                     </div>
-                </div>
-                <div class="srimSubTitle">시나리오별 적정주가</div>
-                <div class="srimScenarioLayout">
                     <div class="srimTableWrap srimTableWrap--flush">
                         <table class="srimTable srimTable--scenario">
                             <thead>
@@ -184,70 +211,182 @@ export const StockDetailPage = {
                             </tbody>
                         </table>
                     </div>
-                    ${buildBarChart(
-            fairValues,
-            labels,
-            { lineValue: Number(data?.currentPrice ?? 0), lineNote: data?.currentPriceDate }
-        )}
+                    <div class="srimSubTitle">계산 기준</div>
+                    <div class="srimTableWrap">
+                        <table class="srimTable srimTable--calc">
+                            <tbody>
+                                <tr>
+                                    <th class="srimTable__rowHead">${escapeHtml(result.calcRoeFormula)}</th>
+                                    <td class="srimTable__cell">${formatPercent(result.roePercent)}</td>
+                                </tr>
+                                <tr>
+                                    <th class="srimTable__rowHead">${escapeHtml(result.calcExcessFormula)}</th>
+                                    <td class="srimTable__cell">${formatNumber(baseScenario?.excessEarnings)}원</td>
+                                </tr>
+                                <tr>
+                                    <th class="srimTable__rowHead">기업가치 = 자기자본 + (초과이익 / 할인율)</th>
+                                    <td class="srimTable__cell">${formatNumber(baseScenario?.enterpriseValue)}원</td>
+                                </tr>
+                                <tr>
+                                    <th class="srimTable__rowHead">적정주가 = 기업가치 / 유통주식수</th>
+                                    <td class="srimTable__cell">${formatNumber(baseScenario?.fairValuePerShare)}원</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-                <div class="srimSubTitle">계산식 요약</div>
-                <div class="srimTableWrap">
-                    <table class="srimTable srimTable--calc">
+            `;
+        };
+
+        const roeDetails = Array.isArray(data?.roeDetails) ? data.roeDetails : [];
+        const roeYears = roeDetails.slice(0, 3).map((r) => r?.fiscalYear ?? "-");
+        const roeValues = roeDetails.slice(0, 3).map((r) => formatPercent(r?.roePercent));
+        const equityValues = roeDetails.slice(0, 3).map((r) => formatNumber(r?.equityOwner));
+        while (roeYears.length < 3) roeYears.push("-");
+        while (roeValues.length < 3) roeValues.push("-");
+        while (equityValues.length < 3) equityValues.push("-");
+        const keChip = `<span class="chip chip--neutral">Ke ${formatRatePercent(data?.ke)}</span>`;
+        const yearChip = data?.year ? `<span class="chip chip--muted">${escapeHtml(data.year)}년</span>` : "";
+        const priceChip = data?.currentPrice
+            ? `<span class="chip chip--dark">현재가 ${formatNumber(data?.currentPrice)}원</span>`
+            : "";
+        const formatEokValue = (value) => {
+            if (value == null || Number.isNaN(Number(value))) return "-";
+            return formatNumber(Math.round(Number(value) / 10000000) / 10);
+        };
+
+        const comparisonRows = [
+            { label: "기준 기간", annual: annualResult.periodLabel, quarter: quarterlyResult?.periodLabel ?? "-" },
+            { label: "ROE", annual: formatPercent(annualResult.roePercent), quarter: formatPercent(quarterlyResult?.roePercent) },
+            { label: "지배주주지분(억원)", annual: formatEokValue(annualResult.equity), quarter: formatEokValue(quarterlyResult?.equity) },
+            { label: "유통주식수", annual: `${formatNumber(annualResult.sharesOutstanding)}주`, quarter: quarterlyResult?.sharesOutstanding != null ? `${formatNumber(quarterlyResult.sharesOutstanding)}주` : "-" },
+            { label: "할인율(Ke)", annual: formatRatePercent(annualResult.ke), quarter: formatRatePercent(quarterlyResult?.ke) },
+            {
+                label: "기준 적정주가",
+                annual: `${formatNumber(annualResult.scenarios?.[0]?.fairValuePerShare)}원`,
+                quarter: quarterlyResult?.scenarios?.[0]?.fairValuePerShare != null
+                    ? `${formatNumber(quarterlyResult.scenarios[0].fairValuePerShare)}원`
+                    : "-"
+            }
+        ];
+        const comparisonRowsHtml = comparisonRows.map((row) => `
+            <tr>
+                <th class="srimTable__rowHead">${escapeHtml(row.label)}</th>
+                <td class="srimTable__cell">${escapeHtml(row.annual)}</td>
+                <td class="srimTable__cell">${escapeHtml(row.quarter)}</td>
+            </tr>
+        `).join("");
+        const roeSpreadPercent = data?.roePercent != null && data?.ke != null
+            ? Number(data.roePercent) - (Number(data.ke) * 100)
+            : null;
+        const sideTableRowsHtml = labels.map((label, index) => {
+            const annualValue = annualResult.scenarios?.[index]?.fairValuePerShare;
+            const quarterlyValue = quarterlyResult?.scenarios?.[index]?.fairValuePerShare;
+            return `
+                <tr>
+                    <th class="srimMiniTable__rowHead">${escapeHtml(label)}</th>
+                    <td class="srimMiniTable__cell">${annualValue != null ? `${formatNumber(annualValue)}원` : "-"}</td>
+                    <td class="srimMiniTable__cell">${quarterlyValue != null ? `${formatNumber(quarterlyValue)}원` : "-"}</td>
+                </tr>
+            `;
+        }).join("");
+
+        container.innerHTML = `
+        <div class="srimGrid">
+            <div class="srimTopGrid">
+                <div class="srimSideSlot">
+                    <div class="srimSideSlot__content">
+                        <div class="srimTitle srimTitle--stack">
+                            <div>
+                                <h3>적정주가 비교표</h3>
+                                <div class="srimHint">시나리오별 연간/분기 적정주가</div>
+                            </div>
+                        </div>
+                        <div class="srimMiniTableWrap">
+                            <table class="srimMiniTable">
+                                <thead>
+                                    <tr>
+                                        <th class="srimMiniTable__head">시나리오</th>
+                                        <th class="srimMiniTable__head">연간</th>
+                                        <th class="srimMiniTable__head">분기</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${sideTableRowsHtml}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="srimCard">
+                    <div class="srimTitle">
+                        <h3>S-RIM 적정주가</h3>
+                        <div class="srimChips">
+                            ${keChip}
+                            ${yearChip}
+                            ${priceChip}
+                        </div>
+                    </div>
+                    <div class="srimHint">오늘 기준 회사채 수익률을 적용해 연간 기준과 최신 분기 기준 적정주가를 함께 비교합니다.</div>
+                    <div class="srimSubTitle">시나리오별 적정주가 비교</div>
+                    ${buildComparisonChart(
+                        annualResult.scenarios,
+                        quarterlyResult?.scenarios ?? [],
+                        labels,
+                        { lineValue: Number(data?.currentPrice ?? 0), lineNote: data?.currentPriceDate }
+                    )}
+                </div>
+            </div>
+            <div class="srimCard">
+                <div class="srimTitle">
+                    <h3>계산 값 요약</h3>
+                    <span class="srimHint">연간 기준 S-RIM 계산에 사용한 핵심 값</span>
+                </div>
+                <div class="srimMetaTableWrap">
+                    <table class="srimMetaTable">
                         <thead>
                             <tr>
-                                <th class="srimTable__head">식</th>
-                                <th class="srimTable__head">값</th>
+                                <th class="srimMetaTable__head">현재가</th>
+                                <th class="srimMetaTable__head">가중평균 ROE(3년)</th>
+                                <th class="srimMetaTable__head">유통주식수</th>
+                                <th class="srimMetaTable__head">ROE - 할인율</th>
+                                <th class="srimMetaTable__head">지배주주지분(자기자본)</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
-                                <th class="srimTable__rowHead">기업가치 = 지배주주지분 + (초과이익 / 할인율)</th>
-                                <td class="srimTable__cell">${calcEnterpriseValue}원</td>
-                            </tr>
-                            <tr>
-                                <th class="srimTable__rowHead">초과이익 = 자기자본 × (가중평균 ROE − 할인율)</th>
-                                <td class="srimTable__cell">${calcExcessEarnings}원</td>
-                            </tr>
-                            <tr>
-                                <th class="srimTable__rowHead">ROE = 당기순이익 / 평균자기자본</th>
-                                <td class="srimTable__cell">${calcRoe}</td>
-                            </tr>
-                            <tr>
-                                <th class="srimTable__rowHead">적정주가 = 기업가치 / 유통주식수</th>
-                                <td class="srimTable__cell">${calcFairValue}원</td>
+                                <td class="srimMetaTable__cell">${data?.currentPrice != null ? `₩${formatNumber(data.currentPrice)}` : "-"}</td>
+                                <td class="srimMetaTable__cell">${formatPercent(data?.roePercent)}</td>
+                                <td class="srimMetaTable__cell">${data?.sharesOutstanding != null ? `${formatNumber(data.sharesOutstanding)}주` : "-"}</td>
+                                <td class="srimMetaTable__cell">${roeSpreadPercent != null ? `${formatPercent(roeSpreadPercent)}` : "-"}</td>
+                                <td class="srimMetaTable__cell">${data?.equity != null ? `${formatNumber(data.equity)}원` : "-"}</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
-                <div class="srimCalcNote">
-                    기준 시나리오: ${escapeHtml(baseScenarioLabel)} ·
-                    지배주주지분 ${calcEquity}원 ·
-                    할인율 ${calcKe} ·
-                    유통주식수 ${calcShares}주
-                </div>
+            </div>
+            <div class="srimResultGrid">
+                ${renderScenarioCard(annualResult)}
+                ${quarterlyResult ? renderScenarioCard(quarterlyResult) : `<div class="srimCard srimCard--empty"><div class="alert">표시할 최신 분기 적정주가 데이터가 없습니다.</div></div>`}
             </div>
         
             <div class="srimCard">
                 <div class="srimTitle">
                     <h3>입력 요약</h3>
-                    <span class="srimHint">S-RIM 계산 입력값</span>
+                    <span class="srimHint">연간 기준과 최신 분기 기준 입력 비교</span>
                 </div>
                 <div class="srimSummaryGrid">
                     <div class="srimTableWrap">
-                        <table class="srimTable srimTable--center srimTable--compact">
+                        <table class="srimTable srimTable--center">
+                            <thead>
+                                <tr>
+                                    <th class="srimTable__head">항목</th>
+                                    <th class="srimTable__head">연간 기준</th>
+                                    <th class="srimTable__head">최신 분기 기준</th>
+                                </tr>
+                            </thead>
                             <tbody>
-                                <tr>
-                                    <th class="srimTable__rowHead">발행주식수</th>
-                                    <td class="srimTable__cell">${formatNumber(data?.sharesOutstanding)}주</td>
-                                </tr>
-                                <tr>
-                                    <th class="srimTable__rowHead">지배주주지분</th>
-                                    <td class="srimTable__cell">${formatNumber(data?.equity)}원</td>
-                                </tr>
-                                <tr>
-                                    <th class="srimTable__rowHead">할인율(Ke)</th>
-                                    <td class="srimTable__cell">${formatRatePercent(data?.ke)}</td>
-                                </tr>
+                                ${comparisonRowsHtml}
                             </tbody>
                         </table>
                     </div>
@@ -268,7 +407,7 @@ export const StockDetailPage = {
                                     <td class="srimTable__cell">${escapeHtml(roeValues[0])}</td>
                                     <td class="srimTable__cell">${escapeHtml(roeValues[1])}</td>
                                     <td class="srimTable__cell">${escapeHtml(roeValues[2])}</td>
-                                    <td class="srimTable__cell srimTable__cell--em">${escapeHtml(roeAvg)}</td>
+                                    <td class="srimTable__cell srimTable__cell--em">${escapeHtml(formatPercent(data?.roePercent))}</td>
                                 </tr>
                                 <tr>
                                     <th class="srimTable__rowHead">지배주주지분</th>

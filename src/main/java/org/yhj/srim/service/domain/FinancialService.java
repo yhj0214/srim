@@ -664,14 +664,14 @@ public class FinancialService {
             String accountNm = line.getAccountNm();         // 계정설명
             String accountDetail = line.getAccountDetail(); // 구성요소 [member] 등
 
-            BigDecimal currVal = line.getThstrmAmount();    // 당기금액
-            BigDecimal prevVal = line.getFrmtrmAmount();    // 전기금액
-
             String metricCode = mapAccountToMetric(sjDiv, accountId, accountNm, accountDetail);
 
             if (metricCode == null) {
                 continue;
             }
+
+            BigDecimal currVal = line.getThstrmAmount();
+            BigDecimal prevVal = line.getFrmtrmAmount();    // 전기금액
 
             // 당기
             if (currVal != null) {
@@ -985,7 +985,7 @@ public class FinancialService {
 
         // 지배주주 귀속 당기순이익
         if ((key.id.equals("ifrs-full_ProfitLoss") || key.id.contains("미사용") || key.id.contains("ifrs_ProfitLoss"))
-                && (key.nm.contains("당기순이익") || key.nm.contains("당기순손실") || key.nm.contains("당기순손익"))
+                && (key.nm.contains("당기순이익") || key.nm.contains("당기순손실") || key.nm.contains("당기순손익") || key.nm.contains("분기순이익"))
                 && key.detail.contains("지배기업")
                 && !key.detail.contains("기타자본") && !key.detail.contains("이익잉여") && !key.detail.contains("자본금") && !key.detail.contains("주식발행")) {
 

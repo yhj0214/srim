@@ -8,6 +8,7 @@ import org.yhj.srim.common.exception.CustomException;
 import org.yhj.srim.common.exception.code.SrimError;
 import org.yhj.srim.repository.*;
 import org.yhj.srim.repository.entity.*;
+import org.yhj.srim.service.facade.dto.YearBaseData;
 import org.yhj.srim.service.dto.SrimCalculateCommand;
 import org.yhj.srim.service.dto.SrimResultDto;
 
@@ -92,6 +93,9 @@ public class SrimService {
         BigDecimal ke = getDiscountRate(rating, tenorMonths.shortValue(), asOf);
         log.debug("Ke: {}", ke);
 
+        SrimResultDto.QuarterlyResult quarterlyResult =
+                calculateLatestQuarterlyResult(companyId, rating, tenorMonths, asOf);
+
         // 5. 기본 초과이익 계산 (Equity * (ROE-ke))
         BigDecimal baseExcessEarnings = equityOwner.multiply(roe.subtract(ke));
         log.debug("자기자본값 : {}", equityOwner);
@@ -100,33 +104,8 @@ public class SrimService {
         log.debug("기본 초과이익, 감소율 0 : {}", baseExcessEarnings);
 
         // 6. 초과이익 감소 시나리오별 계산
-        List<SrimResultDto.ScenarioResult> scenarioResults = new ArrayList<>();
-
-        for(BigDecimal reductionRate : REDUCTION_RATES) {
-
-            BigDecimal adjustedExcessEarnings = baseExcessEarnings
-                    .multiply(BigDecimal.ONE.add(reductionRate));
-
-            // 기업 가치 = Equity + (초과이익 / Ke)
-            BigDecimal enterpriseValue = equityOwner.add(
-                    adjustedExcessEarnings.divide(ke, 10, RoundingMode.HALF_UP)
-            );
-
-            // 적정주가 = 기업주가 / 유통주식수
-            BigDecimal fairValuePerShare = enterpriseValue.divide(
-                    new BigDecimal(sharesOutStanding),
-                    DEFAULT_SCALE,
-                    RoundingMode.HALF_UP
-            );
-
-
-            scenarioResults.add(SrimResultDto.ScenarioResult.builder()
-                    .reductionRate(reductionRate)
-                    .excessEarnings(adjustedExcessEarnings.setScale(0, RoundingMode.HALF_UP))
-                    .enterpriseValue(enterpriseValue.setScale(0, RoundingMode.HALF_UP))
-                    .fairValuePerShare(fairValuePerShare)
-                    .build());
-        }
+        List<SrimResultDto.ScenarioResult> scenarioResults =
+                buildScenarioResults(sharesOutStanding, roe, equityOwner, ke);
 
         if (log.isDebugEnabled()) {
             StringBuilder sb = new StringBuilder();
@@ -166,10 +145,32 @@ public class SrimService {
                 .currentPriceDate(resolveCurrentPriceDate(companyId))
                 .roeDetails(roeSummary.details())
                 .scenarios(scenarioResults)
+                .quarterly(quarterlyResult)
                 .build();
     }
 
     public SrimResultDto calculateFromBaseData(
+            YearBaseData baseData,
+            BigDecimal ke,
+            String rating,
+            Integer tenorMonths
+    ) {
+        if (baseData == null) {
+            throw new CustomException(SrimError.INVALID_REQUEST, "S-RIM 기본 연간 데이터가 비어있습니다.");
+        }
+
+        return calculateFromBaseData(
+                baseData.getSharesOutstanding(),
+                baseData.getRoe(),
+                baseData.getEquityOwner(),
+                ke,
+                baseData.getYear(),
+                rating,
+                tenorMonths
+        );
+    }
+
+    private SrimResultDto calculateFromBaseData(
             Long sharesOutstanding,
             BigDecimal roe,
             BigDecimal equityOwner,
@@ -183,32 +184,8 @@ public class SrimService {
         }
         if (rating == null) rating = DEFAULT_RATING;
         if (tenorMonths == null) tenorMonths = (int) DEFAULT_TENOR_MONTHS;
-
-        BigDecimal baseExcessEarnings = equityOwner.multiply(roe.subtract(ke));
-
-        List<SrimResultDto.ScenarioResult> scenarioResults = new ArrayList<>();
-
-        for (BigDecimal reductionRate : REDUCTION_RATES) {
-            BigDecimal adjustedExcessEarnings =
-                    baseExcessEarnings.multiply(BigDecimal.ONE.add(reductionRate));
-
-            BigDecimal enterpriseValue = equityOwner.add(
-                    adjustedExcessEarnings.divide(ke, 10, RoundingMode.HALF_UP)
-            );
-
-            BigDecimal fairValuePerShare = enterpriseValue.divide(
-                    BigDecimal.valueOf(sharesOutstanding),
-                    DEFAULT_SCALE,
-                    RoundingMode.HALF_UP
-            );
-
-            scenarioResults.add(SrimResultDto.ScenarioResult.builder()
-                    .reductionRate(reductionRate)
-                    .excessEarnings(adjustedExcessEarnings.setScale(0, RoundingMode.HALF_UP))
-                    .enterpriseValue(enterpriseValue.setScale(0, RoundingMode.HALF_UP))
-                    .fairValuePerShare(fairValuePerShare)
-                    .build());
-        }
+        List<SrimResultDto.ScenarioResult> scenarioResults =
+                buildScenarioResults(sharesOutstanding, roe, equityOwner, ke);
 
         BigDecimal roePercent = roe != null
                 ? roe.multiply(BigDecimal.valueOf(100))
@@ -225,6 +202,126 @@ public class SrimService {
                 .sharesOutstanding(sharesOutstanding)
                 .scenarios(scenarioResults)
                 .build();
+    }
+
+    // 최신 분기 기준 S-RIM 계산 결과
+    private SrimResultDto.QuarterlyResult calculateLatestQuarterlyResult(
+            Long companyId,
+            String rating,
+            Integer tenorMonths,
+            LocalDate asOf
+    ) {
+        QuarterlyBaseData baseData = loadLatestQuarterlyBaseData(companyId, rating, tenorMonths, asOf);
+        if (baseData == null) {
+            return null;
+        }
+
+        SrimResultDto srim = calculateFromBaseData(
+                baseData.toYearBaseData(),
+                baseData.ke(),
+                rating,
+                tenorMonths
+        );
+
+        return SrimResultDto.QuarterlyResult.builder()
+                .periodLabel(baseData.period().getLabel())
+                .fiscalYear(baseData.period().getFiscalYear())
+                .fiscalQuarter(baseData.period().getFiscalQuarter())
+                .equity(baseData.equityOwner())
+                .roe(baseData.roe())
+                .roePercent(srim.getRoePercent())
+                .ke(baseData.ke())
+                .sharesOutstanding(baseData.sharesOutstanding())
+                .scenarios(srim.getScenarios())
+                .build();
+    }
+
+    private QuarterlyBaseData loadLatestQuarterlyBaseData(
+            Long companyId,
+            String rating,
+            Integer tenorMonths,
+            LocalDate asOf
+    ) {
+        List<FinPeriod> periods = finPeriodRepository.findRecentActualQuarterlyPeriods(companyId, 2);
+        if (periods.size() < 2) {
+            log.info("분기 S-RIM 계산 스킵: 비교 가능한 최근 2개 분기 기간이 없습니다. companyId={}", companyId);
+            return null;
+        }
+
+        FinPeriod latestQuarter = periods.get(0);
+        FinPeriod previousQuarter = periods.get(1);
+        Optional<BigDecimal> equityOwnerOpt = finMetricValueRepository
+                .findByCompanyIdAndPeriodAndMetricCode(companyId, latestQuarter, METRIC_TOTAL_EQUITY_OWNER)
+                .map(FinMetricValue::getValueNum);
+        Optional<BigDecimal> netIncomeOwnerOpt = finMetricValueRepository
+                .findByCompanyIdAndPeriodAndMetricCode(companyId, latestQuarter, "NET_INC_OWNER")
+                .map(FinMetricValue::getValueNum);
+        Optional<BigDecimal> previousEquityOwnerOpt = finMetricValueRepository
+                .findByCompanyIdAndPeriodAndMetricCode(companyId, previousQuarter, METRIC_TOTAL_EQUITY_OWNER)
+                .map(FinMetricValue::getValueNum);
+
+        if (netIncomeOwnerOpt.isEmpty() || equityOwnerOpt.isEmpty() || previousEquityOwnerOpt.isEmpty()) {
+            log.info("분기 S-RIM 계산 스킵: 최신 분기 지표가 부족합니다. companyId={}, period={}",
+                    companyId, latestQuarter.getLabel());
+            return null;
+        }
+
+        BigDecimal averageEquity = equityOwnerOpt.get()
+                .add(previousEquityOwnerOpt.get())
+                .divide(BigDecimal.valueOf(2), 10, RoundingMode.HALF_UP);
+        if (averageEquity.compareTo(BigDecimal.ZERO) <= 0) {
+            log.info("분기 S-RIM 계산 스킵: 평균 지배주주지분이 0 이하입니다. companyId={}, period={}",
+                    companyId, latestQuarter.getLabel());
+            return null;
+        }
+
+        BigDecimal quarterlyRoe = netIncomeOwnerOpt.get()
+                .multiply(BigDecimal.valueOf(4))
+                .divide(averageEquity, 10, RoundingMode.HALF_UP);
+        BigDecimal ke = getDiscountRate(rating, tenorMonths.shortValue(), asOf);
+        Long sharesOutstanding = resolveQuarterlySharesOutstanding(companyId, latestQuarter);
+
+        return new QuarterlyBaseData(
+                latestQuarter,
+                equityOwnerOpt.get(),
+                quarterlyRoe,
+                ke,
+                sharesOutstanding
+        );
+    }
+
+    private List<SrimResultDto.ScenarioResult> buildScenarioResults(
+            Long sharesOutStanding,
+            BigDecimal roe,
+            BigDecimal equityOwner,
+            BigDecimal ke
+    ) {
+        BigDecimal baseExcessEarnings = equityOwner.multiply(roe.subtract(ke));
+        List<SrimResultDto.ScenarioResult> scenarioResults = new ArrayList<>();
+
+        for (BigDecimal reductionRate : REDUCTION_RATES) {
+            BigDecimal adjustedExcessEarnings = baseExcessEarnings
+                    .multiply(BigDecimal.ONE.add(reductionRate));
+
+            BigDecimal enterpriseValue = equityOwner.add(
+                    adjustedExcessEarnings.divide(ke, 10, RoundingMode.HALF_UP)
+            );
+
+            BigDecimal fairValuePerShare = enterpriseValue.divide(
+                    BigDecimal.valueOf(sharesOutStanding),
+                    DEFAULT_SCALE,
+                    RoundingMode.HALF_UP
+            );
+
+            scenarioResults.add(SrimResultDto.ScenarioResult.builder()
+                    .reductionRate(reductionRate)
+                    .excessEarnings(adjustedExcessEarnings.setScale(0, RoundingMode.HALF_UP))
+                    .enterpriseValue(enterpriseValue.setScale(0, RoundingMode.HALF_UP))
+                    .fairValuePerShare(fairValuePerShare)
+                    .build());
+        }
+
+        return scenarioResults;
     }
 
     private int resolveEffectiveFiscalYear(Long companyId, LocalDate asOf) {
@@ -366,6 +463,57 @@ public class SrimService {
             BigDecimal avgRoePercent,
             List<SrimResultDto.RoeDetail> details
     ) {}
+
+    private record QuarterlyBaseData(
+            FinPeriod period,
+            BigDecimal equityOwner,
+            BigDecimal roe,
+            BigDecimal ke,
+            Long sharesOutstanding
+    ) {
+        private YearBaseData toYearBaseData() {
+            return new YearBaseData(
+                    period.getFiscalYear(),
+                    sharesOutstanding,
+                    roe,
+                    equityOwner
+            );
+        }
+    }
+
+    private Long resolveQuarterlySharesOutstanding(Long companyId, FinPeriod period) {
+        return resolveShareCountForPeriod(companyId, period)
+                .orElseThrow(() -> new CustomException(SrimError.SHARES_OUTSTANDING_NOT_FOUND,
+                        "period=" + period.getLabel()));
+    }
+
+    private Optional<Long> resolveShareCountForPeriod(Long companyId, FinPeriod period) {
+        LocalDate baseDate = period.getPeriodEnd();
+        if (baseDate == null && period.getFiscalYear() != null) {
+            baseDate = LocalDate.of(period.getFiscalYear(), 12, 31);
+        }
+
+        Optional<Long> latestPeriodShareCount = stockShareStatusRepository
+                .findTopByCompany_CompanyIdAndSettlementDateLessThanEqualAndShareClassTypeOrderBySettlementDateDesc(
+                        companyId, baseDate, ShareClassType.TOTAL
+                )
+                .map(status -> {
+                    Long shares = status.getDistbStockCo();
+                    if (shares == null || shares == 0L) {
+                        shares = status.getIstcTotqy();
+                    }
+                    return shares;
+                })
+                .filter(shares -> shares != null && shares > 0L);
+
+        if (latestPeriodShareCount.isPresent()) {
+            return latestPeriodShareCount;
+        }
+
+        return companyRepository.findById(companyId)
+                .map(Company::getSharesOutstanding)
+                .filter(shares -> shares != null && shares > 0L);
+    }
 
     private BigDecimal resolveCurrentPrice(Long companyId) {
         return stockPriceRepository.findTopByCompany_CompanyIdOrderByTradeDateDesc(companyId)
