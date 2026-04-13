@@ -135,7 +135,6 @@ class FinancialApiControllerTest {
                 .roePercent(new BigDecimal("12.34"))
                 .ke(new BigDecimal("0.045"))
                 .sharesOutstanding(5969782550L)
-                .bps(new BigDecimal("42000"))
                 .currentPrice(new BigDecimal("71000"))
                 .currentPriceDate("2026-03-04")
                 .roeDetails(List.of(
@@ -178,7 +177,6 @@ class FinancialApiControllerTest {
                         .roePercent(new BigDecimal("15.34"))
                         .ke(new BigDecimal("0.045"))
                         .sharesOutstanding(5969782550L)
-                        .bps(new BigDecimal("43000"))
                         .scenarios(List.of(
                                 SrimResultDto.ScenarioResult.builder()
                                         .reductionRate(BigDecimal.ZERO)
