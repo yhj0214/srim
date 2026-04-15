@@ -2,6 +2,7 @@ package org.yhj.srim.service.domain;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.yhj.srim.client.DartReportType;
@@ -31,6 +32,11 @@ public class FinancialService {
             "SALES",
             "OP_INC",
             "NET_INC",
+            "NET_INC_OWNER",
+            "NET_INC_NONCONT"
+    );
+
+    private static final List<String> ATTRIBUTABLE_NET_INCOME_CODES = List.of(
             "NET_INC_OWNER",
             "NET_INC_NONCONT"
     );
@@ -479,6 +485,11 @@ public class FinancialService {
     }
 
     @Transactional(readOnly = true)
+    public List<FinPeriod> findRecentActualQuarterlyPeriodsUpTo(Long companyId, int fiscalYear, int fiscalQuarter, int limit) {
+        return finPeriodRepository.findRecentActualQuarterlyPeriodsUpTo(companyId, fiscalYear, fiscalQuarter, limit);
+    }
+
+    @Transactional(readOnly = true)
     public Optional<BigDecimal> findMetricValue(Long companyId, FinPeriod period, String metricCode) {
         return finMetricValueRepository.findByCompanyIdAndPeriodAndMetricCode(companyId, period, metricCode)
                 .map(FinMetricValue::getValueNum);
@@ -596,7 +607,66 @@ public class FinancialService {
         }
 
         FsRawBundle previous = loadRawBundle(companyId, previousQuarterPeriod);
-        return buildSingleQuarterBundle(current, previous);
+        if (fiscalQuarter == 4) {
+            return adjustFourthQuarterBundle(
+                    current,
+                    loadQuarterRawBundle(companyId, fiscalYear, 1),
+                    loadQuarterRawBundle(companyId, fiscalYear, 2),
+                    loadQuarterRawBundle(companyId, fiscalYear, 3),
+                    previous
+            );
+        }
+        return adjustQuarterlyAttributionBundle(current, previous);
+    }
+
+    private FsRawBundle adjustQuarterlyAttributionBundle(FsRawBundle currentBundle, FsRawBundle previousBundle) {
+        Map<String, BigDecimal> curr = new LinkedHashMap<>(currentBundle.curr());
+        Map<String, BigDecimal> previousCurr = previousBundle.curr();
+
+        for (String metricCode : ATTRIBUTABLE_NET_INCOME_CODES) {
+            BigDecimal currentValue = curr.get(metricCode);
+            BigDecimal previousValue = previousCurr.get(metricCode);
+            if (currentValue == null || previousValue == null) {
+                continue;
+            }
+            curr.put(metricCode, currentValue.subtract(previousValue));
+        }
+
+        return new FsRawBundle(curr, previousCurr);
+    }
+
+    private FsRawBundle adjustFourthQuarterBundle(FsRawBundle annualBundle,
+                                                  FsRawBundle firstQuarterBundle,
+                                                  FsRawBundle secondQuarterBundle,
+                                                  FsRawBundle thirdQuarterBundle,
+                                                  FsRawBundle previousBundle) {
+        Map<String, BigDecimal> curr = new LinkedHashMap<>();
+        Map<String, BigDecimal> annualCurr = annualBundle.curr();
+        Map<String, BigDecimal> firstQuarterCurr = firstQuarterBundle.curr();
+        Map<String, BigDecimal> secondQuarterCurr = secondQuarterBundle.curr();
+        Map<String, BigDecimal> thirdQuarterCurr = thirdQuarterBundle.curr();
+
+        for (Map.Entry<String, BigDecimal> entry : annualCurr.entrySet()) {
+            String metricCode = entry.getKey();
+            BigDecimal annualValue = entry.getValue();
+            if (annualValue == null) {
+                continue;
+            }
+
+            if (FLOW_METRIC_CODES.contains(metricCode)) {
+                BigDecimal firstQuarterValue = firstQuarterCurr.get(metricCode);
+                BigDecimal secondQuarterValue = secondQuarterCurr.get(metricCode);
+                BigDecimal thirdQuarterValue = thirdQuarterCurr.get(metricCode);
+                BigDecimal priorQuarterSum = Stream.of(firstQuarterValue, secondQuarterValue, thirdQuarterValue)
+                        .filter(Objects::nonNull)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                curr.put(metricCode, annualValue.subtract(priorQuarterSum));
+            } else {
+                curr.put(metricCode, annualValue);
+            }
+        }
+
+        return new FsRawBundle(curr, previousBundle.curr());
     }
 
     private DartReportType resolveReportType(FinPeriod period) {
@@ -625,32 +695,6 @@ public class FinancialService {
                     CommonError.INVALID_INPUT, "지원하지 않는 분기 값입니다. fiscalQuarter=" + fiscalQuarter
             );
         };
-    }
-
-    private FsRawBundle buildSingleQuarterBundle(FsRawBundle cumulativeBundle, FsRawBundle previousCumulativeBundle) {
-        Map<String, BigDecimal> curr = new LinkedHashMap<>();
-        Map<String, BigDecimal> prev = new LinkedHashMap<>();
-
-        Map<String, BigDecimal> currentCurr = cumulativeBundle.curr();
-        Map<String, BigDecimal> previousCurr = previousCumulativeBundle.curr();
-
-        for (Map.Entry<String, BigDecimal> entry : currentCurr.entrySet()) {
-            String metricCode = entry.getKey();
-            BigDecimal currentValue = entry.getValue();
-            if (currentValue == null) {
-                continue;
-            }
-
-            if (FLOW_METRIC_CODES.contains(metricCode)) {
-                BigDecimal previousValue = previousCurr.get(metricCode);
-                curr.put(metricCode, previousValue == null ? currentValue : currentValue.subtract(previousValue));
-            } else {
-                curr.put(metricCode, currentValue);
-            }
-        }
-
-        prev.putAll(previousCurr);
-        return new FsRawBundle(curr, prev);
     }
 
     private FsRawBundle collectRawBundle(List<DartFsLine> lines) {
@@ -953,7 +997,7 @@ public class FinancialService {
 
         // 전체 당기순이익
         if ((key.id.equals("ifrs-full_ProfitLoss") || key.id.equals("ifrs_ProfitLoss") || key.id.contains("미사용"))
-                && (key.nm.contains("당기순이익") || key.nm.contains("당기순손실") || key.nm.contains("당기순손익"))) {
+                && (key.nm.contains("당기순이익") || key.nm.contains("당기순손실") || key.nm.contains("당기순손익") || key.nm.contains("분기순이익") || key.nm.contains("반기순이익")) ) {
             // 전체 당기순이익
             return "NET_INC";
         }
@@ -986,7 +1030,7 @@ public class FinancialService {
 
         // 지배주주 귀속 당기순이익
         if ((key.id.equals("ifrs-full_ProfitLoss") || key.id.contains("미사용") || key.id.contains("ifrs_ProfitLoss"))
-                && (key.nm.contains("당기순이익") || key.nm.contains("당기순손실") || key.nm.contains("당기순손익") || key.nm.contains("분기순이익"))
+                && (key.nm.contains("당기순이익") || key.nm.contains("당기순손실") || key.nm.contains("당기순손익") || key.nm.contains("분기순이익")|| key.nm.contains("반기순이익"))
                 && key.detail.contains("지배기업")
                 && !key.detail.contains("기타자본") && !key.detail.contains("이익잉여") && !key.detail.contains("자본금") && !key.detail.contains("주식발행")) {
 
@@ -995,7 +1039,7 @@ public class FinancialService {
 
         // 비지배주주 귀속 당기순이익
         if ((key.id.equals("ifrs-full_ProfitLoss") || key.id.contains("미사용") || key.id.contains("ifrs_ProfitLoss"))
-                && (key.nm.contains("당기순이익") || key.nm.contains("당기순손실") || key.nm.contains("당기순손익"))
+                && (key.nm.contains("당기순이익") || key.nm.contains("당기순손실") || key.nm.contains("당기순손익") || key.nm.contains("분기순이익")|| key.nm.contains("반기순이익"))
                 && key.detail.contains("비지배")) {
             return "NET_INC_NONCONT";
         }
@@ -1046,6 +1090,8 @@ public class FinancialService {
             return 0;
         }
 
+        List<String> targetMetricCodes = stageMetricCodes.stream().distinct().toList();
+
         FinPeriod period = finPeriodRepository
                 .findByCompany_CompanyIdAndPeriodTypeAndFiscalYearAndIsEstimate(
                         companyId, "YEAR", fiscalYear, false
@@ -1065,16 +1111,19 @@ public class FinancialService {
                     return finPeriodRepository.save(p);
                 });
 
-        finMetricValueRepository.deleteByCompanyIdAndPeriod_PeriodIdAndMetricCodeIn(
-                companyId, period.getPeriodId(), stageMetricCodes
+        long deleted = finMetricValueRepository.deleteByCompanyIdAndPeriod_PeriodIdAndMetricCodeIn(
+                companyId, period.getPeriodId(), targetMetricCodes
         );
+        finMetricValueRepository.flush();
+        log.info("[FIN-METRIC][ANNUAL] replace start companyId={}, year={}, periodId={}, deleteCount={}, targetMetricCodes={}",
+                companyId, fiscalYear, period.getPeriodId(), deleted, targetMetricCodes);
 
         if (metrics == null || metrics.isEmpty()) {
             return 0;
         }
 
         List<FinMetricValue> entities = metrics.entrySet().stream()
-                .filter(entry -> stageMetricCodes.contains(entry.getKey()))
+                .filter(entry -> targetMetricCodes.contains(entry.getKey()))
                 .filter(entry -> entry.getValue() != null)
                 .map(entry -> FinMetricValue.builder()
                         .companyId(companyId)
@@ -1085,7 +1134,17 @@ public class FinancialService {
                         .build())
                 .toList();
 
-        finMetricValueRepository.saveAll(entities);
+        try {
+            finMetricValueRepository.saveAll(entities);
+        } catch (DataIntegrityViolationException ex) {
+            log.error("[FIN-METRIC][ANNUAL] duplicate save failure companyId={}, year={}, periodId={}, entityMetricCodes={}",
+                    companyId,
+                    fiscalYear,
+                    period.getPeriodId(),
+                    entities.stream().map(FinMetricValue::getMetricCode).toList(),
+                    ex);
+            throw ex;
+        }
         return entities.size();
     }
 
@@ -1101,16 +1160,26 @@ public class FinancialService {
             return 0;
         }
 
-        finMetricValueRepository.deleteByCompanyIdAndPeriod_PeriodIdAndMetricCodeIn(
-                companyId, period.getPeriodId(), stageMetricCodes
+        List<String> targetMetricCodes = stageMetricCodes.stream().distinct().toList();
+
+        long deleted = finMetricValueRepository.deleteByCompanyIdAndPeriod_PeriodIdAndMetricCodeIn(
+                companyId, period.getPeriodId(), targetMetricCodes
         );
+        finMetricValueRepository.flush();
+        log.info("[FIN-METRIC][QTR] replace start companyId={}, periodId={}, period={}/{}, deleteCount={}, targetMetricCodes={}",
+                companyId,
+                period.getPeriodId(),
+                period.getFiscalYear(),
+                period.getFiscalQuarter(),
+                deleted,
+                targetMetricCodes);
 
         if (metrics == null || metrics.isEmpty()) {
             return 0;
         }
 
         List<FinMetricValue> entities = metrics.entrySet().stream()
-                .filter(entry -> stageMetricCodes.contains(entry.getKey()))
+                .filter(entry -> targetMetricCodes.contains(entry.getKey()))
                 .filter(entry -> entry.getValue() != null)
                 .map(entry -> FinMetricValue.builder()
                         .companyId(companyId)
@@ -1121,7 +1190,18 @@ public class FinancialService {
                         .build())
                 .toList();
 
-        finMetricValueRepository.saveAll(entities);
+        try {
+            finMetricValueRepository.saveAll(entities);
+        } catch (DataIntegrityViolationException ex) {
+            log.error("[FIN-METRIC][QTR] duplicate save failure companyId={}, periodId={}, period={}/{}, entityMetricCodes={}",
+                    companyId,
+                    period.getPeriodId(),
+                    period.getFiscalYear(),
+                    period.getFiscalQuarter(),
+                    entities.stream().map(FinMetricValue::getMetricCode).toList(),
+                    ex);
+            throw ex;
+        }
         return entities.size();
     }
 

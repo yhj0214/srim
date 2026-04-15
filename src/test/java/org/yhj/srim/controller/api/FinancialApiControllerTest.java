@@ -11,6 +11,7 @@ import org.yhj.srim.common.exception.CustomException;
 import org.yhj.srim.common.exception.code.CommonError;
 import org.yhj.srim.service.domain.SrimService;
 import org.yhj.srim.service.dto.FinancialTableDto;
+import org.yhj.srim.service.dto.PeriodType;
 import org.yhj.srim.service.dto.SrimResultDto;
 import org.yhj.srim.service.facade.FinancialFacadeService;
 
@@ -61,10 +62,11 @@ class FinancialApiControllerTest {
                                 .build()))
                 .build();
 
-        BDDMockito.given(financialFacadeService.getAnnualTable(1L, 10))
+        BDDMockito.given(financialFacadeService.getFinancialTable(1L, 10, PeriodType.ANNUAL))
                 .willReturn(dto);
 
-        mockMvc.perform(get("/api/stocks/1/financial/annual")
+        mockMvc.perform(get("/api/stocks/1/financial")
+                        .param("period", "annual")
                         .param("limit", "10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -79,48 +81,51 @@ class FinancialApiControllerTest {
     @Test
     @DisplayName("연간 재무 테이블 API 요청이 잘못되면 400을 반환한다.")
     void annual_financial_bad_request() throws Exception {
-        BDDMockito.given(financialFacadeService.getAnnualTable(1L, 10))
+        BDDMockito.given(financialFacadeService.getFinancialTable(1L, 10, PeriodType.ANNUAL))
                 .willThrow(new IllegalArgumentException("invalid request"));
 
-        mockMvc.perform(get("/api/stocks/1/financial/annual")
+        mockMvc.perform(get("/api/stocks/1/financial")
+                        .param("period", "annual")
                         .param("limit", "10"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error.code").value("COMMON-001"))
                 .andExpect(jsonPath("$.error.message").value("잘못된 요청입니다."))
                 .andExpect(jsonPath("$.error.detail").value("invalid request"))
-                .andExpect(jsonPath("$.error.path").value("/api/stocks/1/financial/annual"));
+                .andExpect(jsonPath("$.error.path").value("/api/stocks/1/financial"));
     }
 
     @Test
     @DisplayName("연간 재무 테이블 API에서 CustomException이 발생하면 ErrorCode를 반환한다.")
     void annual_financial_custom_error() throws Exception {
-        BDDMockito.given(financialFacadeService.getAnnualTable(1L, 10))
+        BDDMockito.given(financialFacadeService.getFinancialTable(1L, 10, PeriodType.ANNUAL))
                 .willThrow(new CustomException(CommonError.INVALID_INPUT, "custom detail"));
 
-        mockMvc.perform(get("/api/stocks/1/financial/annual")
+        mockMvc.perform(get("/api/stocks/1/financial")
+                        .param("period", "annual")
                         .param("limit", "10"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error.code").value("COMMON-001"))
                 .andExpect(jsonPath("$.error.message").value("잘못된 요청입니다."))
                 .andExpect(jsonPath("$.error.detail").value("custom detail"))
-                .andExpect(jsonPath("$.error.path").value("/api/stocks/1/financial/annual"));
+                .andExpect(jsonPath("$.error.path").value("/api/stocks/1/financial"));
     }
 
     @Test
     @DisplayName("연간 재무 테이블 API 처리 중 오류가 발생하면 500을 반환한다.")
     void annual_financial_internal_error() throws Exception {
-        BDDMockito.given(financialFacadeService.getAnnualTable(1L, 10))
+        BDDMockito.given(financialFacadeService.getFinancialTable(1L, 10, PeriodType.ANNUAL))
                 .willThrow(new RuntimeException("unhandled 발생"));
 
-        mockMvc.perform(get("/api/stocks/1/financial/annual")
+        mockMvc.perform(get("/api/stocks/1/financial")
+                        .param("period", "annual")
                         .param("limit", "10"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.error.code").value("COMMON-002"))
                 .andExpect(jsonPath("$.error.message").value("서버 오류가 발생했습니다."))
-                .andExpect(jsonPath("$.error.path").value("/api/stocks/1/financial/annual"));
+                .andExpect(jsonPath("$.error.path").value("/api/stocks/1/financial"));
     }
 
     @Test

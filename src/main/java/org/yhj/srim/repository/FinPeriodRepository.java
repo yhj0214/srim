@@ -50,6 +50,24 @@ public interface FinPeriodRepository extends JpaRepository<FinPeriod, Long> {
         """, nativeQuery = true)
     List<FinPeriod> findRecentActualQuarterlyPeriods(@Param("companyId") Long companyId, @Param("limit") int limit);
 
+    @Query(value = """
+        SELECT *
+        FROM fin_period
+        WHERE company_id = :companyId
+          AND period_type = 'QTR'
+          AND is_estimate = false
+          AND (
+                fiscal_year < :fiscalYear
+                OR (fiscal_year = :fiscalYear AND fiscal_quarter <= :fiscalQuarter)
+              )
+        ORDER BY fiscal_year DESC, fiscal_quarter DESC
+        LIMIT :limit
+        """, nativeQuery = true)
+    List<FinPeriod> findRecentActualQuarterlyPeriodsUpTo(@Param("companyId") Long companyId,
+                                                         @Param("fiscalYear") int fiscalYear,
+                                                         @Param("fiscalQuarter") int fiscalQuarter,
+                                                         @Param("limit") int limit);
+
     /**
      * 특정 조건으로 기간 조회
      */
