@@ -39,3 +39,4 @@ out/
 ### project ###
 *.md
 src/main/resources/application-local.yml
+src/test/resources/application-test-secrets.yml

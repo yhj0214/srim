@@ -1,4 +1,7 @@
 spring:
+  config:
+    import: optional:file:${TEST_SECRET_CONFIG:./src/test/resources/application-test-secrets.yml}
+
   application:
     name: srim
 
