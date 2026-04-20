@@ -701,6 +701,8 @@ public class FinancialService {
 
         Map<String, BigDecimal> curr = new LinkedHashMap<>();
         Map<String, BigDecimal> prev = new LinkedHashMap<>();
+        Map<String, DartFsLine> currSources = new HashMap<>();
+        Map<String, DartFsLine> prevSources = new HashMap<>();
 
 
         for(DartFsLine line : lines) {
@@ -720,8 +722,14 @@ public class FinancialService {
 
             // 당기
             if (currVal != null) {
-                BigDecimal old = curr.putIfAbsent(metricCode, currVal);
-                if (old != null && old.compareTo(currVal) != 0) {
+                BigDecimal old = curr.get(metricCode);
+                if (old == null) {
+                    curr.put(metricCode, currVal);
+                    currSources.put(metricCode, line);
+                } else if (shouldReplaceRawMetric(metricCode, currSources.get(metricCode), line)) {
+                    curr.put(metricCode, currVal);
+                    currSources.put(metricCode, line);
+                } else if (old.compareTo(currVal) != 0) {
                     log.debug("[FS-DB][DUP-CURR] metric={} old={} new={} (accountId={}, accountNm={})",
                             metricCode, old, currVal, accountId, accountNm);
                 }
@@ -729,15 +737,207 @@ public class FinancialService {
 
             // 전기
             if (prevVal != null) {
-                BigDecimal old = prev.putIfAbsent(metricCode, prevVal);
-                if (old != null && old.compareTo(prevVal) != 0) {
+                BigDecimal old = prev.get(metricCode);
+                if (old == null) {
+                    prev.put(metricCode, prevVal);
+                    prevSources.put(metricCode, line);
+                } else if (shouldReplaceRawMetric(metricCode, prevSources.get(metricCode), line)) {
+                    prev.put(metricCode, prevVal);
+                    prevSources.put(metricCode, line);
+                } else if (old.compareTo(prevVal) != 0) {
                     log.debug("[FS-DB][DUP-PREV] metric={} old={} new={} (accountId={}, accountNm={})",
                             metricCode, old, prevVal, accountId, accountNm);
                 }
             }
         }
 
+        applyNetIncomeFallbacks(curr);
+        applyNetIncomeFallbacks(prev);
+        applyOwnerEquityFallbacks(curr);
+        applyOwnerEquityFallbacks(prev);
+
         return new FsRawBundle(curr, prev);
+    }
+
+    private boolean shouldReplaceRawMetric(String metricCode, DartFsLine currentLine, DartFsLine candidateLine) {
+        if (currentLine == null || candidateLine == null) {
+            return false;
+        }
+
+        return rawMetricPriority(metricCode, candidateLine) > rawMetricPriority(metricCode, currentLine);
+    }
+
+    private int rawMetricPriority(String metricCode, DartFsLine line) {
+        return switch (metricCode) {
+            case "NET_INC" -> netIncomeCandidatePriority(line);
+            case "NET_INC_OWNER" -> ownerNetIncomeCandidatePriority(line);
+            case "NET_INC_NONCONT" -> noncontNetIncomeCandidatePriority(line);
+            default -> 0;
+        };
+    }
+
+    private int netIncomeCandidatePriority(DartFsLine line) {
+        String accountId = safeLower(line.getAccountId());
+        String accountNm = safeLower(line.getAccountNm());
+        String sjDiv = safeLower(line.getSjDiv());
+
+        int priority = 0;
+
+        if ("ifrs-full_profitloss".equals(accountId) || "ifrs_profitloss".equals(accountId)) {
+            priority += 100;
+        } else if (accountId.contains("미사용")) {
+            priority += 10;
+        }
+
+        if ("cis".equals(sjDiv) || "is".equals(sjDiv)) {
+            priority += 10;
+        }
+
+        if (accountNm.contains("계속영업")) {
+            priority -= 50;
+        }
+
+        if (accountNm.contains("당기순이익") || accountNm.contains("당기순손실") || accountNm.contains("당기순손익")) {
+            priority += 5;
+        }
+
+        return priority;
+    }
+
+    private int ownerNetIncomeCandidatePriority(DartFsLine line) {
+        String accountId = safeLower(line.getAccountId());
+        String accountNm = safeLower(line.getAccountNm());
+        String accountDetail = safeLower(line.getAccountDetail());
+
+        int priority = 0;
+
+        if ("ifrs-full_profitloss".equals(accountId) || "ifrs_profitloss".equals(accountId)) {
+            priority += 100;
+        } else if (accountId.contains("미사용")) {
+            priority += 10;
+        }
+
+        if (accountNm.contains("당기순이익") || accountNm.contains("당기순손실") || accountNm.contains("당기순손익")) {
+            priority += 5;
+        }
+
+        if (containsAny(accountDetail,
+                "지배기업의 소유주 귀속분",
+                "지배기업의 소유주에게 귀속되는",
+                "지배기업 소유주지분",
+                "지배기업 소유주 귀속분")) {
+            priority += 100;
+        }
+
+        if (isTopLevelDetail(accountDetail,
+                "지배기업의 소유주 귀속분",
+                "지배기업의 소유주에게 귀속되는",
+                "지배기업 소유주지분",
+                "지배기업 소유주 귀속분")) {
+            priority += 200;
+        }
+
+        if (accountDetail.contains("연결재무제표") || accountDetail.contains("비지배")) {
+            priority -= 100;
+        }
+
+        if (accountDetail.contains("자본금")
+                || accountDetail.contains("이익잉여금")
+                || accountDetail.contains("기타포괄손익누계액")
+                || accountDetail.contains("기타자본")
+                || accountDetail.contains("자본잉여금")) {
+            priority -= 150;
+        }
+
+        return priority;
+    }
+
+    private int noncontNetIncomeCandidatePriority(DartFsLine line) {
+        String accountId = safeLower(line.getAccountId());
+        String accountNm = safeLower(line.getAccountNm());
+        String accountDetail = safeLower(line.getAccountDetail());
+
+        int priority = 0;
+
+        if ("ifrs-full_profitloss".equals(accountId) || "ifrs_profitloss".equals(accountId)) {
+            priority += 100;
+        } else if (accountId.contains("미사용")) {
+            priority += 10;
+        }
+
+        if (accountNm.contains("당기순이익") || accountNm.contains("당기순손실") || accountNm.contains("당기순손익")) {
+            priority += 5;
+        }
+
+        if (accountDetail.contains("비지배")) {
+            priority += 100;
+        }
+
+        if (isTopLevelDetail(accountDetail, "비지배지분")) {
+            priority += 200;
+        }
+
+        if (accountDetail.contains("연결재무제표") || accountDetail.contains("지배기업")) {
+            priority -= 100;
+        }
+
+        return priority;
+    }
+
+    private String safeLower(String value) {
+        return value == null ? "" : value.toLowerCase(Locale.ROOT);
+    }
+
+    private boolean containsAny(String value, String... markers) {
+        for (String marker : markers) {
+            if (value.contains(marker)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isTopLevelDetail(String detail, String... markers) {
+        for (String marker : markers) {
+            int markerIndex = detail.indexOf(marker);
+            if (markerIndex < 0) {
+                continue;
+            }
+
+            int nextPipeIndex = detail.indexOf('|', markerIndex + marker.length());
+            if (nextPipeIndex < 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void applyNetIncomeFallbacks(Map<String, BigDecimal> metrics) {
+        if (metrics == null || metrics.containsKey("NET_INC_OWNER")) {
+            return;
+        }
+
+        BigDecimal netIncome = metrics.get("NET_INC");
+        BigDecimal noncontNetIncome = metrics.get("NET_INC_NONCONT");
+        if (netIncome == null || noncontNetIncome == null) {
+            return;
+        }
+
+        metrics.put("NET_INC_OWNER", netIncome.subtract(noncontNetIncome));
+    }
+
+    private void applyOwnerEquityFallbacks(Map<String, BigDecimal> metrics) {
+        if (metrics == null || metrics.containsKey("TOTAL_EQUITY_OWNER")) {
+            return;
+        }
+
+        BigDecimal totalEquity = metrics.get("TOTAL_EQUITY");
+        BigDecimal noncontrollingInterests = metrics.get("TOTAL_EQUITY_NONCONT");
+        if (totalEquity == null || noncontrollingInterests == null) {
+            return;
+        }
+
+        metrics.put("TOTAL_EQUITY_OWNER", totalEquity.subtract(noncontrollingInterests));
     }
 
     private Map<String, BigDecimal> extractBaseMetrics(Map<String, BigDecimal> raw) {
@@ -965,11 +1165,21 @@ public class FinancialService {
 
 
         // 지배주주지분 / 지배기업 소유주 지분
-        if (key.id.equals("ifrs-full_EquityAttributableToOwnersOfParent")
-                || key.id.equals("ifrs_EquityAttributableToOwnersOfParent")
-                || key.nm.contains("지배기업의 소유주에게 귀속되는 자본")
-                || key.nm.contains("지배주주지분")) {
+        boolean isStandardOwnerEquityId = key.id.equals("ifrs-full_EquityAttributableToOwnersOfParent")
+                || key.id.equals("ifrs_EquityAttributableToOwnersOfParent");
+        boolean isOwnerEquityName = key.nm.contains("지배기업의 소유주에게 귀속되는 자본")
+                || key.nm.contains("지배회사소유주지분")
+                || key.nm.contains("지배주주지분");
+        boolean isCustomOwnerEquityMatch = key.id.equals("dart_ContributedEquity") && isOwnerEquityName;
+
+        if (isStandardOwnerEquityId || isCustomOwnerEquityMatch || isOwnerEquityName) {
             return "TOTAL_EQUITY_OWNER";
+        }
+
+        if (key.id.equals("ifrs-full_NoncontrollingInterests")
+                || key.id.equals("ifrs_NoncontrollingInterests")
+                || key.nm.contains("비지배지분")) {
+            return "TOTAL_EQUITY_NONCONT";
         }
 
         // 유동자산
@@ -996,8 +1206,7 @@ public class FinancialService {
         if(!"IS".equalsIgnoreCase(key.sj) && !"CIS".equalsIgnoreCase(key.sj)) return null;
 
         // 전체 당기순이익
-        if ((key.id.equals("ifrs-full_ProfitLoss") || key.id.equals("ifrs_ProfitLoss") || key.id.contains("미사용"))
-                && (key.nm.contains("당기순이익") || key.nm.contains("당기순손실") || key.nm.contains("당기순손익") || key.nm.contains("분기순이익") || key.nm.contains("반기순이익")) ) {
+        if (isProfitLossAccountId(key.id) && isNetIncomeLabel(key.nm)) {
             // 전체 당기순이익
             return "NET_INC";
         }
@@ -1029,8 +1238,8 @@ public class FinancialService {
         if(!"SCE".equalsIgnoreCase(key.sj)) return null;
 
         // 지배주주 귀속 당기순이익
-        if ((key.id.equals("ifrs-full_ProfitLoss") || key.id.contains("미사용") || key.id.contains("ifrs_ProfitLoss"))
-                && (key.nm.contains("당기순이익") || key.nm.contains("당기순손실") || key.nm.contains("당기순손익") || key.nm.contains("분기순이익")|| key.nm.contains("반기순이익"))
+        if (isProfitLossAccountId(key.id)
+                && isNetIncomeLabel(key.nm)
                 && key.detail.contains("지배기업")
                 && !key.detail.contains("기타자본") && !key.detail.contains("이익잉여") && !key.detail.contains("자본금") && !key.detail.contains("주식발행")) {
 
@@ -1038,8 +1247,8 @@ public class FinancialService {
         }
 
         // 비지배주주 귀속 당기순이익
-        if ((key.id.equals("ifrs-full_ProfitLoss") || key.id.contains("미사용") || key.id.contains("ifrs_ProfitLoss"))
-                && (key.nm.contains("당기순이익") || key.nm.contains("당기순손실") || key.nm.contains("당기순손익") || key.nm.contains("분기순이익")|| key.nm.contains("반기순이익"))
+        if (isProfitLossAccountId(key.id)
+                && isNetIncomeLabel(key.nm)
                 && key.detail.contains("비지배")) {
             return "NET_INC_NONCONT";
         }
@@ -1049,6 +1258,23 @@ public class FinancialService {
         // 그 외 SCE 항목은 무시
         return null;
 
+    }
+
+    private boolean isProfitLossAccountId(String accountId) {
+        return accountId.equals("ifrs-full_ProfitLoss")
+                || accountId.equals("ifrs_ProfitLoss")
+                || accountId.contains("미사용");
+    }
+
+    private boolean isNetIncomeLabel(String accountName) {
+        boolean hasPeriodWord = accountName.contains("당기")
+                || accountName.contains("분기")
+                || accountName.contains("반기");
+        boolean hasNetIncomeWord = accountName.contains("순이익")
+                || accountName.contains("순손익")
+                || accountName.contains("손실");
+
+        return hasPeriodWord && hasNetIncomeWord;
     }
 
     private record FsKey(String sj, String id, String nm, String detail){

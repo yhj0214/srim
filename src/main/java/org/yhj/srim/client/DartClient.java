@@ -13,6 +13,7 @@ public class DartClient {
 
     private static final String DART_FS_URL = "https://opendart.fss.or.kr/api/fnlttSinglAcntAll.json";
     private static final String DART_SHARE_URL = "https://opendart.fss.or.kr/api/stockTotqySttus.json";
+    private static final String DART_XBRL_URL = "https://opendart.fss.or.kr/api/fnlttXbrl.xml";
 
     private final String apiKey;
     private final RestTemplate restTemplate;
@@ -48,5 +49,21 @@ public class DartClient {
 
         ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
         return response.getBody();
+    }
+
+    public byte[] fetchFinancialStatementsXbrlArchive(String rceptNo, DartReportType reportType) {
+        String url = buildFinancialStatementsXbrlUrl(rceptNo, reportType);
+
+        log.debug("DART XBRL 조회 url : {}", url);
+
+        ResponseEntity<byte[]> response = restTemplate.getForEntity(url, byte[].class);
+        return response.getBody();
+    }
+
+    public String buildFinancialStatementsXbrlUrl(String rceptNo, DartReportType reportType) {
+        return DART_XBRL_URL
+                + "?crtfc_key=" + apiKey
+                + "&rcept_no=" + rceptNo
+                + "&reprt_code=" + reportType.code();
     }
 }

@@ -306,7 +306,94 @@ CREATE TABLE `dart_fs_line` (
 --     ON `dart_fs_line` (`fs_filing_id`, `sj_div`, `ord`);
 
 /* ===============================================================
- * 9-C) DART 계정코드 ↔ 내부 지표코드 매핑
+ * 9-C) XBRL 원문 문서 헤더
+ *   - DART XBRL zip 원문 1건 메타 데이터
+ *   - 기존 dart_fs_line 가공 로직과 분리된 raw 적재용
+ * =============================================================== */
+CREATE TABLE `xbrl_document` (
+                                  `xbrl_document_id` BIGINT       NOT NULL AUTO_INCREMENT COMMENT 'PK: XBRL 문서 ID',
+                                  `corp_code`        VARCHAR(8)   NOT NULL COMMENT 'DART corp_code',
+                                  `company_id`       BIGINT       NULL COMMENT 'FK: company.company_id',
+                                  `rcept_no`         VARCHAR(14)  NOT NULL COMMENT 'DART 접수번호',
+                                  `reprt_code`       VARCHAR(5)   NOT NULL COMMENT '보고서 코드(11011 등)',
+                                  `bsns_year`        INT          NOT NULL COMMENT '사업연도',
+                                  `fs_div`           VARCHAR(4)   NOT NULL COMMENT '재무제표 구분(CFS/OFS 등)',
+                                  `report_tp`        VARCHAR(50)  NULL COMMENT '보고서 유형(연간/반기/분기)',
+                                  `source_url`       VARCHAR(1000) NULL COMMENT '원문 다운로드 URL',
+                                  `local_path`       VARCHAR(1000) NULL COMMENT '저장된 원문 zip 경로',
+                                  `taxonomy_version` VARCHAR(1000) NULL COMMENT 'taxonomy 버전',
+                                  `parse_version`    VARCHAR(100)  NOT NULL COMMENT '파서 버전',
+                                  `parsed_at`        DATETIME     NULL COMMENT '파싱 완료 시각',
+                                  `created_at`       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '행 생성시각',
+                                  `updated_at`       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
+                                      ON UPDATE CURRENT_TIMESTAMP COMMENT '행 수정시각',
+
+                                  CONSTRAINT `PK_XBRL_DOCUMENT` PRIMARY KEY (`xbrl_document_id`),
+                                  CONSTRAINT `UN_XBRL_DOCUMENT_RCEPT`
+                                      UNIQUE (`rcept_no`, `reprt_code`, `fs_div`),
+                                  CONSTRAINT `FK_XBRL_DOCUMENT_COMPANY`
+                                      FOREIGN KEY (`company_id`) REFERENCES `company`(`company_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='DART XBRL 원문 문서 메타 데이터';
+
+/* ===============================================================
+ * 9-D) XBRL context
+ *   - fact가 참조하는 context(period/entity/dimension) 저장
+ * =============================================================== */
+CREATE TABLE `xbrl_context` (
+                                 `xbrl_context_id` BIGINT       NOT NULL AUTO_INCREMENT COMMENT 'PK: XBRL context ID',
+                                 `xbrl_document_id` BIGINT      NOT NULL COMMENT 'FK: xbrl_document.xbrl_document_id',
+                                 `context_ref`     LONGTEXT NOT NULL COMMENT 'XBRL context id',
+                                 `context_ref_hash` CHAR(64) NOT NULL COMMENT 'context_ref SHA-256 해시',
+                                 `entity_identifier` VARCHAR(500) NULL COMMENT 'context entity identifier',
+                                 `period_type`     VARCHAR(10)  NOT NULL COMMENT 'instant 또는 duration',
+                                 `period_start`    DATE         NULL COMMENT '기간 시작일(duration 전용)',
+                                 `period_end`      DATE         NULL COMMENT '기간 종료일(duration 전용)',
+                                 `instant_date`    DATE         NULL COMMENT '시점일(instant 전용)',
+                                 `dimensions_json` JSON         NULL COMMENT 'explicit/typed member 정보',
+                                 `member_signature` TEXT NULL COMMENT 'dimension/member 정렬 시그니처',
+                                 `created_at`      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '행 생성시각',
+
+                                 CONSTRAINT `PK_XBRL_CONTEXT` PRIMARY KEY (`xbrl_context_id`),
+                                 CONSTRAINT `UN_XBRL_CONTEXT_REF`
+                                     UNIQUE (`xbrl_document_id`, `context_ref_hash`),
+                                 CONSTRAINT `FK_XBRL_CONTEXT_DOCUMENT`
+                                     FOREIGN KEY (`xbrl_document_id`) REFERENCES `xbrl_document`(`xbrl_document_id`)
+                                         ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='XBRL context 원천 데이터';
+
+/* ===============================================================
+ * 9-E) XBRL fact
+ *   - concept/context/unit/value 단위의 원천 fact 저장
+ * =============================================================== */
+CREATE TABLE `xbrl_fact` (
+                              `xbrl_fact_id`      BIGINT        NOT NULL AUTO_INCREMENT COMMENT 'PK: XBRL fact ID',
+                              `xbrl_document_id`  BIGINT        NOT NULL COMMENT 'FK: xbrl_document.xbrl_document_id',
+                              `xbrl_context_id`   BIGINT        NULL COMMENT 'FK: xbrl_context.xbrl_context_id',
+                              `context_ref`       LONGTEXT      NULL COMMENT '원본 contextRef',
+                              `concept_qname`     VARCHAR(700)  NOT NULL COMMENT '개념 QName(ifrs-full:Revenue 등)',
+                              `concept_local_name` VARCHAR(500) NOT NULL COMMENT '개념 local name',
+                              `label_ko`          VARCHAR(1000) NULL COMMENT '한글 라벨',
+                              `statement_role`    VARCHAR(1000) NULL COMMENT 'statement role 또는 source entry명',
+                              `unit_ref`          VARCHAR(255)  NULL COMMENT 'unitRef',
+                              `decimals`          VARCHAR(100)  NULL COMMENT 'decimals 속성',
+                              `value_raw`         TEXT          NULL COMMENT '원본 fact 문자열 값',
+                              `value_numeric`     DECIMAL(28,6) NULL COMMENT '숫자형 변환 값',
+                              `is_nil`            TINYINT(1)    NOT NULL DEFAULT 0 COMMENT 'xsi:nil 여부',
+                              `member_signature`  TEXT          NULL COMMENT 'context 차원 시그니처',
+                              `order_hint`        INT           NULL COMMENT '문서 내 순서 힌트',
+                              `created_at`        DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '행 생성시각',
+
+                              CONSTRAINT `PK_XBRL_FACT` PRIMARY KEY (`xbrl_fact_id`),
+                              CONSTRAINT `FK_XBRL_FACT_DOCUMENT`
+                                  FOREIGN KEY (`xbrl_document_id`) REFERENCES `xbrl_document`(`xbrl_document_id`)
+                                      ON DELETE CASCADE,
+                              CONSTRAINT `FK_XBRL_FACT_CONTEXT`
+                                  FOREIGN KEY (`xbrl_context_id`) REFERENCES `xbrl_context`(`xbrl_context_id`)
+                                      ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='XBRL fact 원천 데이터';
+
+/* ===============================================================
+ * 9-F) DART 계정코드 ↔ 내부 지표코드 매핑
  *   - dart_fs_line.account_id → fin_metric_def.metric_code 매핑용
  *   - SALES, NET_INC, TOTAL_EQUITY_OWNER, CFO, CFI, CFF 등으로 연결
  *   - 비즈니스 룰/매핑을 SQL로 관리하고 싶을 때 유용
@@ -352,26 +439,6 @@ CREATE TABLE `fs_required_account` (
        CONSTRAINT `UNQ_FS_REQUIRED_ACC`    UNIQUE (`sj_div`, `account_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='필수 재무제표 계정 정의(BS/CIS/CF별 필수 계정 목록)';
 
--- 누락 조회 인덱스
--- CREATE INDEX IX_FS_REQ_SJ_REQ
---     ON fs_required_account (sj_div, is_required, account_id);
-
--- ===============================================================
--- 샘플 데이터 삽입
--- ===============================================================
-
--- -- 1) StockCode
--- INSERT INTO stock_code (ticker_krx, company_name, industry, listing_date, fiscal_year_end_month, market, region) VALUES
--- ('005930', '삼성전자',   '전기전자', '1975-06-11', 12, 'KOSPI', '경기'),
--- ('000660', 'SK하이닉스', '전기전자', '1996-12-26', 12, 'KOSPI', '경기'),
--- ('035420', 'NAVER',      '서비스업', '2002-10-29', 12, 'KOSPI', '경기'),
--- ('005380', '현대자동차', '운수장비', '1974-10-02', 12, 'KOSPI', '서울'),
--- ('051910', 'LG화학',     '화학',     '2001-04-27', 12, 'KOSPI', '서울');
---
--- -- 2) Company (삼성전자만)
--- INSERT INTO company (stock_id, shares_outstanding, face_value, currency, sector)
--- SELECT stock_id, 5969782550, 100, 'KRW', 'IT'
--- FROM stock_code WHERE ticker_krx = '005930';
 
 -- 3) 재무 지표 정의
 INSERT INTO fin_metric_def (metric_code, name_kor, unit, display_order, description) VALUES

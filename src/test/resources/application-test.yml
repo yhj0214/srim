@@ -34,6 +34,9 @@ app:
     delay-ms: 1200
     max-retries: 3
     initial-backoff-ms: 800
+  xbrl:
+    storage-dir: /tmp/srim-test/xbrl
+    parse-version: test-v1
 
 
 logging:

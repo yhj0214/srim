@@ -15,6 +15,7 @@ import org.yhj.srim.common.exception.code.StockError;
 import org.yhj.srim.controller.dto.CrawlAllMarketsResult;
 import org.yhj.srim.repository.entity.*;
 import org.yhj.srim.service.crawl.DartCrawlingService;
+import org.yhj.srim.service.crawl.XbrlFinancialStatementCrawlingService;
 import org.yhj.srim.service.crawl.dto.StockCodeDraft;
 import org.yhj.srim.service.crawl.KisSpreadCrawlingService;
 import org.yhj.srim.service.domain.BondYieldCurveService;
@@ -22,8 +23,10 @@ import org.yhj.srim.service.domain.DartCorpCodeSyncService;
 import org.yhj.srim.service.domain.FailedJobService;
 import org.yhj.srim.service.domain.FinancialMetricService;
 import org.yhj.srim.service.domain.FinancialService;
+import org.yhj.srim.service.domain.XbrlRawService;
 import org.yhj.srim.service.crawl.KrxStockCrawlingService;
 import org.yhj.srim.service.facade.dto.DailyBondYieldFetchResult;
+import org.yhj.srim.service.facade.dto.CollectXbrlRawCommand;
 import org.yhj.srim.service.domain.StockService;
 import org.yhj.srim.service.dto.FinancialTableDto;
 import org.yhj.srim.service.dto.PeriodType;
@@ -50,12 +53,14 @@ public class FinancialFacadeService {
 
     private final KrxStockCrawlingService krxStockCrawlingService;
     private final DartCrawlingService dartCrawlingService;
+    private final XbrlFinancialStatementCrawlingService xbrlFinancialStatementCrawlingService;
     private final KisSpreadCrawlingService kisSpreadCrawlingService;
 
     private final StockService stockService;
     private final DartCorpCodeSyncService dartCorpCodeSyncService;
     private final FinancialService financialService;
     private final FinancialMetricService financialMetricService;
+    private final XbrlRawService xbrlRawService;
     private final BondYieldCurveService bondYieldCurveService;
     private final FailedJobService failedJobService;
 
@@ -87,6 +92,27 @@ public class FinancialFacadeService {
 
     public int rebuildCompanyMetrics(Long companyId, int startYear, int endYear) {
         return financialMetricService.rebuildCompanyMetrics(companyId, startYear, endYear);
+    }
+
+    public Long collectXbrlRaw(CollectXbrlRawCommand command) {
+        Optional<Long> existingDocumentId = xbrlRawService.findStoredDocumentId(
+                command.rceptNo(),
+                command.reportType().code(),
+                command.fsDiv()
+        );
+        if (existingDocumentId.isPresent()) {
+            return existingDocumentId.get();
+        }
+
+        XbrlFinancialStatementCrawlingService.XbrlRawBatch batch =
+                xbrlFinancialStatementCrawlingService.crawlFinancialStatementsXbrl(
+                        command.corpCode(),
+                        command.rceptNo(),
+                        command.bsnsYear(),
+                        command.reportType(),
+                        command.fsDiv()
+                );
+        return xbrlRawService.saveFinancialStatementsXbrl(command.corpCode(), command.companyId(), batch);
     }
 
     // 회사 초기화용 원천 데이터 적재

@@ -8,14 +8,19 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.yhj.srim.controller.dto.CrawlAllMarketsResult;
 import org.yhj.srim.service.crawl.KrxStockCrawlingService;
+import org.yhj.srim.service.crawl.XbrlFinancialStatementCrawlingService;
 import org.yhj.srim.service.crawl.dto.StockCodeDraft;
 import org.yhj.srim.service.domain.DartCorpCodeSyncService;
 import org.yhj.srim.service.domain.StockService;
+import org.yhj.srim.service.domain.XbrlRawService;
+import org.yhj.srim.service.facade.dto.CollectXbrlRawCommand;
 import org.yhj.srim.common.exception.CustomException;
 import org.yhj.srim.common.exception.code.CrawlingError;
+import org.yhj.srim.client.DartReportType;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -34,6 +39,12 @@ class FinancialFacadeServiceTest {
 
     @Mock
     DartCorpCodeSyncService dartCorpCodeSyncService;
+
+    @Mock
+    XbrlFinancialStatementCrawlingService xbrlFinancialStatementCrawlingService;
+
+    @Mock
+    XbrlRawService xbrlRawService;
 
     @Test
     @DisplayName("KOSPI종목을 크롤링하고 저장한 후 매핑 결과를 반환한다.")
@@ -81,6 +92,29 @@ class FinancialFacadeServiceTest {
 
         verify(krxStockCrawlingService, times(1)).fetchStockList("KOSPI");
         verifyNoMoreInteractions(krxStockCrawlingService, stockService, dartCorpCodeSyncService);
+    }
+
+    @Test
+    @DisplayName("이미 저장된 XBRL 문서가 있으면 다운로드 없이 기존 문서 ID를 반환한다.")
+    void collectXbrlRaw_returnsExistingDocumentId() {
+        when(xbrlRawService.findStoredDocumentId("20240321000001", "11011", "CFS"))
+                .thenReturn(Optional.of(99L));
+
+        Long documentId = financialFacadeService.collectXbrlRaw(
+                new CollectXbrlRawCommand(
+                        1L,
+                        "00126380",
+                        "20240321000001",
+                        2024,
+                        DartReportType.ANNUAL,
+                        "CFS"
+                )
+        );
+
+        assertThat(documentId).isEqualTo(99L);
+
+        verify(xbrlRawService).findStoredDocumentId("20240321000001", "11011", "CFS");
+        verifyNoInteractions(xbrlFinancialStatementCrawlingService);
     }
 
 }

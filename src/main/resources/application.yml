@@ -20,6 +20,9 @@ app:
     delay-ms: 1200
     max-retries: 3
     initial-backoff-ms: 800
+  xbrl:
+    storage-dir: /tmp/srim/xbrl
+    parse-version: v1
 
   scheduler:
     zone: Asia/Seoul
