@@ -23,7 +23,7 @@ public record XbrlDocumentView(
         return new XbrlDocumentView(
                 document.getXbrlDocumentId(),
                 document.getCorpCode(),
-                document.getCompanyId(),
+                document.getCompany() == null ? null : document.getCompany().getCompanyId(),
                 document.getRceptNo(),
                 document.getReprtCode(),
                 document.getBsnsYear(),

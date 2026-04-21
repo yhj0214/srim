@@ -7,9 +7,13 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 import org.yhj.srim.client.DartReportType;
+import org.yhj.srim.repository.CompanyRepository;
+import org.yhj.srim.repository.StockCodeRepository;
 import org.yhj.srim.repository.XbrlContextRepository;
 import org.yhj.srim.repository.XbrlDocumentRepository;
 import org.yhj.srim.repository.XbrlFactRepository;
+import org.yhj.srim.repository.entity.Company;
+import org.yhj.srim.repository.entity.StockCode;
 import org.yhj.srim.repository.entity.XbrlContext;
 import org.yhj.srim.repository.entity.XbrlDocument;
 import org.yhj.srim.repository.entity.XbrlFact;
@@ -30,6 +34,12 @@ class XbrlDocumentResolverTest {
     XbrlDocumentResolver xbrlDocumentResolver;
 
     @Autowired
+    StockCodeRepository stockCodeRepository;
+
+    @Autowired
+    CompanyRepository companyRepository;
+
+    @Autowired
     XbrlDocumentRepository xbrlDocumentRepository;
 
     @Autowired
@@ -41,15 +51,16 @@ class XbrlDocumentResolverTest {
     @Test
     @DisplayName("같은 연도 문서가 여러 개면 최신 parsedAt 문서를 current로 선택하고 전년도 문서를 previous로 묶는다.")
     void resolveBundles_selectsLatestCurrentAndPreviousDocuments() {
-        Long companyId = 100L;
+        Company company = saveCompany("910002", "00126382");
+        Long companyId = company.getCompanyId();
 
-        XbrlDocument currentOlder = saveDocument(companyId, 2024, "20250321001000", LocalDateTime.of(2025, 3, 21, 10, 0));
+        XbrlDocument currentOlder = saveDocument(company, 2024, "20250321001000", LocalDateTime.of(2025, 3, 21, 10, 0));
         saveContextAndRevenueFact(currentOlder, "ctx-old", "900");
 
-        XbrlDocument currentLatest = saveDocument(companyId, 2024, "20250321002000", LocalDateTime.of(2025, 3, 21, 11, 0));
+        XbrlDocument currentLatest = saveDocument(company, 2024, "20250321002000", LocalDateTime.of(2025, 3, 21, 11, 0));
         saveContextAndRevenueFact(currentLatest, "ctx-latest", "1000");
 
-        XbrlDocument previous = saveDocument(companyId, 2023, "20240321001000", LocalDateTime.of(2024, 3, 21, 10, 0));
+        XbrlDocument previous = saveDocument(company, 2023, "20240321001000", LocalDateTime.of(2024, 3, 21, 10, 0));
         saveContextAndRevenueFact(previous, "ctx-prev", "800");
 
         XbrlResolvedBundles resolved = xbrlDocumentResolver.resolveBundles(
@@ -71,9 +82,10 @@ class XbrlDocumentResolverTest {
     @Test
     @DisplayName("전년도 문서가 없으면 previous는 null이다.")
     void resolveBundles_withoutPreviousDocument_returnsNullPrevious() {
-        Long companyId = 101L;
+        Company company = saveCompany("910003", "00126383");
+        Long companyId = company.getCompanyId();
 
-        XbrlDocument current = saveDocument(companyId, 2024, "20250321003000", LocalDateTime.of(2025, 3, 21, 12, 0));
+        XbrlDocument current = saveDocument(company, 2024, "20250321003000", LocalDateTime.of(2025, 3, 21, 12, 0));
         saveContextAndRevenueFact(current, "ctx-current-only", "1100");
 
         XbrlResolvedBundles resolved = xbrlDocumentResolver.resolveBundles(
@@ -88,10 +100,24 @@ class XbrlDocumentResolverTest {
         assertThat(resolved.previous()).isNull();
     }
 
-    private XbrlDocument saveDocument(Long companyId, int year, String rceptNo, LocalDateTime parsedAt) {
+    private Company saveCompany(String ticker, String corpCode) {
+        StockCode stockCode = stockCodeRepository.save(StockCode.builder()
+                .companyName("XBRL Resolver Test " + ticker)
+                .tickerKrx(ticker)
+                .market("TEST")
+                .dartCorpCode(corpCode)
+                .build());
+
+        return companyRepository.save(Company.builder()
+                .stockCode(stockCode)
+                .currency("KRW")
+                .build());
+    }
+
+    private XbrlDocument saveDocument(Company company, int year, String rceptNo, LocalDateTime parsedAt) {
         return xbrlDocumentRepository.save(XbrlDocument.builder()
                 .corpCode("00126380")
-                .companyId(companyId)
+                .company(company)
                 .rceptNo(rceptNo)
                 .reprtCode("11011")
                 .bsnsYear(year)

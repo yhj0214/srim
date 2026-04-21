@@ -37,7 +37,7 @@ public class XbrlDocumentResolver {
     private XbrlDocument findLatestDocument(Long companyId, int fiscalYear, DartReportType reportType, String fsDiv) {
 
         return xbrlDocumentRepository
-                .findTopByCompanyIdAndBsnsYearAndReprtCodeAndFsDivOrderByParsedAtDescRceptNoDesc(
+                .findTopByCompany_CompanyIdAndBsnsYearAndReprtCodeAndFsDivOrderByParsedAtDescRceptNoDesc(
                         companyId,
                         fiscalYear,
                         reportType.code(),

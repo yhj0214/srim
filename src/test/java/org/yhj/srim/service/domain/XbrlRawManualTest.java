@@ -90,6 +90,8 @@ class XbrlRawManualTest {
         assertThat(storedDocument).isPresent();
         assertThat(storedDocument.get().getLocalPath()).isNotBlank();
         assertThat(storedDocument.get().getParseVersion()).isNotBlank();
+        assertThat(storedDocument.get().getCompany()).isNotNull();
+        assertThat(storedDocument.get().getCompany().getCompanyId()).isEqualTo(companyId);
 
         long contextCount = xbrlContextRepository.count();
         long factCount = xbrlFactRepository.count();

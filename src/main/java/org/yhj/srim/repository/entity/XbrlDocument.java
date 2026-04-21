@@ -25,9 +25,10 @@ public class XbrlDocument {
     @Comment("DART corp_code")
     private String corpCode;
 
-    @Column(name = "company_id")
-    @Comment("내부 회사 ID")
-    private Long companyId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "company_id")
+    @Comment("내부 회사")
+    private Company company;
 
     @Column(name = "rcept_no", nullable = false, length = 14)
     @Comment("DART 접수번호")

@@ -8,9 +8,13 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.yhj.srim.client.DartReportType;
+import org.yhj.srim.common.exception.CustomException;
+import org.yhj.srim.common.exception.code.StockError;
+import org.yhj.srim.repository.CompanyRepository;
 import org.yhj.srim.repository.XbrlContextRepository;
 import org.yhj.srim.repository.XbrlDocumentRepository;
 import org.yhj.srim.repository.XbrlFactRepository;
+import org.yhj.srim.repository.entity.Company;
 import org.yhj.srim.repository.entity.XbrlContext;
 import org.yhj.srim.repository.entity.XbrlDocument;
 import org.yhj.srim.repository.entity.XbrlFact;
@@ -35,6 +39,7 @@ import java.util.Optional;
 @Slf4j
 public class XbrlRawService {
 
+    private final CompanyRepository companyRepository;
     private final XbrlDocumentRepository xbrlDocumentRepository;
     private final XbrlContextRepository xbrlContextRepository;
     private final XbrlFactRepository xbrlFactRepository;
@@ -64,10 +69,12 @@ public class XbrlRawService {
         }
 
         Path archivePath = writeArchive(corpCode, batch.bsnsYear(), batch.rceptNo(), batch.fsDiv(), batch.archiveBytes());
+        Company company = companyId == null ? null : companyRepository.findById(companyId)
+                .orElseThrow(() -> new CustomException(StockError.COMPANY_NOT_FOUND, "companyId=" + companyId));
 
         XbrlDocument document = xbrlDocumentRepository.save(XbrlDocument.builder()
                 .corpCode(corpCode)
-                .companyId(companyId)
+                .company(company)
                 .rceptNo(batch.rceptNo())
                 .reprtCode(batch.reprtCode())
                 .bsnsYear(batch.bsnsYear())

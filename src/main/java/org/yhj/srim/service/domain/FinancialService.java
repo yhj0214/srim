@@ -78,6 +78,7 @@ public class FinancialService {
     private final StockShareStatusRepository stockShareStatusRepository;
     private final StockPriceRepository stockPriceRepository;
     private final DartFsFilingRepository filingRepository;
+    private final XbrlFsRawBundleService xbrlFsRawBundleService;
 
     /**
      * stockId로 연간 재무 테이블 조회
@@ -585,6 +586,33 @@ public class FinancialService {
         log.debug("==== companyId={}, year={}, reprtCode={} 조회된 재무제표 라인 수 : {}",
                 companyId, period.getFiscalYear(), reportType.code(), lines.size());
         return collectRawBundle(lines);
+    }
+
+    FsRawBundle loadXbrlRawBundle(Long companyId, int fiscalYear, String fsDiv) {
+        FinPeriod period = findAnnualPeriod(companyId, fiscalYear).orElse(null);
+        if (period == null) {
+            log.warn("연간 FinPeriod가 없습니다. companyId={}, year={}", companyId, fiscalYear);
+            return new FsRawBundle(new LinkedHashMap<>(), new LinkedHashMap<>());
+        }
+
+        return loadXbrlRawBundle(companyId, period, fsDiv);
+    }
+
+    FsRawBundle loadXbrlRawBundle(Long companyId, FinPeriod period, String fsDiv) {
+        DartReportType reportType = resolveReportType(period);
+        FsRawBundle rawBundle = xbrlFsRawBundleService.buildRawBundle(
+                companyId,
+                period.getFiscalYear(),
+                reportType,
+                fsDiv
+        );
+
+        if (rawBundle.curr().isEmpty()) {
+            log.warn("XBRL 원천 데이터가 없습니다. companyId={}, year={}, reprtCode={}, fsDiv={}",
+                    companyId, period.getFiscalYear(), reportType.code(), fsDiv);
+        }
+
+        return rawBundle;
     }
 
     FsRawBundle loadQuarterRawBundle(Long companyId, int fiscalYear, int fiscalQuarter) {

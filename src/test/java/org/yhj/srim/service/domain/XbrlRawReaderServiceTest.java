@@ -6,9 +6,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
+import org.yhj.srim.repository.CompanyRepository;
+import org.yhj.srim.repository.StockCodeRepository;
 import org.yhj.srim.repository.XbrlContextRepository;
 import org.yhj.srim.repository.XbrlDocumentRepository;
 import org.yhj.srim.repository.XbrlFactRepository;
+import org.yhj.srim.repository.entity.Company;
+import org.yhj.srim.repository.entity.StockCode;
 import org.yhj.srim.repository.entity.XbrlContext;
 import org.yhj.srim.repository.entity.XbrlDocument;
 import org.yhj.srim.repository.entity.XbrlFact;
@@ -29,6 +33,12 @@ class XbrlRawReaderServiceTest {
     XbrlRawReaderService xbrlRawReaderService;
 
     @Autowired
+    StockCodeRepository stockCodeRepository;
+
+    @Autowired
+    CompanyRepository companyRepository;
+
+    @Autowired
     XbrlDocumentRepository xbrlDocumentRepository;
 
     @Autowired
@@ -40,9 +50,10 @@ class XbrlRawReaderServiceTest {
     @Test
     @DisplayName("문서 ID로 XBRL raw bundle을 읽어온다.")
     void getDocumentBundle_readsDocumentContextsAndFacts() {
+        Company company = saveCompany();
         XbrlDocument document = xbrlDocumentRepository.save(XbrlDocument.builder()
                 .corpCode("00126380")
-                .companyId(null)
+                .company(company)
                 .rceptNo("20250321001234")
                 .reprtCode("11011")
                 .bsnsYear(2024)
@@ -131,5 +142,19 @@ class XbrlRawReaderServiceTest {
                 .containsExactly("ifrs-full:Equity", "ifrs-full:Revenue");
         assertThat(bundle.facts().get(0).xbrlContextId()).isEqualTo(instantContext.getXbrlContextId());
         assertThat(bundle.facts().get(1).xbrlContextId()).isEqualTo(durationContext.getXbrlContextId());
+    }
+
+    private Company saveCompany() {
+        StockCode stockCode = stockCodeRepository.save(StockCode.builder()
+                .companyName("XBRL Reader Test")
+                .tickerKrx("910001")
+                .market("TEST")
+                .dartCorpCode("00126380")
+                .build());
+
+        return companyRepository.save(Company.builder()
+                .stockCode(stockCode)
+                .currency("KRW")
+                .build());
     }
 }
