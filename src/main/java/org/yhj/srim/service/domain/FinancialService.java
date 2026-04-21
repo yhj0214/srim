@@ -524,6 +524,16 @@ public class FinancialService {
     }
 
     @Transactional(readOnly = true)
+    public Optional<DartFsFiling> findLatestAnnualFiling(Long companyId, int fiscalYear, String fsDiv) {
+        return filingRepository.findTopByCompanyIdAndBsnsYearAndReprtCodeAndFsDivOrderByRceptDtDescRceptNoDesc(
+                companyId,
+                fiscalYear,
+                DartReportType.ANNUAL.code(),
+                fsDiv
+        );
+    }
+
+    @Transactional(readOnly = true)
     public Optional<FinPeriod> findQuarterPeriod(Long companyId, int fiscalYear, int fiscalQuarter) {
         return finPeriodRepository.findByCompany_CompanyIdAndPeriodTypeAndFiscalYearAndFiscalQuarterAndIsEstimate(
                 companyId, "QTR", fiscalYear, fiscalQuarter, false

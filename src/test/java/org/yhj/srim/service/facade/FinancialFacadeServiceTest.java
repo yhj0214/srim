@@ -14,6 +14,7 @@ import org.yhj.srim.service.domain.DartCorpCodeSyncService;
 import org.yhj.srim.service.domain.FailedJobService;
 import org.yhj.srim.service.domain.FinancialMetricService;
 import org.yhj.srim.service.domain.FinancialService;
+import org.yhj.srim.service.domain.XbrlAnnualDocumentLocator;
 import org.yhj.srim.service.domain.StockService;
 import org.yhj.srim.service.domain.BondYieldCurveService;
 import org.yhj.srim.service.domain.XbrlRawService;
@@ -23,6 +24,8 @@ import org.yhj.srim.common.exception.code.CrawlingError;
 import org.yhj.srim.client.DartReportType;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.yhj.srim.repository.entity.Company;
+import org.yhj.srim.repository.entity.StockCode;
+import org.yhj.srim.service.dto.XbrlAnnualDocumentRef;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -57,6 +60,9 @@ class FinancialFacadeServiceTest {
 
     @Mock
     FinancialMetricService financialMetricService;
+
+    @Mock
+    XbrlAnnualDocumentLocator xbrlAnnualDocumentLocator;
 
     @Mock
     BondYieldCurveService bondYieldCurveService;
@@ -175,6 +181,37 @@ class FinancialFacadeServiceTest {
         verify(xbrlRawService).findStoredDocumentId("20240321000001", "11011", "CFS");
         verify(financialService).processAnnualMetricsFromXbrl(7L, 2024, "CFS");
         verifyNoInteractions(xbrlFinancialStatementCrawlingService);
+    }
+
+    @Test
+    @DisplayName("연도 기준 XBRL 파이프라인은 최신 연간 filing의 접수번호로 수집/처리를 실행한다.")
+    void runAnnualXbrlPipeline_withFiscalYear_resolvesRceptNoFromFiling() {
+        StockCode stockCode = StockCode.builder()
+                .dartCorpCode("00126380")
+                .tickerKrx("900001")
+                .companyName("TEST")
+                .market("TEST")
+                .build();
+        Company company = Company.builder()
+                .companyId(7L)
+                .stockCode(stockCode)
+                .currency("KRW")
+                .build();
+        XbrlAnnualDocumentRef documentRef = new XbrlAnnualDocumentRef("00126380", "20240321000001", 2024, "CFS");
+
+        when(financialService.getOrCreateCompany(1L)).thenReturn(company);
+        when(xbrlAnnualDocumentLocator.resolve(7L, 2024, "CFS")).thenReturn(documentRef);
+        when(xbrlRawService.findStoredDocumentId("20240321000001", "11011", "CFS"))
+                .thenReturn(Optional.of(99L));
+        when(financialService.processAnnualMetricsFromXbrl(7L, 2024, "CFS")).thenReturn(8);
+
+        Long documentId = financialFacadeService.runAnnualXbrlPipeline(1L, 2024, "CFS");
+
+        assertThat(documentId).isEqualTo(99L);
+        verify(financialService).getOrCreateCompany(1L);
+        verify(xbrlAnnualDocumentLocator).resolve(7L, 2024, "CFS");
+        verify(xbrlRawService).findStoredDocumentId("20240321000001", "11011", "CFS");
+        verify(financialService).processAnnualMetricsFromXbrl(7L, 2024, "CFS");
     }
 
 }

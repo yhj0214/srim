@@ -23,11 +23,13 @@ import org.yhj.srim.service.domain.DartCorpCodeSyncService;
 import org.yhj.srim.service.domain.FailedJobService;
 import org.yhj.srim.service.domain.FinancialMetricService;
 import org.yhj.srim.service.domain.FinancialService;
+import org.yhj.srim.service.domain.XbrlAnnualDocumentLocator;
 import org.yhj.srim.service.domain.XbrlRawService;
 import org.yhj.srim.service.crawl.KrxStockCrawlingService;
 import org.yhj.srim.service.facade.dto.DailyBondYieldFetchResult;
 import org.yhj.srim.service.facade.dto.CollectXbrlRawCommand;
 import org.yhj.srim.service.domain.StockService;
+import org.yhj.srim.service.dto.XbrlAnnualDocumentRef;
 import org.yhj.srim.service.dto.FinancialTableDto;
 import org.yhj.srim.service.dto.PeriodType;
 
@@ -60,6 +62,7 @@ public class FinancialFacadeService {
     private final DartCorpCodeSyncService dartCorpCodeSyncService;
     private final FinancialService financialService;
     private final FinancialMetricService financialMetricService;
+    private final XbrlAnnualDocumentLocator xbrlAnnualDocumentLocator;
     private final XbrlRawService xbrlRawService;
     private final BondYieldCurveService bondYieldCurveService;
     private final FailedJobService failedJobService;
@@ -122,6 +125,12 @@ public class FinancialFacadeService {
                 stockId, company.getCompanyId(), bsnsYear, fsDiv, documentId, savedMetricCount);
 
         return documentId;
+    }
+
+    public Long runAnnualXbrlPipeline(Long stockId, int fiscalYear, String fsDiv) {
+        Company company = financialService.getOrCreateCompany(stockId);
+        XbrlAnnualDocumentRef documentRef = xbrlAnnualDocumentLocator.resolve(company.getCompanyId(), fiscalYear, fsDiv);
+        return runAnnualXbrlPipeline(stockId, documentRef.corpCode(), documentRef.rceptNo(), fiscalYear, fsDiv);
     }
 
     public Long collectXbrlRaw(CollectXbrlRawCommand command) {
