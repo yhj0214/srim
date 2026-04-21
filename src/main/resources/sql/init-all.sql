@@ -139,7 +139,7 @@ CREATE TABLE `fin_metric_value` (
     CONSTRAINT `FK_FMV_COMPANY`    FOREIGN KEY (`company_id`)  REFERENCES `company`(`company_id`),
     CONSTRAINT `FK_FMV_PERIOD`     FOREIGN KEY (`period_id`)   REFERENCES `fin_period`(`period_id`),
     CONSTRAINT `FK_FMV_METRIC`     FOREIGN KEY (`metric_code`) REFERENCES `fin_metric_def`(`metric_code`),
-    CONSTRAINT `CK_FMV_SOURCE`     CHECK (`source` IS NULL OR `source` IN ('KRX','NAVER','FNG','CSV','MANUAL', 'DART'))
+    CONSTRAINT `CK_FMV_SOURCE`     CHECK (`source` IS NULL OR `source` IN ('KRX','NAVER','FNG','CSV','MANUAL', 'DART', 'XBRL'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='재무 지표 값(연/분기/추정 전체 커버)';
 
 /* 7) 지분구조 스냅샷 */
