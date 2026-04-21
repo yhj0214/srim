@@ -94,6 +94,36 @@ public class FinancialFacadeService {
         return financialMetricService.rebuildCompanyMetrics(companyId, startYear, endYear);
     }
 
+    public int processAnnualMetricsFromXbrl(Long stockId, int fiscalYear, String fsDiv) {
+        Company company = financialService.getOrCreateCompany(stockId);
+        return financialService.processAnnualMetricsFromXbrl(company.getCompanyId(), fiscalYear, fsDiv);
+    }
+
+    public Long runAnnualXbrlPipeline(Long stockId, String corpCode,
+                                      String rceptNo, int bsnsYear, String fsDiv) {
+        Company company = financialService.getOrCreateCompany(stockId);
+
+        Long documentId = collectXbrlRaw(new CollectXbrlRawCommand(
+                company.getCompanyId(),
+                corpCode,
+                rceptNo,
+                bsnsYear,
+                DartReportType.ANNUAL,
+                fsDiv
+        ));
+
+        int savedMetricCount = financialService.processAnnualMetricsFromXbrl(
+                company.getCompanyId(),
+                bsnsYear,
+                fsDiv
+        );
+
+        log.info("XBRL 연간 파이프라인 처리 완료 stockId={}, companyId={}, year={}, fsDiv={}, documentId={}, savedMetricCount={}",
+                stockId, company.getCompanyId(), bsnsYear, fsDiv, documentId, savedMetricCount);
+
+        return documentId;
+    }
+
     public Long collectXbrlRaw(CollectXbrlRawCommand command) {
         Optional<Long> existingDocumentId = xbrlRawService.findStoredDocumentId(
                 command.rceptNo(),

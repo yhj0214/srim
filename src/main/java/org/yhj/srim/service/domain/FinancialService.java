@@ -481,6 +481,15 @@ public class FinancialService {
         return replaceAnnualMetricsByCodes(companyId, fiscalYear, metrics, PER_SHARE_METRIC_CODES, "XBRL");
     }
 
+    @Transactional
+    public int processAnnualMetricsFromXbrl(Long companyId, int fiscalYear, String fsDiv) {
+        int savedCount = 0;
+        savedCount += replaceAnnualBaseMetricsFromXbrl(companyId, fiscalYear, fsDiv);
+        savedCount += replaceAnnualDerivedMetricsFromXbrl(companyId, fiscalYear, fsDiv);
+        savedCount += replaceAnnualPerShareMetricsFromXbrl(companyId, fiscalYear, fsDiv);
+        return savedCount;
+    }
+
     @Transactional(readOnly = true)
     public List<FinPeriod> findAnnualPeriodsBetween(Long companyId, int startYear, int endYear) {
         return finPeriodRepository

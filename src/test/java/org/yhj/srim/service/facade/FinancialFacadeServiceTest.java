@@ -11,12 +11,18 @@ import org.yhj.srim.service.crawl.KrxStockCrawlingService;
 import org.yhj.srim.service.crawl.XbrlFinancialStatementCrawlingService;
 import org.yhj.srim.service.crawl.dto.StockCodeDraft;
 import org.yhj.srim.service.domain.DartCorpCodeSyncService;
+import org.yhj.srim.service.domain.FailedJobService;
+import org.yhj.srim.service.domain.FinancialMetricService;
+import org.yhj.srim.service.domain.FinancialService;
 import org.yhj.srim.service.domain.StockService;
+import org.yhj.srim.service.domain.BondYieldCurveService;
 import org.yhj.srim.service.domain.XbrlRawService;
 import org.yhj.srim.service.facade.dto.CollectXbrlRawCommand;
 import org.yhj.srim.common.exception.CustomException;
 import org.yhj.srim.common.exception.code.CrawlingError;
 import org.yhj.srim.client.DartReportType;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.yhj.srim.repository.entity.Company;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -45,6 +51,21 @@ class FinancialFacadeServiceTest {
 
     @Mock
     XbrlRawService xbrlRawService;
+
+    @Mock
+    FinancialService financialService;
+
+    @Mock
+    FinancialMetricService financialMetricService;
+
+    @Mock
+    BondYieldCurveService bondYieldCurveService;
+
+    @Mock
+    FailedJobService failedJobService;
+
+    @Mock
+    ThreadPoolTaskExecutor bondYieldTaskExecutor;
 
     @Test
     @DisplayName("KOSPI종목을 크롤링하고 저장한 후 매핑 결과를 반환한다.")
@@ -114,6 +135,45 @@ class FinancialFacadeServiceTest {
         assertThat(documentId).isEqualTo(99L);
 
         verify(xbrlRawService).findStoredDocumentId("20240321000001", "11011", "CFS");
+        verifyNoInteractions(xbrlFinancialStatementCrawlingService);
+    }
+
+    @Test
+    @DisplayName("XBRL 연간 metric 처리는 stockId로 회사를 확보한 뒤 FinancialService에 위임한다.")
+    void processAnnualMetricsFromXbrl_delegatesToFinancialService() {
+        Company company = Company.builder().companyId(7L).currency("KRW").build();
+        when(financialService.getOrCreateCompany(1L)).thenReturn(company);
+        when(financialService.processAnnualMetricsFromXbrl(7L, 2024, "CFS")).thenReturn(8);
+
+        int savedCount = financialFacadeService.processAnnualMetricsFromXbrl(1L, 2024, "CFS");
+
+        assertThat(savedCount).isEqualTo(8);
+        verify(financialService).getOrCreateCompany(1L);
+        verify(financialService).processAnnualMetricsFromXbrl(7L, 2024, "CFS");
+    }
+
+    @Test
+    @DisplayName("XBRL 연간 파이프라인은 raw 수집 후 metric 전체 처리를 순서대로 실행한다.")
+    void runAnnualXbrlPipeline_collectsAndProcessesMetrics() {
+        Company company = Company.builder().companyId(7L).currency("KRW").build();
+        when(financialService.getOrCreateCompany(1L)).thenReturn(company);
+        when(xbrlRawService.findStoredDocumentId("20240321000001", "11011", "CFS"))
+                .thenReturn(Optional.of(99L));
+        when(financialService.processAnnualMetricsFromXbrl(7L, 2024, "CFS")).thenReturn(8);
+
+        Long documentId = financialFacadeService.runAnnualXbrlPipeline(
+                1L,
+                "00126380",
+                "20240321000001",
+                2024,
+                "CFS"
+        );
+
+        assertThat(documentId).isEqualTo(99L);
+
+        verify(financialService).getOrCreateCompany(1L);
+        verify(xbrlRawService).findStoredDocumentId("20240321000001", "11011", "CFS");
+        verify(financialService).processAnnualMetricsFromXbrl(7L, 2024, "CFS");
         verifyNoInteractions(xbrlFinancialStatementCrawlingService);
     }
 

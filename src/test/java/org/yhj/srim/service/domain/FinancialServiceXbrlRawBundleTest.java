@@ -186,6 +186,36 @@ class FinancialServiceXbrlRawBundleTest {
         assertThat(eps.getSource()).isEqualTo("XBRL");
     }
 
+    @Test
+    @DisplayName("연간 XBRL 전체 metric 처리는 base/derived/per-share를 순서대로 저장한다.")
+    void processAnnualMetricsFromXbrl_persistsAllStages() {
+        Company company = saveCompany("TST006", "900006", "00126385");
+        FinPeriod period = saveAnnualPeriod(company, 2024);
+        saveAnnualPeriod(company, 2023);
+        saveShareStatus(company, 2024, 100L);
+
+        XbrlDocument current = saveDocument(company, 2024, "20250321002004", LocalDateTime.of(2025, 3, 21, 13, 0));
+        saveAnnualFacts(current, "2000", "300", "500");
+        saveOwnerFacts(current, "200", "450", "50");
+
+        XbrlDocument previous = saveDocument(company, 2023, "20240321001004", LocalDateTime.of(2024, 3, 21, 10, 30));
+        saveAnnualFacts(previous, "1500", "200", "400");
+        saveOwnerFacts(previous, "150", "350", "50");
+
+        int savedCount = financialService.processAnnualMetricsFromXbrl(company.getCompanyId(), 2024, "CFS");
+
+        assertThat(savedCount).isEqualTo(8);
+
+        assertMetric(company.getCompanyId(), period, "SALES", "2000");
+        assertMetric(company.getCompanyId(), period, "NET_INC", "300");
+        assertMetric(company.getCompanyId(), period, "TOTAL_EQUITY", "500");
+        assertMetric(company.getCompanyId(), period, "NET_INC_OWNER", "200");
+        assertMetric(company.getCompanyId(), period, "TOTAL_EQUITY_OWNER", "450");
+        assertMetric(company.getCompanyId(), period, "NET_MARGIN", "15.000000");
+        assertMetric(company.getCompanyId(), period, "ROE", "50.000000");
+        assertMetric(company.getCompanyId(), period, "EPS", "2.00");
+    }
+
     private Company saveCompany(String companyName, String ticker, String corpCode) {
         StockCode stockCode = stockCodeRepository.save(StockCode.builder()
                 .companyName(companyName)
@@ -386,6 +416,15 @@ class FinancialServiceXbrlRawBundleTest {
                 0L,
                 issuedShares
         ));
+    }
+
+    private void assertMetric(Long companyId, FinPeriod period, String metricCode, String expectedValue) {
+        FinMetricValue metricValue = finMetricValueRepository
+                .findByCompanyIdAndPeriodAndMetricCode(companyId, period, metricCode)
+                .orElseThrow();
+
+        assertThat(metricValue.getValueNum()).isEqualByComparingTo(expectedValue);
+        assertThat(metricValue.getSource()).isEqualTo("XBRL");
     }
 
     private String hashFor(String value) {
