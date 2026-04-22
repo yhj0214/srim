@@ -20,6 +20,7 @@ import org.yhj.srim.service.crawl.dto.StockCodeDraft;
 import org.yhj.srim.service.crawl.KisSpreadCrawlingService;
 import org.yhj.srim.service.domain.BondYieldCurveService;
 import org.yhj.srim.service.domain.DartCorpCodeSyncService;
+import org.yhj.srim.service.domain.DartFsFilingService;
 import org.yhj.srim.service.domain.FailedJobService;
 import org.yhj.srim.service.domain.FinancialMetricService;
 import org.yhj.srim.service.domain.FinancialService;
@@ -32,6 +33,7 @@ import org.yhj.srim.service.domain.StockService;
 import org.yhj.srim.service.dto.XbrlAnnualDocumentRef;
 import org.yhj.srim.service.dto.FinancialTableDto;
 import org.yhj.srim.service.dto.PeriodType;
+import org.yhj.srim.client.dto.DartFilingRow;
 
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
@@ -60,6 +62,7 @@ public class FinancialFacadeService {
 
     private final StockService stockService;
     private final DartCorpCodeSyncService dartCorpCodeSyncService;
+    private final DartFsFilingService dartFsFilingService;
     private final FinancialService financialService;
     private final FinancialMetricService financialMetricService;
     private final XbrlAnnualDocumentLocator xbrlAnnualDocumentLocator;
@@ -100,6 +103,23 @@ public class FinancialFacadeService {
     public int processAnnualMetricsFromXbrl(Long stockId, int fiscalYear, String fsDiv) {
         Company company = financialService.getOrCreateCompany(stockId);
         return financialService.processAnnualMetricsFromXbrl(company.getCompanyId(), fiscalYear, fsDiv);
+    }
+
+    public Long collectAnnualFilingMetadata(Long stockId, int fiscalYear, String fsDiv) {
+        Company company = financialService.getOrCreateCompany(stockId);
+        String corpCode = company.getStockCode().getDartCorpCode();
+        if (corpCode == null || corpCode.length() != 8) {
+            throw new CustomException(StockError.DART_CORP_CODE_INVALID);
+        }
+
+        DartFilingRow filingRow = dartCrawlingService.crawlLatestAnnualFiling(corpCode, fiscalYear);
+        return dartFsFilingService.saveAnnualFilingMetadata(
+                corpCode,
+                company.getCompanyId(),
+                fiscalYear,
+                filingRow,
+                fsDiv
+        ).getFsFilingId();
     }
 
     public Long runAnnualXbrlPipeline(Long stockId, String corpCode,

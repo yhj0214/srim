@@ -6,11 +6,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.yhj.srim.client.dto.DartFilingRow;
 import org.yhj.srim.controller.dto.CrawlAllMarketsResult;
+import org.yhj.srim.service.crawl.DartCrawlingService;
 import org.yhj.srim.service.crawl.KrxStockCrawlingService;
 import org.yhj.srim.service.crawl.XbrlFinancialStatementCrawlingService;
 import org.yhj.srim.service.crawl.dto.StockCodeDraft;
 import org.yhj.srim.service.domain.DartCorpCodeSyncService;
+import org.yhj.srim.service.domain.DartFsFilingService;
 import org.yhj.srim.service.domain.FailedJobService;
 import org.yhj.srim.service.domain.FinancialMetricService;
 import org.yhj.srim.service.domain.FinancialService;
@@ -24,6 +27,7 @@ import org.yhj.srim.common.exception.code.CrawlingError;
 import org.yhj.srim.client.DartReportType;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.yhj.srim.repository.entity.Company;
+import org.yhj.srim.repository.entity.DartFsFiling;
 import org.yhj.srim.repository.entity.StockCode;
 import org.yhj.srim.service.dto.XbrlAnnualDocumentRef;
 
@@ -47,7 +51,13 @@ class FinancialFacadeServiceTest {
     StockService stockService;
 
     @Mock
+    DartCrawlingService dartCrawlingService;
+
+    @Mock
     DartCorpCodeSyncService dartCorpCodeSyncService;
+
+    @Mock
+    DartFsFilingService dartFsFilingService;
 
     @Mock
     XbrlFinancialStatementCrawlingService xbrlFinancialStatementCrawlingService;
@@ -156,6 +166,45 @@ class FinancialFacadeServiceTest {
         assertThat(savedCount).isEqualTo(8);
         verify(financialService).getOrCreateCompany(1L);
         verify(financialService).processAnnualMetricsFromXbrl(7L, 2024, "CFS");
+    }
+
+    @Test
+    @DisplayName("연간 filing 메타 수집은 최신 사업보고서 메타를 조회해 dart_fs_filing에 저장한다.")
+    void collectAnnualFilingMetadata_savesLatestAnnualFiling() {
+        StockCode stockCode = StockCode.builder()
+                .dartCorpCode("00126380")
+                .tickerKrx("900001")
+                .companyName("TEST")
+                .market("TEST")
+                .build();
+        Company company = Company.builder()
+                .companyId(7L)
+                .stockCode(stockCode)
+                .currency("KRW")
+                .build();
+        DartFilingRow filingRow = new DartFilingRow();
+        filingRow.setRceptNo("20250311001234");
+        filingRow.setRceptDt("20250311");
+        filingRow.setReportNm("사업보고서");
+        DartFsFiling filing = DartFsFiling.builder()
+                .fsFilingId(21L)
+                .rceptNo("20250311001234")
+                .reprtCode("11011")
+                .bsnsYear(2024)
+                .fsDiv("CFS")
+                .build();
+
+        when(financialService.getOrCreateCompany(1L)).thenReturn(company);
+        when(dartCrawlingService.crawlLatestAnnualFiling("00126380", 2024)).thenReturn(filingRow);
+        when(dartFsFilingService.saveAnnualFilingMetadata("00126380", 7L, 2024, filingRow, "CFS"))
+                .thenReturn(filing);
+
+        Long filingId = financialFacadeService.collectAnnualFilingMetadata(1L, 2024, "CFS");
+
+        assertThat(filingId).isEqualTo(21L);
+        verify(financialService).getOrCreateCompany(1L);
+        verify(dartCrawlingService).crawlLatestAnnualFiling("00126380", 2024);
+        verify(dartFsFilingService).saveAnnualFilingMetadata("00126380", 7L, 2024, filingRow, "CFS");
     }
 
     @Test

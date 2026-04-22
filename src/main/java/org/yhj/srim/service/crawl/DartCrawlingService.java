@@ -5,12 +5,17 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.yhj.srim.client.DartClient;
 import org.yhj.srim.client.DartReportType;
+import org.yhj.srim.client.dto.DartFilingRow;
 import org.yhj.srim.client.dto.DartFsRow;
 import org.yhj.srim.client.dto.DartShareStatusRow;
+import org.yhj.srim.common.exception.CustomException;
+import org.yhj.srim.common.exception.code.CrawlingError;
+import org.yhj.srim.service.crawl.parser.DartFilingParser;
 import org.yhj.srim.service.crawl.parser.DartFinancialStatementParser;
 import org.yhj.srim.service.crawl.parser.DartShareStatusParser;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 @Service
@@ -19,6 +24,7 @@ import java.util.List;
 public class DartCrawlingService {
 
     private final DartClient dartClient;
+    private final DartFilingParser dartFilingParser;
     private final DartFinancialStatementParser dartFinancialStatementParser;
     private final DartShareStatusParser dartShareStatusParser;
 
@@ -42,6 +48,26 @@ public class DartCrawlingService {
         }
 
         return result;
+    }
+
+    public List<DartFilingRow> crawlAnnualFilings(String corpCode, int year) {
+        String body = dartClient.fetchAnnualFilingListBody(corpCode, year);
+        List<DartFilingRow> rows = dartFilingParser.parse(body);
+        rows.sort(Comparator
+                .comparing(DartFilingRow::getRceptDt, Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing(DartFilingRow::getRceptNo, Comparator.nullsLast(Comparator.reverseOrder())));
+        return rows;
+    }
+
+    public DartFilingRow crawlLatestAnnualFiling(String corpCode, int year) {
+        List<DartFilingRow> rows = crawlAnnualFilings(corpCode, year);
+        if (rows.isEmpty()) {
+            throw new CustomException(
+                    CrawlingError.DART_DISCLOSURE_NOT_FOUND,
+                    "corpCode=" + corpCode + ", year=" + year
+            );
+        }
+        return rows.get(0);
     }
 
     public List<DartShareStatusRow> crawlShareStatus(String corpCode, int year) {

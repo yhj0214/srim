@@ -6,11 +6,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
+import org.yhj.srim.common.exception.CustomException;
+import org.yhj.srim.common.exception.code.CrawlingError;
 
 @Component
 @Slf4j
 public class DartClient {
 
+    private static final String DART_DISCLOSURE_LIST_URL = "https://opendart.fss.or.kr/api/list.json";
     private static final String DART_FS_URL = "https://opendart.fss.or.kr/api/fnlttSinglAcntAll.json";
     private static final String DART_SHARE_URL = "https://opendart.fss.or.kr/api/stockTotqySttus.json";
     private static final String DART_XBRL_URL = "https://opendart.fss.or.kr/api/fnlttXbrl.xml";
@@ -36,6 +39,26 @@ public class DartClient {
 
         ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
         return response.getBody();
+    }
+
+    public String fetchAnnualFilingListBody(String corpCode, int year) {
+        String url = DART_DISCLOSURE_LIST_URL
+                + "?crtfc_key=" + apiKey
+                + "&corp_code=" + corpCode
+                + "&bgn_de=" + year + "0101"
+                + "&end_de=" + year + "1231"
+                + "&pblntf_ty=A"
+                + "&pblntf_detail_ty=A001"
+                + "&page_no=1"
+                + "&page_count=100";
+
+        log.debug("DART 공시목록 조회 url : {}", url);
+        try {
+            ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+            return response.getBody();
+        } catch (Exception e) {
+            throw new CustomException(CrawlingError.DART_REQUEST_FAILED);
+        }
     }
 
     public String fetchShareStatusBody(String corpCode, int year) {
