@@ -71,6 +71,7 @@ public class FinancialFacadeService {
     private final FailedJobService failedJobService;
 
     private final ThreadPoolTaskExecutor bondYieldTaskExecutor;
+    private final PriceChartFacadeService priceChartFacadeService;
 
     /**
      * 1. company 조회, 없을 시 생성
@@ -101,12 +102,50 @@ public class FinancialFacadeService {
     }
 
     public int processAnnualMetricsFromXbrl(Long stockId, int fiscalYear, String fsDiv) {
-        Company company = financialService.getOrCreateCompany(stockId);
-        return financialService.processAnnualMetricsFromXbrl(company.getCompanyId(), fiscalYear, fsDiv);
+        // 회사 조회 or 생성
+        Company company = financialService.getOrCreateCompanyWithStockCode(stockId);
+        String resolvedFsDiv = resolveAnnualProcessingFsDiv(company, fiscalYear, fsDiv);
+        int savedMetricCount = financialService.processAnnualMetricsFromXbrl(company.getCompanyId(), fiscalYear, resolvedFsDiv);
+        savedMetricCount += financialMetricService.rebuildAnnualSupplementalMetricsFromXbrl(
+                company.getCompanyId(),
+                fiscalYear
+        );
+        return savedMetricCount;
+    }
+
+    public int collectAnnualFilingMetadata(Long stockId, int startYear, int endYear, String fsDiv) {
+        int collectedCount = 0;
+        for (int fiscalYear = endYear; fiscalYear >= startYear; fiscalYear--) {
+            try {
+                collectAnnualFilingMetadata(stockId, fiscalYear, fsDiv);
+                collectedCount++;
+            } catch (CustomException e) {
+                log.warn("연간 filing 메타 수집 스킵 stockId={}, year={}, fsDiv={}, code={}, detail={}",
+                        stockId, fiscalYear, fsDiv, e.getErrorCode().getCode(), e.getDetail());
+            }
+        }
+        return collectedCount;
+    }
+
+    public int processAnnualMetricsFromXbrl(Long stockId, int startYear, int endYear, String fsDiv) {
+        int savedMetricCount = 0;
+        for (int fiscalYear = endYear; fiscalYear >= startYear; fiscalYear--) {
+            try {
+                savedMetricCount += processAnnualMetricsFromXbrl(stockId, fiscalYear, fsDiv);
+            } catch (CustomException e) {
+                log.warn("연간 XBRL metric 처리 스킵 stockId={}, year={}, fsDiv={}, code={}, detail={}",
+                        stockId, fiscalYear, fsDiv, e.getErrorCode().getCode(), e.getDetail());
+            }
+        }
+        return savedMetricCount;
     }
 
     public Long collectAnnualFilingMetadata(Long stockId, int fiscalYear, String fsDiv) {
-        Company company = financialService.getOrCreateCompany(stockId);
+        Company company = financialService.getOrCreateCompanyWithStockCode(stockId);
+        return collectAnnualFilingMetadata(company, fiscalYear, fsDiv).getFsFilingId();
+    }
+
+    private DartFsFiling collectAnnualFilingMetadata(Company company, int fiscalYear, String fsDiv) {
         String corpCode = company.getStockCode().getDartCorpCode();
         if (corpCode == null || corpCode.length() != 8) {
             throw new CustomException(StockError.DART_CORP_CODE_INVALID);
@@ -119,12 +158,15 @@ public class FinancialFacadeService {
                 fiscalYear,
                 filingRow,
                 fsDiv
-        ).getFsFilingId();
+        );
     }
 
     public Long runAnnualXbrlPipeline(Long stockId, String corpCode,
                                       String rceptNo, int bsnsYear, String fsDiv) {
-        Company company = financialService.getOrCreateCompany(stockId);
+        Company company = financialService.getOrCreateCompanyWithStockCode(stockId);
+
+        collectAnnualShareStatus(company, corpCode, bsnsYear);
+        collectAnnualPriceData(company, bsnsYear);
 
         Long documentId = collectXbrlRaw(new CollectXbrlRawCommand(
                 company.getCompanyId(),
@@ -140,6 +182,10 @@ public class FinancialFacadeService {
                 bsnsYear,
                 fsDiv
         );
+        savedMetricCount += financialMetricService.rebuildAnnualSupplementalMetricsFromXbrl(
+                company.getCompanyId(),
+                bsnsYear
+        );
 
         log.info("XBRL 연간 파이프라인 처리 완료 stockId={}, companyId={}, year={}, fsDiv={}, documentId={}, savedMetricCount={}",
                 stockId, company.getCompanyId(), bsnsYear, fsDiv, documentId, savedMetricCount);
@@ -148,9 +194,161 @@ public class FinancialFacadeService {
     }
 
     public Long runAnnualXbrlPipeline(Long stockId, int fiscalYear, String fsDiv) {
-        Company company = financialService.getOrCreateCompany(stockId);
-        XbrlAnnualDocumentRef documentRef = xbrlAnnualDocumentLocator.resolve(company.getCompanyId(), fiscalYear, fsDiv);
-        return runAnnualXbrlPipeline(stockId, documentRef.corpCode(), documentRef.rceptNo(), fiscalYear, fsDiv);
+        Company company = financialService.getOrCreateCompanyWithStockCode(stockId);
+        String resolvedFsDiv = resolveAnnualFsDiv(company, fiscalYear, fsDiv);
+        return runAnnualXbrlPipelineWithResolvedFsDiv(stockId, company, fiscalYear, fsDiv, resolvedFsDiv);
+    }
+
+    public int runAnnualXbrlPipeline(Long stockId, int startYear, int endYear, String fsDiv) {
+        for (int fiscalYear = endYear; fiscalYear >= startYear; fiscalYear--) {
+            try {
+                collectAnnualXbrlPipelineInputs(stockId, fiscalYear, fsDiv);
+            } catch (CustomException e) {
+                log.warn("연간 XBRL 원천 수집 스킵 stockId={}, year={}, fsDiv={}, code={}, detail={}",
+                        stockId, fiscalYear, fsDiv, e.getErrorCode().getCode(), e.getDetail());
+            }
+        }
+
+        int completedYears = 0;
+        for (int fiscalYear = endYear; fiscalYear >= startYear; fiscalYear--) {
+            try {
+                processAnnualMetricsFromXbrl(stockId, fiscalYear, fsDiv);
+                completedYears++;
+            } catch (CustomException e) {
+                log.warn("연간 XBRL 파이프라인 처리 스킵 stockId={}, year={}, fsDiv={}, code={}, detail={}",
+                        stockId, fiscalYear, fsDiv, e.getErrorCode().getCode(), e.getDetail());
+            }
+        }
+        collectCurrentYearPriceData(stockId);
+        return completedYears;
+    }
+
+    private Long collectAnnualXbrlPipelineInputs(Long stockId, int fiscalYear, String fsDiv) {
+        Company company = financialService.getOrCreateCompanyWithStockCode(stockId);
+        String resolvedFsDiv = resolveAnnualFsDiv(company, fiscalYear, fsDiv);
+        return collectAnnualXbrlPipelineInputsWithResolvedFsDiv(stockId, company, fiscalYear, fsDiv, resolvedFsDiv);
+    }
+
+    private Long collectAnnualXbrlPipelineInputsWithResolvedFsDiv(Long stockId,
+                                                                  Company company,
+                                                                  int fiscalYear,
+                                                                  String requestedFsDiv,
+                                                                  String resolvedFsDiv) {
+        XbrlAnnualDocumentRef documentRef = xbrlAnnualDocumentLocator.resolve(company.getCompanyId(), fiscalYear, resolvedFsDiv);
+
+        log.info("XBRL 연간 문서 선택 완료 stockId={}, companyId={}, year={}, requestedFsDiv={}, resolvedFsDiv={}, rceptNo={}",
+                stockId, company.getCompanyId(), fiscalYear, requestedFsDiv, resolvedFsDiv, documentRef.rceptNo());
+
+        try {
+            collectAnnualShareStatus(company, documentRef.corpCode(), fiscalYear);
+            collectAnnualPriceData(company, fiscalYear);
+
+            return collectXbrlRaw(new CollectXbrlRawCommand(
+                    company.getCompanyId(),
+                    documentRef.corpCode(),
+                    documentRef.rceptNo(),
+                    fiscalYear,
+                    DartReportType.ANNUAL,
+                    resolvedFsDiv
+            ));
+        } catch (CustomException e) {
+            if (!shouldFallbackToOfsOnMissingXbrl(requestedFsDiv, resolvedFsDiv, e)) {
+                throw e;
+            }
+
+            collectAnnualFilingMetadata(company, fiscalYear, "OFS");
+            log.info("XBRL 파일 미존재 fallback 적용 companyId={}, year={}, requestedFsDiv={}, resolvedFsDiv=OFS",
+                    company.getCompanyId(), fiscalYear, requestedFsDiv);
+            return collectAnnualXbrlPipelineInputsWithResolvedFsDiv(stockId, company, fiscalYear, requestedFsDiv, "OFS");
+        }
+    }
+
+    private String resolveAnnualFsDiv(Company company, int fiscalYear, String requestedFsDiv) {
+        try {
+            collectAnnualFilingMetadata(company, fiscalYear, requestedFsDiv);
+            return requestedFsDiv;
+        } catch (CustomException e) {
+            if (!shouldFallbackToOfs(requestedFsDiv, e)) {
+                throw e;
+            }
+
+            collectAnnualFilingMetadata(company, fiscalYear, "OFS");
+            log.info("XBRL 연간 문서 fallback 적용 companyId={}, year={}, requestedFsDiv={}, resolvedFsDiv=OFS",
+                    company.getCompanyId(), fiscalYear, requestedFsDiv);
+            return "OFS";
+        }
+    }
+
+    private boolean shouldFallbackToOfs(String requestedFsDiv, CustomException e) {
+        return "CFS".equalsIgnoreCase(requestedFsDiv)
+                && (e.getErrorCode() == CrawlingError.DART_DISCLOSURE_NOT_FOUND
+                || e.getErrorCode() == CommonError.INVALID_INPUT);
+    }
+
+    private String resolveAnnualProcessingFsDiv(Company company, int fiscalYear, String requestedFsDiv) {
+        if (financialService.hasAnnualXbrlRaw(company.getCompanyId(), fiscalYear, requestedFsDiv)) {
+            return requestedFsDiv;
+        }
+        if ("CFS".equalsIgnoreCase(requestedFsDiv)
+                && financialService.hasAnnualXbrlRaw(company.getCompanyId(), fiscalYear, "OFS")) {
+            log.info("XBRL 연간 metric 처리 fallback 적용 companyId={}, year={}, requestedFsDiv={}, resolvedFsDiv=OFS",
+                    company.getCompanyId(), fiscalYear, requestedFsDiv);
+            return "OFS";
+        }
+        return requestedFsDiv;
+    }
+
+    private Long runAnnualXbrlPipelineWithResolvedFsDiv(Long stockId,
+                                                        Company company,
+                                                        int fiscalYear,
+                                                        String requestedFsDiv,
+                                                        String resolvedFsDiv) {
+        XbrlAnnualDocumentRef documentRef = xbrlAnnualDocumentLocator.resolve(company.getCompanyId(), fiscalYear, resolvedFsDiv);
+
+        log.info("XBRL 연간 문서 선택 완료 stockId={}, companyId={}, year={}, requestedFsDiv={}, resolvedFsDiv={}, rceptNo={}",
+                stockId, company.getCompanyId(), fiscalYear, requestedFsDiv, resolvedFsDiv, documentRef.rceptNo());
+
+        try {
+            return runAnnualXbrlPipeline(stockId, documentRef.corpCode(), documentRef.rceptNo(), fiscalYear, resolvedFsDiv);
+        } catch (CustomException e) {
+            if (!shouldFallbackToOfsOnMissingXbrl(requestedFsDiv, resolvedFsDiv, e)) {
+                throw e;
+            }
+
+            collectAnnualFilingMetadata(company, fiscalYear, "OFS");
+            log.info("XBRL 파일 미존재 fallback 적용 companyId={}, year={}, requestedFsDiv={}, resolvedFsDiv=OFS",
+                    company.getCompanyId(), fiscalYear, requestedFsDiv);
+            return runAnnualXbrlPipelineWithResolvedFsDiv(stockId, company, fiscalYear, requestedFsDiv, "OFS");
+        }
+    }
+
+    private boolean shouldFallbackToOfsOnMissingXbrl(String requestedFsDiv, String resolvedFsDiv, CustomException e) {
+        return "CFS".equalsIgnoreCase(requestedFsDiv)
+                && "CFS".equalsIgnoreCase(resolvedFsDiv)
+                && e.getErrorCode() == CrawlingError.DART_XBRL_NOT_AVAILABLE;
+    }
+
+    private void collectAnnualShareStatus(Company company, String corpCode, int fiscalYear) {
+        List<DartShareStatusRow> shareStatusRows = dartCrawlingService.crawlShareStatus(corpCode, fiscalYear);
+        stockService.replaceShareStatus(company, fiscalYear, shareStatusRows);
+    }
+
+    private void collectAnnualPriceData(Company company, int fiscalYear) {
+        LocalDate startDate = LocalDate.of(fiscalYear, 1, 1);
+        LocalDate endDate = LocalDate.of(fiscalYear, 12, 31);
+        priceChartFacadeService.ensurePriceData(company.getCompanyId(), startDate, endDate);
+    }
+
+    private void collectCurrentYearPriceData(Long stockId) {
+        Company company = financialService.getOrCreateCompanyWithStockCode(stockId);
+        LocalDate today = LocalDate.now();
+        LocalDate startDate = LocalDate.of(today.getYear(), 1, 1);
+        try {
+            priceChartFacadeService.ensurePriceData(company.getCompanyId(), startDate, today);
+        } catch (Exception e) {
+            log.warn("현재 연도 주가 추가 수집 스킵 stockId={}, companyId={}, startDate={}, endDate={}, detail={}",
+                    stockId, company.getCompanyId(), startDate, today, e.getMessage());
+        }
     }
 
     public Long collectXbrlRaw(CollectXbrlRawCommand command) {

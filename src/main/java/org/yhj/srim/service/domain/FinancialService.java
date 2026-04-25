@@ -47,6 +47,7 @@ public class FinancialService {
             "NET_INC",
             "NET_INC_OWNER",
             "NET_INC_NONCONT",
+            "TOTAL_LIABILITIES",
             "TOTAL_EQUITY",
             "TOTAL_EQUITY_OWNER"
     );
@@ -261,6 +262,13 @@ public class FinancialService {
         return companyRepository.findByStockCode_StockId(stockId);
     }
 
+    @Transactional
+    public Company getOrCreateCompanyWithStockCode(Long stockId) {
+        Company company = getOrCreateCompany(stockId);
+        return companyRepository.findWithStockCodeByCompanyId(company.getCompanyId())
+                .orElseThrow(() -> new CustomException(StockError.COMPANY_NOT_FOUND, "companyId=" + company.getCompanyId()));
+    }
+
     /**
      * Company 조회 또는 생성
      */
@@ -449,6 +457,11 @@ public class FinancialService {
     public Map<String, BigDecimal> buildAnnualBaseMetricsFromXbrl(Long companyId, int fiscalYear, String fsDiv) {
         FsRawBundle rawBundle = loadXbrlRawBundle(companyId, fiscalYear, fsDiv);
         return buildMetrics(companyId, fiscalYear, rawBundle, MetricStage.BASE);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean hasAnnualXbrlRaw(Long companyId, int fiscalYear, String fsDiv) {
+        return !loadXbrlRawBundle(companyId, fiscalYear, fsDiv).curr().isEmpty();
     }
 
     @Transactional
@@ -644,13 +657,19 @@ public class FinancialService {
     }
 
     FsRawBundle loadXbrlRawBundle(Long companyId, int fiscalYear, String fsDiv) {
-        FinPeriod period = findAnnualPeriod(companyId, fiscalYear).orElse(null);
-        if (period == null) {
-            log.warn("연간 FinPeriod가 없습니다. companyId={}, year={}", companyId, fiscalYear);
-            return new FsRawBundle(new LinkedHashMap<>(), new LinkedHashMap<>());
+        FsRawBundle rawBundle = xbrlFsRawBundleService.buildRawBundle(
+                companyId,
+                fiscalYear,
+                DartReportType.ANNUAL,
+                fsDiv
+        );
+
+        if (rawBundle.curr().isEmpty()) {
+            log.warn("XBRL 원천 데이터가 없습니다. companyId={}, year={}, reprtCode={}, fsDiv={}",
+                    companyId, fiscalYear, DartReportType.ANNUAL.code(), fsDiv);
         }
 
-        return loadXbrlRawBundle(companyId, period, fsDiv);
+        return rawBundle;
     }
 
     FsRawBundle loadXbrlRawBundle(Long companyId, FinPeriod period, String fsDiv) {
@@ -1108,9 +1127,14 @@ public class FinancialService {
             log.debug("[FS-DB][ROE] netIncOwner/equityOwnerCurr/equityOwnerPrev 중 null 존재 - year={}", currentYear);
         }
 
-        // ROA = 당기순이익 / 자산총계 * 100
-        BigDecimal roa = toPercent(safeDivide(netInc, totalAssets));
-        putIfNotNull(result, "ROA", roa);
+        // ROA = 당기순이익 / 평균자산총계 * 100
+        BigDecimal totalAssetsPrev = prevRaw != null ? prevRaw.get("TOTAL_ASSETS") : null;
+        if (netInc != null && totalAssets != null && totalAssetsPrev != null) {
+            BigDecimal avgAssets = totalAssets.add(totalAssetsPrev)
+                    .divide(BigDecimal.valueOf(2), 8, RoundingMode.HALF_UP);
+            BigDecimal roa = toPercent(safeDivide(netInc, avgAssets));
+            putIfNotNull(result, "ROA", roa);
+        }
 
         // 유동비율(단순) = 유동자산 / 유동부채 * 100
         BigDecimal quickRatio = toPercent(safeDivide(currentAssets, currentLiab));
@@ -1439,29 +1463,15 @@ public class FinancialService {
             return 0;
         }
 
-        List<FinMetricValue> entities = metrics.entrySet().stream()
-                .filter(entry -> targetMetricCodes.contains(entry.getKey()))
-                .filter(entry -> entry.getValue() != null)
-                .map(entry -> FinMetricValue.builder()
-                        .companyId(companyId)
-                        .period(period)
-                        .metricCode(entry.getKey())
-                        .valueNum(entry.getValue())
-                        .source(source)
-                        .build())
-                .toList();
-
-        try {
-            finMetricValueRepository.saveAll(entities);
-        } catch (DataIntegrityViolationException ex) {
-            log.error("[FIN-METRIC][ANNUAL] duplicate save failure companyId={}, year={}, periodId={}, entityMetricCodes={}",
-                    companyId,
-                    fiscalYear,
-                    period.getPeriodId(),
-                    entities.stream().map(FinMetricValue::getMetricCode).toList(),
-                    ex);
-            throw ex;
-        }
+        List<FinMetricValue> entities = buildMetricEntities(companyId, period, metrics, targetMetricCodes, source);
+        saveMetricEntitiesWithSourceFallback(
+                entities,
+                companyId,
+                fiscalYear,
+                period.getPeriodId(),
+                "ANNUAL",
+                source
+        );
         return entities.size();
     }
 
@@ -1495,7 +1505,24 @@ public class FinancialService {
             return 0;
         }
 
-        List<FinMetricValue> entities = metrics.entrySet().stream()
+        List<FinMetricValue> entities = buildMetricEntities(companyId, period, metrics, targetMetricCodes, "DART");
+        saveMetricEntitiesWithSourceFallback(
+                entities,
+                companyId,
+                period.getFiscalYear(),
+                period.getPeriodId(),
+                "QTR",
+                "DART"
+        );
+        return entities.size();
+    }
+
+    private List<FinMetricValue> buildMetricEntities(Long companyId,
+                                                     FinPeriod period,
+                                                     Map<String, BigDecimal> metrics,
+                                                     List<String> targetMetricCodes,
+                                                     String source) {
+        return metrics.entrySet().stream()
                 .filter(entry -> targetMetricCodes.contains(entry.getKey()))
                 .filter(entry -> entry.getValue() != null)
                 .map(entry -> FinMetricValue.builder()
@@ -1503,23 +1530,61 @@ public class FinancialService {
                         .period(period)
                         .metricCode(entry.getKey())
                         .valueNum(entry.getValue())
-                        .source("DART")
+                        .source(source)
                         .build())
                 .toList();
+    }
 
+    private void saveMetricEntitiesWithSourceFallback(List<FinMetricValue> entities,
+                                                      Long companyId,
+                                                      Integer fiscalYear,
+                                                      Long periodId,
+                                                      String scope,
+                                                      String source) {
         try {
             finMetricValueRepository.saveAll(entities);
         } catch (DataIntegrityViolationException ex) {
-            log.error("[FIN-METRIC][QTR] duplicate save failure companyId={}, periodId={}, period={}/{}, entityMetricCodes={}",
+            if (shouldRetryWithDartSource(source, ex)) {
+                log.warn("[FIN-METRIC][{}] source 제약 fallback 적용 companyId={}, fiscalYear={}, periodId={}, source={} -> DART",
+                        scope, companyId, fiscalYear, periodId, source);
+                List<FinMetricValue> fallbackEntities = entities.stream()
+                        .map(entity -> FinMetricValue.builder()
+                                .companyId(entity.getCompanyId())
+                                .period(entity.getPeriod())
+                                .metricCode(entity.getMetricCode())
+                                .valueNum(entity.getValueNum())
+                                .source("DART")
+                                .build())
+                        .toList();
+                finMetricValueRepository.saveAll(fallbackEntities);
+                return;
+            }
+
+            log.error("[FIN-METRIC][{}] save failure companyId={}, fiscalYear={}, periodId={}, entityMetricCodes={}",
+                    scope,
                     companyId,
-                    period.getPeriodId(),
-                    period.getFiscalYear(),
-                    period.getFiscalQuarter(),
+                    fiscalYear,
+                    periodId,
                     entities.stream().map(FinMetricValue::getMetricCode).toList(),
                     ex);
             throw ex;
         }
-        return entities.size();
+    }
+
+    private boolean shouldRetryWithDartSource(String source, DataIntegrityViolationException ex) {
+        if ("DART".equals(source)) {
+            return false;
+        }
+
+        Throwable current = ex;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null && message.contains("CK_FMV_SOURCE")) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     public void updateCompanyShareInfo(Long companyId) {

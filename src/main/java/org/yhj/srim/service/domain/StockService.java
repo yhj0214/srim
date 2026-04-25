@@ -150,22 +150,22 @@ public class StockService {
         Long companyId = company.getCompanyId();
 
         long deleted = stockShareStatusRepository.deleteByCompany_CompanyIdAndBsnsYear(companyId, year);
+        stockShareStatusRepository.flush();
 
 
         Map<String, DartShareStatusRow> dedupBySe = new LinkedHashMap<>();
         for (DartShareStatusRow r : rows) {
+            if (r == null) continue;
             if (r.getBsnsYear() != null && r.getBsnsYear() != year) {
                 log.warn("DART shareStatus bsnsYear mismatch: requestedYear={}, rowYear={}, corpCode={}",
                         year, r.getBsnsYear(), company.getStockCode().getDartCorpCode());
             }
-            if (r == null) continue;
-            if ("비고".equals(r.getSe())) continue;
 
-            String se = r.getSe();
+            String se = r.getSe() == null ? null : r.getSe().trim();
             if (se == null || se.isBlank()) continue;
+            if ("비고".equals(se)) continue;
 
-            // 이 메서드는 'year'만 다룬다 → bsnsYear는 year로 강제
-            // (row.getBsnsYear()는 무시하거나, 다르면 로그만 남기는 것도 가능)
+            r.setSe(se);
             dedupBySe.put(se, r);
         }
 

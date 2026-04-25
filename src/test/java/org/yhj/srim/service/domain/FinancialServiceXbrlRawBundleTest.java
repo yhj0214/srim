@@ -71,21 +71,23 @@ class FinancialServiceXbrlRawBundleTest {
         saveAnnualPeriod(company, 2023);
 
         XbrlDocument current = saveDocument(company, 2024, "20250321002000", LocalDateTime.of(2025, 3, 21, 11, 0));
-        saveAnnualFacts(current, "1014156314426", "21600800986", "443723178425");
+        saveAnnualFacts(current, "1014156314426", "21600800986", "356276821575", "443723178425");
 
         XbrlDocument previous = saveDocument(company, 2023, "20240321001000", LocalDateTime.of(2024, 3, 21, 10, 0));
-        saveAnnualFacts(previous, "936525061005", "16472354950", "419651809690");
+        saveAnnualFacts(previous, "936525061005", "16472354950", "320000000000", "419651809690");
 
         FsRawBundle rawBundle = financialService.loadXbrlRawBundle(company.getCompanyId(), 2024, "CFS");
 
         assertThat(rawBundle.curr())
                 .containsEntry("SALES", new BigDecimal("1014156314426"))
                 .containsEntry("NET_INC", new BigDecimal("21600800986"))
+                .containsEntry("TOTAL_LIABILITIES", new BigDecimal("356276821575"))
                 .containsEntry("TOTAL_EQUITY", new BigDecimal("443723178425"));
 
         assertThat(rawBundle.prev())
                 .containsEntry("SALES", new BigDecimal("936525061005"))
                 .containsEntry("NET_INC", new BigDecimal("16472354950"))
+                .containsEntry("TOTAL_LIABILITIES", new BigDecimal("320000000000"))
                 .containsEntry("TOTAL_EQUITY", new BigDecimal("419651809690"));
     }
 
@@ -108,11 +110,11 @@ class FinancialServiceXbrlRawBundleTest {
         saveAnnualPeriod(company, 2023);
 
         XbrlDocument current = saveDocument(company, 2024, "20250321002001", LocalDateTime.of(2025, 3, 21, 11, 30));
-        saveAnnualFacts(current, "2000", "300", "500");
+        saveAnnualFacts(current, "2000", "300", "250", "500");
 
         int savedCount = financialService.replaceAnnualBaseMetricsFromXbrl(company.getCompanyId(), 2024, "CFS");
 
-        assertThat(savedCount).isEqualTo(3);
+        assertThat(savedCount).isEqualTo(4);
 
         FinMetricValue sales = finMetricValueRepository
                 .findByCompanyIdAndPeriodAndMetricCode(company.getCompanyId(), period, "SALES")
@@ -123,12 +125,17 @@ class FinancialServiceXbrlRawBundleTest {
         FinMetricValue equity = finMetricValueRepository
                 .findByCompanyIdAndPeriodAndMetricCode(company.getCompanyId(), period, "TOTAL_EQUITY")
                 .orElseThrow();
+        FinMetricValue liabilities = finMetricValueRepository
+                .findByCompanyIdAndPeriodAndMetricCode(company.getCompanyId(), period, "TOTAL_LIABILITIES")
+                .orElseThrow();
 
         assertThat(sales.getValueNum()).isEqualByComparingTo("2000");
         assertThat(netIncome.getValueNum()).isEqualByComparingTo("300");
+        assertThat(liabilities.getValueNum()).isEqualByComparingTo("250");
         assertThat(equity.getValueNum()).isEqualByComparingTo("500");
         assertThat(sales.getSource()).isEqualTo("XBRL");
         assertThat(netIncome.getSource()).isEqualTo("XBRL");
+        assertThat(liabilities.getSource()).isEqualTo("XBRL");
         assertThat(equity.getSource()).isEqualTo("XBRL");
     }
 
@@ -140,14 +147,14 @@ class FinancialServiceXbrlRawBundleTest {
         saveAnnualPeriod(company, 2023);
 
         XbrlDocument current = saveDocument(company, 2024, "20250321002002", LocalDateTime.of(2025, 3, 21, 12, 0));
-        saveAnnualFacts(current, "2000", "300", "500");
+        saveAnnualFacts(current, "2000", "300", "250", "500");
 
         XbrlDocument previous = saveDocument(company, 2023, "20240321001002", LocalDateTime.of(2024, 3, 21, 10, 0));
-        saveAnnualFacts(previous, "1500", "200", "400");
+        saveAnnualFacts(previous, "1500", "200", "220", "400");
 
         int savedCount = financialService.replaceAnnualDerivedMetricsFromXbrl(company.getCompanyId(), 2024, "CFS");
 
-        assertThat(savedCount).isEqualTo(2);
+        assertThat(savedCount).isEqualTo(3);
 
         FinMetricValue netMargin = finMetricValueRepository
                 .findByCompanyIdAndPeriodAndMetricCode(company.getCompanyId(), period, "NET_MARGIN")
@@ -155,11 +162,16 @@ class FinancialServiceXbrlRawBundleTest {
         FinMetricValue roe = finMetricValueRepository
                 .findByCompanyIdAndPeriodAndMetricCode(company.getCompanyId(), period, "ROE")
                 .orElseThrow();
+        FinMetricValue roa = finMetricValueRepository
+                .findByCompanyIdAndPeriodAndMetricCode(company.getCompanyId(), period, "ROA")
+                .orElseThrow();
 
         assertThat(netMargin.getValueNum()).isEqualByComparingTo("15.000000");
         assertThat(roe.getValueNum()).isEqualByComparingTo("66.666667");
+        assertThat(roa.getValueNum()).isEqualByComparingTo("43.79562000");
         assertThat(netMargin.getSource()).isEqualTo("XBRL");
         assertThat(roe.getSource()).isEqualTo("XBRL");
+        assertThat(roa.getSource()).isEqualTo("XBRL");
     }
 
     @Test
@@ -171,7 +183,7 @@ class FinancialServiceXbrlRawBundleTest {
         saveShareStatus(company, 2024, 100L);
 
         XbrlDocument current = saveDocument(company, 2024, "20250321002003", LocalDateTime.of(2025, 3, 21, 12, 30));
-        saveAnnualFacts(current, "2000", "300", "500");
+        saveAnnualFacts(current, "2000", "300", "250", "500");
         saveOwnerFacts(current, "200", "450", "50");
 
         int savedCount = financialService.replaceAnnualPerShareMetricsFromXbrl(company.getCompanyId(), 2024, "CFS");
@@ -195,24 +207,26 @@ class FinancialServiceXbrlRawBundleTest {
         saveShareStatus(company, 2024, 100L);
 
         XbrlDocument current = saveDocument(company, 2024, "20250321002004", LocalDateTime.of(2025, 3, 21, 13, 0));
-        saveAnnualFacts(current, "2000", "300", "500");
+        saveAnnualFacts(current, "2000", "300", "250", "500");
         saveOwnerFacts(current, "200", "450", "50");
 
         XbrlDocument previous = saveDocument(company, 2023, "20240321001004", LocalDateTime.of(2024, 3, 21, 10, 30));
-        saveAnnualFacts(previous, "1500", "200", "400");
+        saveAnnualFacts(previous, "1500", "200", "220", "400");
         saveOwnerFacts(previous, "150", "350", "50");
 
         int savedCount = financialService.processAnnualMetricsFromXbrl(company.getCompanyId(), 2024, "CFS");
 
-        assertThat(savedCount).isEqualTo(8);
+        assertThat(savedCount).isEqualTo(10);
 
         assertMetric(company.getCompanyId(), period, "SALES", "2000");
         assertMetric(company.getCompanyId(), period, "NET_INC", "300");
+        assertMetric(company.getCompanyId(), period, "TOTAL_LIABILITIES", "250");
         assertMetric(company.getCompanyId(), period, "TOTAL_EQUITY", "500");
         assertMetric(company.getCompanyId(), period, "NET_INC_OWNER", "200");
         assertMetric(company.getCompanyId(), period, "TOTAL_EQUITY_OWNER", "450");
         assertMetric(company.getCompanyId(), period, "NET_MARGIN", "15.000000");
         assertMetric(company.getCompanyId(), period, "ROE", "50.000000");
+        assertMetric(company.getCompanyId(), period, "ROA", "43.79562000");
         assertMetric(company.getCompanyId(), period, "EPS", "2.00");
     }
 
@@ -260,7 +274,9 @@ class FinancialServiceXbrlRawBundleTest {
                 .build());
     }
 
-    private void saveAnnualFacts(XbrlDocument document, String sales, String netIncome, String totalEquity) {
+    private void saveAnnualFacts(XbrlDocument document, String sales, String netIncome, String totalLiabilities, String totalEquity) {
+        BigDecimal totalAssets = new BigDecimal(totalLiabilities).add(new BigDecimal(totalEquity));
+
         XbrlContext durationContext = xbrlContextRepository.save(XbrlContext.builder()
                 .document(document)
                 .contextRef("ctx-duration-" + document.getBsnsYear())
@@ -325,6 +341,40 @@ class FinancialServiceXbrlRawBundleTest {
                 .document(document)
                 .context(instantContext)
                 .contextRef(instantContext.getContextRef())
+                .conceptQname("ifrs-full:Assets")
+                .conceptLocalName("Assets")
+                .labelKo("자산총계")
+                .statementRole("balance-sheet")
+                .unitRef("KRW")
+                .decimals("0")
+                .valueRaw(totalAssets.toPlainString())
+                .valueNumeric(totalAssets)
+                .isNil(false)
+                .memberSignature(null)
+                .orderHint(3)
+                .build());
+
+        xbrlFactRepository.save(XbrlFact.builder()
+                .document(document)
+                .context(instantContext)
+                .contextRef(instantContext.getContextRef())
+                .conceptQname("ifrs-full:Liabilities")
+                .conceptLocalName("Liabilities")
+                .labelKo("부채총계")
+                .statementRole("balance-sheet")
+                .unitRef("KRW")
+                .decimals("0")
+                .valueRaw(totalLiabilities)
+                .valueNumeric(new BigDecimal(totalLiabilities))
+                .isNil(false)
+                .memberSignature(null)
+                .orderHint(4)
+                .build());
+
+        xbrlFactRepository.save(XbrlFact.builder()
+                .document(document)
+                .context(instantContext)
+                .contextRef(instantContext.getContextRef())
                 .conceptQname("ifrs-full:Equity")
                 .conceptLocalName("Equity")
                 .labelKo("자본총계")
@@ -335,7 +385,7 @@ class FinancialServiceXbrlRawBundleTest {
                 .valueNumeric(new BigDecimal(totalEquity))
                 .isNil(false)
                 .memberSignature(null)
-                .orderHint(3)
+                .orderHint(5)
                 .build());
     }
 

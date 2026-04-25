@@ -60,6 +60,14 @@ public class FinancialMetricService {
         return total;
     }
 
+    @Transactional
+    public int rebuildAnnualSupplementalMetricsFromXbrl(Long companyId, int fiscalYear) {
+        int total = 0;
+        total += rebuildAnnualBpsMetricFromStoredValues(companyId, fiscalYear);
+        total += rebuildAnnualMarketMetricsFromStoredValues(companyId, fiscalYear);
+        return total;
+    }
+
     public int rebuildQuarterlyMetrics(Long companyId, int year) {
         int total = 0;
 
@@ -202,6 +210,48 @@ public class FinancialMetricService {
 
         BigDecimal bps = equityOwner.divide(shares, 0, RoundingMode.HALF_UP);
         return financialService.replaceSingleMetric(companyId, fiscalYear, METRIC_BPS, bps);
+    }
+
+    private int rebuildAnnualBpsMetricFromStoredValues(Long companyId, int fiscalYear) {
+        FinPeriod period = financialService.findAnnualPeriod(companyId, fiscalYear).orElse(null);
+        if (period == null) {
+            return 0;
+        }
+
+        BigDecimal equityOwner = financialService.findMetricValue(companyId, period, METRIC_EQUITY_OWNER)
+                .or(() -> financialService.findMetricValue(companyId, period, METRIC_EQUITY))
+                .orElse(null);
+        if (equityOwner == null) {
+            return financialService.replaceAnnualMetricsByCodes(
+                    companyId, fiscalYear, Map.of(), List.of(METRIC_BPS), "XBRL"
+            );
+        }
+
+        BigDecimal shares = financialService.findLatestShareCountForPeriod(companyId, period)
+                .or(() -> financialService.findCompanyShareCount(companyId))
+                .orElse(null);
+        if (shares == null || shares.compareTo(BigDecimal.ZERO) == 0) {
+            return financialService.replaceAnnualMetricsByCodes(
+                    companyId, fiscalYear, Map.of(), List.of(METRIC_BPS), "XBRL"
+            );
+        }
+
+        BigDecimal bps = equityOwner.divide(shares, 0, RoundingMode.HALF_UP);
+        return financialService.replaceAnnualMetricsByCodes(
+                companyId, fiscalYear, Map.of(METRIC_BPS, bps), List.of(METRIC_BPS), "XBRL"
+        );
+    }
+
+    private int rebuildAnnualMarketMetricsFromStoredValues(Long companyId, int fiscalYear) {
+        FinPeriod period = financialService.findAnnualPeriod(companyId, fiscalYear).orElse(null);
+        if (period == null) {
+            return 0;
+        }
+
+        Map<String, BigDecimal> metrics = buildMarketMetrics(companyId, period, fiscalYear);
+        return financialService.replaceAnnualMetricsByCodes(
+                companyId, fiscalYear, metrics, List.of(METRIC_PER, METRIC_PBR), "XBRL"
+        );
     }
 
     private int rebuildBpsMetric(Long companyId, FinPeriod period) {

@@ -448,6 +448,7 @@ INSERT INTO fin_metric_def (metric_code, name_kor, unit, display_order, descript
     ('NET_INC',         '당기순이익',   'KRW',  30,  '지배주주 기준 당기순이익'),
     ('NET_INC_OWNER',   '당기순이익(지배)', 'KRW', 31, '지배기업 소유주에게 귀속되는 당기순이익'),
     ('NET_INC_NONCONT', '당기순이익(비지배)', 'KRW', 32, '비지배지분에 귀속되는 당기순이익'),
+    ('TOTAL_LIABILITIES',   '부채총계',     'KRW',  50, '부채총계'),
     ('TOTAL_EQUITY',        '자본총계',     'KRW',  60, '자본총계(지배주주지분 + 비지배주주지분)'),
     ('TOTAL_EQUITY_OWNER',  '자본총계(지배)', 'KRW',  61, '자본총계(지배주주지분, Equity attributable to owners of parent)'),
 

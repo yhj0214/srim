@@ -16,6 +16,7 @@ import org.yhj.srim.service.dto.SrimResultDto;
 import org.yhj.srim.service.facade.FinancialFacadeService;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -247,5 +248,47 @@ class FinancialApiControllerTest {
                 .andExpect(jsonPath("$.error.code").value("COMMON-002"))
                 .andExpect(jsonPath("$.error.message").value("서버 오류가 발생했습니다."))
                 .andExpect(jsonPath("$.error.path").value("/api/stocks/1/srim"));
+    }
+
+    @Test
+    @DisplayName("연간 XBRL filing collect API가 성공한다.")
+    void annual_xbrl_collect_success() throws Exception {
+        BDDMockito.given(financialFacadeService.collectAnnualFilingMetadata(
+                        1L, 2015, LocalDate.now().getYear() - 1, "CFS"))
+                .willReturn(9);
+
+        mockMvc.perform(get("/api/stocks/1/xbrl/annual/collect")
+                        .param("fsDiv", "CFS"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data").value(9));
+    }
+
+    @Test
+    @DisplayName("연간 XBRL process API가 성공한다.")
+    void annual_xbrl_process_success() throws Exception {
+        BDDMockito.given(financialFacadeService.processAnnualMetricsFromXbrl(
+                        1L, 2015, LocalDate.now().getYear() - 1, "CFS"))
+                .willReturn(64);
+
+        mockMvc.perform(get("/api/stocks/1/xbrl/annual/process")
+                        .param("fsDiv", "CFS"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data").value(64));
+    }
+
+    @Test
+    @DisplayName("연간 XBRL run API가 성공한다.")
+    void annual_xbrl_run_success() throws Exception {
+        BDDMockito.given(financialFacadeService.runAnnualXbrlPipeline(
+                        1L, 2015, LocalDate.now().getYear() - 1, "CFS"))
+                .willReturn(9);
+
+        mockMvc.perform(get("/api/stocks/1/xbrl/annual/run")
+                        .param("fsDiv", "CFS"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data").value(9));
     }
 }

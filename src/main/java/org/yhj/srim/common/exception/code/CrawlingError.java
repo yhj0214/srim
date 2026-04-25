@@ -12,7 +12,8 @@ public enum CrawlingError implements ErrorCode {
     NAVER_REQUEST_FAILED(HttpStatus.BAD_GATEWAY, "CRAWL-003", "NAVER 서버 요청에 실패했습니다."),
     KIS_REQUEST_FAILED(HttpStatus.BAD_GATEWAY, "CRAWL-004", "KIS 서버 요청에 실패했습니다."),
     KIS_PARSE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "CRAWL-005", "KIS 응답 파싱에 실패했습니다."),
-    DART_DISCLOSURE_NOT_FOUND(HttpStatus.NOT_FOUND, "CRAWL-006", "조건에 맞는 DART 공시 메타데이터가 없습니다.");
+    DART_DISCLOSURE_NOT_FOUND(HttpStatus.NOT_FOUND, "CRAWL-006", "조건에 맞는 DART 공시 메타데이터가 없습니다."),
+    DART_XBRL_NOT_AVAILABLE(HttpStatus.NOT_FOUND, "CRAWL-007", "해당 공시에 XBRL 파일이 없습니다.");
 
     private final HttpStatus httpStatus;
     private final String code;

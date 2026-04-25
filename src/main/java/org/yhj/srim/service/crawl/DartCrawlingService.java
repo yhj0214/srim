@@ -52,7 +52,9 @@ public class DartCrawlingService {
 
     public List<DartFilingRow> crawlAnnualFilings(String corpCode, int year) {
         String body = dartClient.fetchAnnualFilingListBody(corpCode, year);
-        List<DartFilingRow> rows = dartFilingParser.parse(body);
+        List<DartFilingRow> rows = new ArrayList<>(dartFilingParser.parse(body).stream()
+                .filter(this::isAnnualReport)
+                .toList());
         rows.sort(Comparator
                 .comparing(DartFilingRow::getRceptDt, Comparator.nullsLast(Comparator.reverseOrder()))
                 .thenComparing(DartFilingRow::getRceptNo, Comparator.nullsLast(Comparator.reverseOrder())));
@@ -68,6 +70,11 @@ public class DartCrawlingService {
             );
         }
         return rows.get(0);
+    }
+
+    private boolean isAnnualReport(DartFilingRow row) {
+        String reportNm = row.getReportNm();
+        return reportNm != null && reportNm.contains("사업보고서");
     }
 
     public List<DartShareStatusRow> crawlShareStatus(String corpCode, int year) {

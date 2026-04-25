@@ -3,11 +3,14 @@ package org.yhj.srim.client;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 import org.yhj.srim.common.exception.CustomException;
 import org.yhj.srim.common.exception.code.CrawlingError;
+
+import java.nio.charset.StandardCharsets;
 
 @Component
 @Slf4j
@@ -41,12 +44,13 @@ public class DartClient {
         return response.getBody();
     }
 
-    public String fetchAnnualFilingListBody(String corpCode, int year) {
+    public String fetchAnnualFilingListBody(String corpCode, int fiscalYear) {
+        int disclosureYear = fiscalYear + 1;
         String url = DART_DISCLOSURE_LIST_URL
                 + "?crtfc_key=" + apiKey
                 + "&corp_code=" + corpCode
-                + "&bgn_de=" + year + "0101"
-                + "&end_de=" + year + "1231"
+                + "&bgn_de=" + disclosureYear + "0101"
+                + "&end_de=" + disclosureYear + "1231"
                 + "&pblntf_ty=A"
                 + "&pblntf_detail_ty=A001"
                 + "&page_no=1"
@@ -80,7 +84,29 @@ public class DartClient {
         log.debug("DART XBRL 조회 url : {}", url);
 
         ResponseEntity<byte[]> response = restTemplate.getForEntity(url, byte[].class);
-        return response.getBody();
+        byte[] body = response.getBody();
+        if (!isZipArchive(body)) {
+            MediaType contentType = response.getHeaders().getContentType();
+            String bodyPrefix = previewBody(body);
+            log.warn("DART XBRL 응답이 zip이 아닙니다. rceptNo={}, reprtCode={}, statusCode={}, contentType={}, contentLength={}, bodyPrefix={}",
+                    rceptNo,
+                    reportType.code(),
+                    response.getStatusCode(),
+                    contentType,
+                    body == null ? 0 : body.length,
+                    bodyPrefix);
+            if (bodyPrefix.contains("<status>014</status>")) {
+                throw new CustomException(
+                        CrawlingError.DART_XBRL_NOT_AVAILABLE,
+                        "rceptNo=" + rceptNo + ", reprtCode=" + reportType.code()
+                );
+            }
+            throw new CustomException(
+                    CrawlingError.DART_REQUEST_FAILED,
+                    "rceptNo=" + rceptNo + ", reprtCode=" + reportType.code()
+            );
+        }
+        return body;
     }
 
     public String buildFinancialStatementsXbrlUrl(String rceptNo, DartReportType reportType) {
@@ -88,5 +114,25 @@ public class DartClient {
                 + "?crtfc_key=" + apiKey
                 + "&rcept_no=" + rceptNo
                 + "&reprt_code=" + reportType.code();
+    }
+
+    private boolean isZipArchive(byte[] body) {
+        return body != null
+                && body.length >= 4
+                && body[0] == 'P'
+                && body[1] == 'K'
+                && body[2] == 3
+                && body[3] == 4;
+    }
+
+    private String previewBody(byte[] body) {
+        if (body == null || body.length == 0) {
+            return "<empty>";
+        }
+
+        int previewLength = Math.min(body.length, 200);
+        return new String(body, 0, previewLength, StandardCharsets.UTF_8)
+                .replace("\r", "\\r")
+                .replace("\n", "\\n");
     }
 }

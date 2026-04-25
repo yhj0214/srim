@@ -58,4 +58,49 @@ public class FinancialApiController {
         return ApiResponse.success(result);
     }
 
+    @GetMapping("/{stockId}/xbrl/annual/collect")
+    public ApiResponse<Integer> collectAnnualXbrlFiling(
+            @PathVariable Long stockId,
+            @RequestParam(defaultValue = "2015") int startYear,
+            @RequestParam(defaultValue = "CFS") String fsDiv) {
+        return ApiResponse.success(
+                financialFacadeService.collectAnnualFilingMetadata(
+                        stockId,
+                        startYear,
+                        LocalDate.now().getYear() - 1,
+                        fsDiv
+                )
+        );
+    }
+
+    @GetMapping("/{stockId}/xbrl/annual/process")
+    public ApiResponse<Integer> processAnnualXbrlMetrics(
+            @PathVariable Long stockId,
+            @RequestParam(defaultValue = "2015") int startYear,
+            @RequestParam(defaultValue = "CFS") String fsDiv) {
+        return ApiResponse.success(
+                financialFacadeService.processAnnualMetricsFromXbrl(
+                        stockId,
+                        startYear,
+                        LocalDate.now().getYear() - 1,
+                        fsDiv
+                )
+        );
+    }
+
+    @GetMapping("/{stockId}/xbrl/annual/run")
+    public ApiResponse<Integer> runAnnualXbrlPipeline(
+            @PathVariable Long stockId,
+            @RequestParam(defaultValue = "2015") int startYear,
+            @RequestParam(defaultValue = "CFS") String fsDiv) {
+        return ApiResponse.success(
+                financialFacadeService.runAnnualXbrlPipeline(
+                        stockId,
+                        startYear,
+                        LocalDate.now().getYear() - 1,
+                        fsDiv
+                )
+        );
+    }
+
 }

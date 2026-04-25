@@ -28,12 +28,17 @@ public class XbrlParser {
     public XbrlParseResult parse(byte[] archiveBytes) {
         Map<String, XbrlParsedContext> contextsByRef = new LinkedHashMap<>();
         List<XbrlParsedFact> facts = new ArrayList<>();
+        List<String> zipEntries = new ArrayList<>();
+        List<String> parsedEntries = new ArrayList<>();
+        List<String> skippedXmlEntries = new ArrayList<>();
         String taxonomyVersion = null;
         int orderHint = 0;
 
         try (ZipInputStream zipInputStream = new ZipInputStream(new ByteArrayInputStream(archiveBytes))) {
             ZipEntry entry;
             while ((entry = zipInputStream.getNextEntry()) != null) {
+                zipEntries.add(entry.getName());
+
                 if (entry.isDirectory() || !isXmlEntry(entry.getName())) {
                     continue;
                 }
@@ -41,8 +46,11 @@ public class XbrlParser {
                 byte[] entryBytes = zipInputStream.readAllBytes();
                 Document document = parseXml(entryBytes);
                 if (document == null) {
+                    skippedXmlEntries.add(entry.getName());
                     continue;
                 }
+
+                parsedEntries.add(entry.getName());
 
                 if (taxonomyVersion == null) {
                     taxonomyVersion = extractTaxonomyVersion(document);
@@ -53,6 +61,14 @@ public class XbrlParser {
             }
         } catch (Exception e) {
             throw new IllegalStateException("XBRL zip 파싱에 실패했습니다.", e);
+        }
+
+        if (facts.isEmpty()) {
+            log.warn("XBRL zip 파싱 결과가 비어 있습니다. zipEntries={}, parsedEntries={}, skippedXmlEntries={}, taxonomyVersion={}",
+                    zipEntries, parsedEntries, skippedXmlEntries, taxonomyVersion);
+        } else if (log.isDebugEnabled()) {
+            log.debug("XBRL zip 파싱 엔트리 요약 zipEntries={}, parsedEntries={}, skippedXmlEntries={}",
+                    zipEntries, parsedEntries, skippedXmlEntries);
         }
 
         return new XbrlParseResult(List.copyOf(contextsByRef.values()), List.copyOf(facts), taxonomyVersion);
