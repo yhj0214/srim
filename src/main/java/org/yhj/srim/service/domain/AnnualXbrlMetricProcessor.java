@@ -7,6 +7,7 @@ import org.yhj.srim.service.dto.FsRawBundle;
 
 import java.math.BigDecimal;
 import java.util.Map;
+import java.util.function.Function;
 
 @Service
 @RequiredArgsConstructor
@@ -18,38 +19,50 @@ public class AnnualXbrlMetricProcessor {
 
     @Transactional(readOnly = true)
     public Map<String, BigDecimal> buildAnnualBaseMetricsFromXbrl(Long companyId, int fiscalYear, String fsDiv) {
-        FsRawBundle rawBundle = financialService.loadXbrlRawBundle(companyId, fiscalYear, fsDiv);
-        return annualXbrlBaseMetricCalculator.calculate(rawBundle.curr());
+        return buildStageMetrics(companyId, fiscalYear, fsDiv,
+                rawBundle -> annualXbrlBaseMetricCalculator.calculate(rawBundle.curr()));
     }
 
     @Transactional
     public int replaceAnnualBaseMetricsFromXbrl(Long companyId, int fiscalYear, String fsDiv) {
-        Map<String, BigDecimal> metrics = buildAnnualBaseMetricsFromXbrl(companyId, fiscalYear, fsDiv);
-        return financialService.replaceMetrics(companyId, fiscalYear, MetricStage.BASE, metrics);
+        return replaceStageMetrics(
+                companyId,
+                fiscalYear,
+                buildAnnualBaseMetricsFromXbrl(companyId, fiscalYear, fsDiv),
+                MetricStage.BASE
+        );
     }
 
     @Transactional(readOnly = true)
     public Map<String, BigDecimal> buildAnnualDerivedMetricsFromXbrl(Long companyId, int fiscalYear, String fsDiv) {
-        FsRawBundle rawBundle = financialService.loadXbrlRawBundle(companyId, fiscalYear, fsDiv);
-        return annualXbrlDerivedMetricCalculator.calculate(rawBundle.curr(), rawBundle.prev(), fiscalYear);
+        return buildStageMetrics(companyId, fiscalYear, fsDiv,
+                rawBundle -> annualXbrlDerivedMetricCalculator.calculate(rawBundle.curr(), rawBundle.prev(), fiscalYear));
     }
 
     @Transactional
     public int replaceAnnualDerivedMetricsFromXbrl(Long companyId, int fiscalYear, String fsDiv) {
-        Map<String, BigDecimal> metrics = buildAnnualDerivedMetricsFromXbrl(companyId, fiscalYear, fsDiv);
-        return financialService.replaceMetrics(companyId, fiscalYear, MetricStage.DERIVED, metrics);
+        return replaceStageMetrics(
+                companyId,
+                fiscalYear,
+                buildAnnualDerivedMetricsFromXbrl(companyId, fiscalYear, fsDiv),
+                MetricStage.DERIVED
+        );
     }
 
     @Transactional(readOnly = true)
     public Map<String, BigDecimal> buildAnnualPerShareMetricsFromXbrl(Long companyId, int fiscalYear, String fsDiv) {
-        FsRawBundle rawBundle = financialService.loadXbrlRawBundle(companyId, fiscalYear, fsDiv);
-        return annualXbrlPerShareMetricCalculator.calculate(companyId, rawBundle.curr(), fiscalYear);
+        return buildStageMetrics(companyId, fiscalYear, fsDiv,
+                rawBundle -> annualXbrlPerShareMetricCalculator.calculate(companyId, rawBundle.curr(), fiscalYear));
     }
 
     @Transactional
     public int replaceAnnualPerShareMetricsFromXbrl(Long companyId, int fiscalYear, String fsDiv) {
-        Map<String, BigDecimal> metrics = buildAnnualPerShareMetricsFromXbrl(companyId, fiscalYear, fsDiv);
-        return financialService.replaceMetrics(companyId, fiscalYear, MetricStage.PER_SHARE, metrics);
+        return replaceStageMetrics(
+                companyId,
+                fiscalYear,
+                buildAnnualPerShareMetricsFromXbrl(companyId, fiscalYear, fsDiv),
+                MetricStage.PER_SHARE
+        );
     }
 
     @Transactional(readOnly = true)
@@ -63,5 +76,20 @@ public class AnnualXbrlMetricProcessor {
         savedCount += replaceAnnualDerivedMetricsFromXbrl(companyId, fiscalYear, fsDiv);
         savedCount += replaceAnnualPerShareMetricsFromXbrl(companyId, fiscalYear, fsDiv);
         return savedCount;
+    }
+
+    private Map<String, BigDecimal> buildStageMetrics(Long companyId,
+                                                      int fiscalYear,
+                                                      String fsDiv,
+                                                      Function<FsRawBundle, Map<String, BigDecimal>> calculator) {
+        FsRawBundle rawBundle = financialService.loadXbrlRawBundle(companyId, fiscalYear, fsDiv);
+        return calculator.apply(rawBundle);
+    }
+
+    private int replaceStageMetrics(Long companyId,
+                                    int fiscalYear,
+                                    Map<String, BigDecimal> metrics,
+                                    MetricStage stage) {
+        return financialService.replaceMetrics(companyId, fiscalYear, stage, metrics);
     }
 }
