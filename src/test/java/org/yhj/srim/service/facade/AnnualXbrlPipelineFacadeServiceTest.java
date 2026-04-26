@@ -97,11 +97,11 @@ class AnnualXbrlPipelineFacadeServiceTest {
     }
 
     @Test
-    @DisplayName("XBRL 연간 metric 처리는 stockId로 회사를 확보한 뒤 FinancialService에 위임한다.")
-    void processAnnualMetricsFromXbrl_delegatesToFinancialService() {
+    @DisplayName("XBRL 연간 metric 처리는 stockId로 회사를 확보한 뒤 metric processor에 위임한다.")
+    void processAnnualMetricsFromXbrl_delegatesToMetricProcessor() {
         Company company = Company.builder().companyId(7L).currency("KRW").build();
         when(financialService.getOrCreateCompanyWithStockCode(1L)).thenReturn(company);
-        when(financialService.hasAnnualXbrlRaw(7L, 2024, "CFS")).thenReturn(true);
+        when(annualXbrlMetricProcessor.hasAnnualXbrlRaw(7L, 2024, "CFS")).thenReturn(true);
         when(annualXbrlMetricProcessor.processAnnualMetricsFromXbrl(7L, 2024, "CFS")).thenReturn(8);
         when(financialMetricService.rebuildAnnualSupplementalMetricsFromXbrl(7L, 2024)).thenReturn(3);
 
@@ -109,7 +109,7 @@ class AnnualXbrlPipelineFacadeServiceTest {
 
         assertThat(savedCount).isEqualTo(11);
         verify(financialService).getOrCreateCompanyWithStockCode(1L);
-        verify(financialService).hasAnnualXbrlRaw(7L, 2024, "CFS");
+        verify(annualXbrlMetricProcessor).hasAnnualXbrlRaw(7L, 2024, "CFS");
         verify(annualXbrlMetricProcessor).processAnnualMetricsFromXbrl(7L, 2024, "CFS");
         verify(financialMetricService).rebuildAnnualSupplementalMetricsFromXbrl(7L, 2024);
     }
@@ -389,7 +389,7 @@ class AnnualXbrlPipelineFacadeServiceTest {
         when(dartCrawlingService.crawlShareStatus("00126380", 2024)).thenReturn(shareStatusRows);
         when(xbrlRawService.findStoredDocumentId("20240321000001", "11011", "CFS"))
                 .thenReturn(Optional.of(99L));
-        when(financialService.hasAnnualXbrlRaw(7L, 2024, "CFS")).thenReturn(true);
+        when(annualXbrlMetricProcessor.hasAnnualXbrlRaw(7L, 2024, "CFS")).thenReturn(true);
         when(annualXbrlMetricProcessor.processAnnualMetricsFromXbrl(7L, 2024, "CFS")).thenReturn(8);
         when(financialMetricService.rebuildAnnualSupplementalMetricsFromXbrl(7L, 2024)).thenReturn(3);
 

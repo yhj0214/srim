@@ -80,6 +80,7 @@ public class FinancialService {
     private final StockPriceRepository stockPriceRepository;
     private final DartFsFilingRepository filingRepository;
     private final XbrlFsRawBundleService xbrlFsRawBundleService;
+    private final AnnualXbrlBaseMetricCalculator annualXbrlBaseMetricCalculator;
 
     /**
      * stockId로 연간 재무 테이블 조회
@@ -442,7 +443,7 @@ public class FinancialService {
                 ? rawBundle : new FsRawBundle(new LinkedHashMap<>(), new LinkedHashMap<>());
 
         return switch (stage) {
-            case BASE -> extractBaseMetrics(safeRawBundle.curr());
+            case BASE -> annualXbrlBaseMetricCalculator.calculate(safeRawBundle.curr());
             case DERIVED -> calculateDerivedMetrics(safeRawBundle.curr(), safeRawBundle.prev(), fiscalYear);
             case PER_SHARE -> calculatePerShareMetrics(companyId, safeRawBundle.curr(), fiscalYear);
             case MARKET -> throw new CustomException(CommonError.INVALID_INPUT, "MARKET 단계는 시장 데이터 기반으로 별도 계산해야 합니다.");
@@ -990,24 +991,6 @@ public class FinancialService {
         }
 
         metrics.put("TOTAL_EQUITY_OWNER", totalEquity.subtract(noncontrollingInterests));
-    }
-
-    private Map<String, BigDecimal> extractBaseMetrics(Map<String, BigDecimal> raw) {
-        Map<String, BigDecimal> result = new LinkedHashMap<>();
-
-        if (raw == null || raw.isEmpty()) {
-            return result;
-        }
-
-        putIfNotNull(result, "SALES",              raw.get("SALES"));
-        putIfNotNull(result, "OP_INC",             raw.get("OP_INC"));
-        putIfNotNull(result, "NET_INC",            raw.get("NET_INC"));
-        putIfNotNull(result, "NET_INC_OWNER",      raw.get("NET_INC_OWNER"));
-        putIfNotNull(result, "NET_INC_NONCONT",    raw.get("NET_INC_NONCONT"));
-        putIfNotNull(result, "TOTAL_EQUITY",       raw.get("TOTAL_EQUITY"));
-        putIfNotNull(result, "TOTAL_EQUITY_OWNER", raw.get("TOTAL_EQUITY_OWNER"));
-
-        return result;
     }
 
     private Map<String, BigDecimal> calculateDerivedMetrics(

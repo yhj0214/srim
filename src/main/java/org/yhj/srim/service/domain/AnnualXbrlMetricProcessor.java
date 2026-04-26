@@ -11,12 +11,13 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class AnnualXbrlMetricProcessor {
+    private final AnnualXbrlBaseMetricCalculator annualXbrlBaseMetricCalculator;
     private final FinancialService financialService;
 
     @Transactional(readOnly = true)
     public Map<String, BigDecimal> buildAnnualBaseMetricsFromXbrl(Long companyId, int fiscalYear, String fsDiv) {
         FsRawBundle rawBundle = financialService.loadXbrlRawBundle(companyId, fiscalYear, fsDiv);
-        return financialService.buildMetrics(companyId, fiscalYear, rawBundle, MetricStage.BASE);
+        return annualXbrlBaseMetricCalculator.calculate(rawBundle.curr());
     }
 
     @Transactional
