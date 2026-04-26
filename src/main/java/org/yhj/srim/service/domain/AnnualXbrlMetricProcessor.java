@@ -13,6 +13,7 @@ import java.util.Map;
 public class AnnualXbrlMetricProcessor {
     private final AnnualXbrlBaseMetricCalculator annualXbrlBaseMetricCalculator;
     private final AnnualXbrlDerivedMetricCalculator annualXbrlDerivedMetricCalculator;
+    private final AnnualXbrlPerShareMetricCalculator annualXbrlPerShareMetricCalculator;
     private final FinancialService financialService;
 
     @Transactional(readOnly = true)
@@ -42,7 +43,7 @@ public class AnnualXbrlMetricProcessor {
     @Transactional(readOnly = true)
     public Map<String, BigDecimal> buildAnnualPerShareMetricsFromXbrl(Long companyId, int fiscalYear, String fsDiv) {
         FsRawBundle rawBundle = financialService.loadXbrlRawBundle(companyId, fiscalYear, fsDiv);
-        return financialService.buildMetrics(companyId, fiscalYear, rawBundle, MetricStage.PER_SHARE);
+        return annualXbrlPerShareMetricCalculator.calculate(companyId, rawBundle.curr(), fiscalYear);
     }
 
     @Transactional

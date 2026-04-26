@@ -30,6 +30,9 @@ class AnnualXbrlMetricProcessorTest {
     @Mock
     AnnualXbrlDerivedMetricCalculator annualXbrlDerivedMetricCalculator;
 
+    @Mock
+    AnnualXbrlPerShareMetricCalculator annualXbrlPerShareMetricCalculator;
+
     @Test
     @DisplayName("연간 XBRL metric processor는 base/derived/per-share 저장을 순서대로 위임한다.")
     void processAnnualMetricsFromXbrl_delegatesStagesInOrder() {
@@ -39,7 +42,7 @@ class AnnualXbrlMetricProcessorTest {
         when(financialService.loadXbrlRawBundle(7L, 2024, "CFS")).thenReturn(rawBundle);
         when(annualXbrlBaseMetricCalculator.calculate(rawBundle.curr())).thenReturn(metrics);
         when(annualXbrlDerivedMetricCalculator.calculate(rawBundle.curr(), rawBundle.prev(), 2024)).thenReturn(metrics);
-        when(financialService.buildMetrics(7L, 2024, rawBundle, MetricStage.PER_SHARE)).thenReturn(metrics);
+        when(annualXbrlPerShareMetricCalculator.calculate(7L, rawBundle.curr(), 2024)).thenReturn(metrics);
         when(financialService.replaceMetrics(7L, 2024, MetricStage.BASE, metrics)).thenReturn(4);
         when(financialService.replaceMetrics(7L, 2024, MetricStage.DERIVED, metrics)).thenReturn(3);
         when(financialService.replaceMetrics(7L, 2024, MetricStage.PER_SHARE, metrics)).thenReturn(1);

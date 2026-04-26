@@ -80,8 +80,10 @@ public class FinancialService {
     private final StockPriceRepository stockPriceRepository;
     private final DartFsFilingRepository filingRepository;
     private final XbrlFsRawBundleService xbrlFsRawBundleService;
+
     private final AnnualXbrlBaseMetricCalculator annualXbrlBaseMetricCalculator;
     private final AnnualXbrlDerivedMetricCalculator annualXbrlDerivedMetricCalculator;
+    private final AnnualXbrlPerShareMetricCalculator annualXbrlPerShareMetricCalculator;
 
     /**
      * stockId로 연간 재무 테이블 조회
@@ -446,7 +448,7 @@ public class FinancialService {
         return switch (stage) {
             case BASE -> annualXbrlBaseMetricCalculator.calculate(safeRawBundle.curr());
             case DERIVED -> annualXbrlDerivedMetricCalculator.calculate(safeRawBundle.curr(), safeRawBundle.prev(), fiscalYear);
-            case PER_SHARE -> calculatePerShareMetrics(companyId, safeRawBundle.curr(), fiscalYear);
+            case PER_SHARE -> annualXbrlPerShareMetricCalculator.calculate(companyId, safeRawBundle.curr(), fiscalYear);
             case MARKET -> throw new CustomException(CommonError.INVALID_INPUT, "MARKET 단계는 시장 데이터 기반으로 별도 계산해야 합니다.");
         };
     }
@@ -993,79 +995,6 @@ public class FinancialService {
 
         metrics.put("TOTAL_EQUITY_OWNER", totalEquity.subtract(noncontrollingInterests));
     }
-
-    private Map<String, BigDecimal> calculatePerShareMetrics(Long companyId, Map<String, BigDecimal> raw, int currentYear
-    ) {
-        Map<String, BigDecimal> result = new LinkedHashMap<>();
-        if (raw == null || raw.isEmpty()) {
-            return result;
-        }
-
-        BigDecimal netIncOwner = raw.get("NET_INC_OWNER");
-
-        // EPS = 지배주주순이익 / 보통주 주식수
-        Optional<BigDecimal> epsOpt = calcEps(companyId, currentYear, netIncOwner);
-        epsOpt.ifPresent(eps -> putIfNotNull(result, "EPS", eps));
-
-        return result;
-    }
-
-    private Optional<BigDecimal> calcEps(Long companyId, int fiscalYear, BigDecimal netIncOwner) {
-        if (netIncOwner == null) {
-            log.info("[FS-DB][EPS] netIncOwner is null - companyId={}, year={}", companyId, fiscalYear);
-            return Optional.empty();
-        }
-
-        Optional<BigDecimal> eps = findTotalIssuedShares(companyId, fiscalYear)
-                .filter(shares -> shares.compareTo(BigDecimal.ZERO) > 0)
-                .map(shares -> netIncOwner.divide(shares, 2, RoundingMode.HALF_UP));
-
-        if (eps.isEmpty()) {
-            log.info("[FS-DB][EPS] common shares not found or zero - companyId={}, year={}", companyId, fiscalYear);
-        } else {
-            log.debug("[FS-DB][EPS] ok - companyId={}, year={}, netIncOwner={}, eps={}",
-                    companyId, fiscalYear, netIncOwner, eps.get());
-        }
-
-        return eps;
-    }
-
-
-    private Optional<BigDecimal> findTotalIssuedShares(Long companyId, int fiscalYear) {
-        List<StockShareStatus> statuses =
-                stockShareStatusRepository.findByCompany_CompanyIdAndBsnsYearAndShareClassTypeIn(
-                        companyId, fiscalYear, List.of(ShareClassType.COMMON, ShareClassType.PREFERRED)
-                );
-
-        if (statuses.isEmpty()) {
-            return Optional.empty();
-        }
-
-        BigDecimal total = BigDecimal.ZERO;
-        for (StockShareStatus status : statuses) {
-            BigDecimal shares = resolveIssuedShares(status);
-            if (shares != null) {
-                total = total.add(shares);
-            }
-        }
-
-        if (total.compareTo(BigDecimal.ZERO) <= 0) {
-            return Optional.empty();
-        }
-
-        return Optional.of(total);
-    }
-
-    private BigDecimal resolveIssuedShares(StockShareStatus status) {
-        Long istc = status.getIstcTotqy();
-        if (istc != null && istc > 0L) {
-            return BigDecimal.valueOf(istc);
-        }
-
-        return null;
-    }
-
-
 
     private String mapAccountToMetric(String sjDiv, String accountId, String accountNm, String accountDetail) {
         if(isBlank(accountId) && isBlank(accountNm)) return null;
