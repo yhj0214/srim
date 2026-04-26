@@ -40,6 +40,9 @@ class FinancialServiceXbrlRawBundleTest {
     FinancialService financialService;
 
     @Autowired
+    AnnualXbrlMetricProcessor annualXbrlMetricProcessor;
+
+    @Autowired
     StockCodeRepository stockCodeRepository;
 
     @Autowired
@@ -112,7 +115,7 @@ class FinancialServiceXbrlRawBundleTest {
         XbrlDocument current = saveDocument(company, 2024, "20250321002001", LocalDateTime.of(2025, 3, 21, 11, 30));
         saveAnnualFacts(current, "2000", "300", "250", "500");
 
-        int savedCount = financialService.replaceAnnualBaseMetricsFromXbrl(company.getCompanyId(), 2024, "CFS");
+        int savedCount = annualXbrlMetricProcessor.replaceAnnualBaseMetricsFromXbrl(company.getCompanyId(), 2024, "CFS");
 
         assertThat(savedCount).isEqualTo(4);
 
@@ -152,7 +155,7 @@ class FinancialServiceXbrlRawBundleTest {
         XbrlDocument previous = saveDocument(company, 2023, "20240321001002", LocalDateTime.of(2024, 3, 21, 10, 0));
         saveAnnualFacts(previous, "1500", "200", "220", "400");
 
-        int savedCount = financialService.replaceAnnualDerivedMetricsFromXbrl(company.getCompanyId(), 2024, "CFS");
+        int savedCount = annualXbrlMetricProcessor.replaceAnnualDerivedMetricsFromXbrl(company.getCompanyId(), 2024, "CFS");
 
         assertThat(savedCount).isEqualTo(3);
 
@@ -186,7 +189,7 @@ class FinancialServiceXbrlRawBundleTest {
         saveAnnualFacts(current, "2000", "300", "250", "500");
         saveOwnerFacts(current, "200", "450", "50");
 
-        int savedCount = financialService.replaceAnnualPerShareMetricsFromXbrl(company.getCompanyId(), 2024, "CFS");
+        int savedCount = annualXbrlMetricProcessor.replaceAnnualPerShareMetricsFromXbrl(company.getCompanyId(), 2024, "CFS");
 
         assertThat(savedCount).isEqualTo(1);
 
@@ -214,7 +217,7 @@ class FinancialServiceXbrlRawBundleTest {
         saveAnnualFacts(previous, "1500", "200", "220", "400");
         saveOwnerFacts(previous, "150", "350", "50");
 
-        int savedCount = financialService.processAnnualMetricsFromXbrl(company.getCompanyId(), 2024, "CFS");
+        int savedCount = annualXbrlMetricProcessor.processAnnualMetricsFromXbrl(company.getCompanyId(), 2024, "CFS");
 
         assertThat(savedCount).isEqualTo(10);
 

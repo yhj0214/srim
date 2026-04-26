@@ -454,56 +454,6 @@ public class FinancialService {
     }
 
     @Transactional(readOnly = true)
-    public Map<String, BigDecimal> buildAnnualBaseMetricsFromXbrl(Long companyId, int fiscalYear, String fsDiv) {
-        FsRawBundle rawBundle = loadXbrlRawBundle(companyId, fiscalYear, fsDiv);
-        return buildMetrics(companyId, fiscalYear, rawBundle, MetricStage.BASE);
-    }
-
-    @Transactional(readOnly = true)
-    public boolean hasAnnualXbrlRaw(Long companyId, int fiscalYear, String fsDiv) {
-        return !loadXbrlRawBundle(companyId, fiscalYear, fsDiv).curr().isEmpty();
-    }
-
-    @Transactional
-    public int replaceAnnualBaseMetricsFromXbrl(Long companyId, int fiscalYear, String fsDiv) {
-        Map<String, BigDecimal> metrics = buildAnnualBaseMetricsFromXbrl(companyId, fiscalYear, fsDiv);
-        return replaceAnnualMetricsByCodes(companyId, fiscalYear, metrics, BASE_METRIC_CODES, "XBRL");
-    }
-
-    @Transactional(readOnly = true)
-    public Map<String, BigDecimal> buildAnnualDerivedMetricsFromXbrl(Long companyId, int fiscalYear, String fsDiv) {
-        FsRawBundle rawBundle = loadXbrlRawBundle(companyId, fiscalYear, fsDiv);
-        return buildMetrics(companyId, fiscalYear, rawBundle, MetricStage.DERIVED);
-    }
-
-    @Transactional
-    public int replaceAnnualDerivedMetricsFromXbrl(Long companyId, int fiscalYear, String fsDiv) {
-        Map<String, BigDecimal> metrics = buildAnnualDerivedMetricsFromXbrl(companyId, fiscalYear, fsDiv);
-        return replaceAnnualMetricsByCodes(companyId, fiscalYear, metrics, DERIVED_METRIC_CODES, "XBRL");
-    }
-
-    @Transactional(readOnly = true)
-    public Map<String, BigDecimal> buildAnnualPerShareMetricsFromXbrl(Long companyId, int fiscalYear, String fsDiv) {
-        FsRawBundle rawBundle = loadXbrlRawBundle(companyId, fiscalYear, fsDiv);
-        return buildMetrics(companyId, fiscalYear, rawBundle, MetricStage.PER_SHARE);
-    }
-
-    @Transactional
-    public int replaceAnnualPerShareMetricsFromXbrl(Long companyId, int fiscalYear, String fsDiv) {
-        Map<String, BigDecimal> metrics = buildAnnualPerShareMetricsFromXbrl(companyId, fiscalYear, fsDiv);
-        return replaceAnnualMetricsByCodes(companyId, fiscalYear, metrics, PER_SHARE_METRIC_CODES, "XBRL");
-    }
-
-    @Transactional
-    public int processAnnualMetricsFromXbrl(Long companyId, int fiscalYear, String fsDiv) {
-        int savedCount = 0;
-        savedCount += replaceAnnualBaseMetricsFromXbrl(companyId, fiscalYear, fsDiv);
-        savedCount += replaceAnnualDerivedMetricsFromXbrl(companyId, fiscalYear, fsDiv);
-        savedCount += replaceAnnualPerShareMetricsFromXbrl(companyId, fiscalYear, fsDiv);
-        return savedCount;
-    }
-
-    @Transactional(readOnly = true)
     public List<FinPeriod> findAnnualPeriodsBetween(Long companyId, int startYear, int endYear) {
         return finPeriodRepository
                 .findByCompany_CompanyIdAndPeriodTypeAndFiscalYearBetweenAndIsEstimateOrderByFiscalYearDesc(
