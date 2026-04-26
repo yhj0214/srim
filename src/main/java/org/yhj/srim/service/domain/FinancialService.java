@@ -81,6 +81,7 @@ public class FinancialService {
     private final DartFsFilingRepository filingRepository;
     private final XbrlFsRawBundleService xbrlFsRawBundleService;
     private final AnnualXbrlBaseMetricCalculator annualXbrlBaseMetricCalculator;
+    private final AnnualXbrlDerivedMetricCalculator annualXbrlDerivedMetricCalculator;
 
     /**
      * stockId로 연간 재무 테이블 조회
@@ -444,7 +445,7 @@ public class FinancialService {
 
         return switch (stage) {
             case BASE -> annualXbrlBaseMetricCalculator.calculate(safeRawBundle.curr());
-            case DERIVED -> calculateDerivedMetrics(safeRawBundle.curr(), safeRawBundle.prev(), fiscalYear);
+            case DERIVED -> annualXbrlDerivedMetricCalculator.calculate(safeRawBundle.curr(), safeRawBundle.prev(), fiscalYear);
             case PER_SHARE -> calculatePerShareMetrics(companyId, safeRawBundle.curr(), fiscalYear);
             case MARKET -> throw new CustomException(CommonError.INVALID_INPUT, "MARKET 단계는 시장 데이터 기반으로 별도 계산해야 합니다.");
         };
@@ -993,89 +994,6 @@ public class FinancialService {
         metrics.put("TOTAL_EQUITY_OWNER", totalEquity.subtract(noncontrollingInterests));
     }
 
-    private Map<String, BigDecimal> calculateDerivedMetrics(
-            Map<String, BigDecimal> raw,
-            Map<String, BigDecimal> prevRaw,
-            int currentYear
-    ) {
-        Map<String, BigDecimal> result = new LinkedHashMap<>();
-
-        if (raw == null || raw.isEmpty()) {
-            return result;
-        }
-
-        BigDecimal sales             = raw.get("SALES");
-        BigDecimal opInc             = raw.get("OP_INC");
-        BigDecimal netInc            = raw.get("NET_INC");          // 전체 당기순이익
-        BigDecimal netIncOwner       = raw.get("NET_INC_OWNER");    // 지배주주 당기순이익
-        BigDecimal totalAssets       = raw.get("TOTAL_ASSETS");
-        BigDecimal totalLiab         = raw.get("TOTAL_LIABILITIES");
-        BigDecimal equityTotalCurr   = raw.get("TOTAL_EQUITY");         // 전체 자본
-        BigDecimal equityTotalPrev   = prevRaw != null ? prevRaw.get("TOTAL_EQUITY") : null;
-        BigDecimal equityOwnerCurr   = raw.get("TOTAL_EQUITY_OWNER");   // 지배 기준 자본
-        BigDecimal equityOwnerPrev   = prevRaw != null ? prevRaw.get("TOTAL_EQUITY_OWNER") : null;
-        BigDecimal currentAssets     = raw.get("CURRENT_ASSETS");
-        BigDecimal currentLiab       = raw.get("CURRENT_LIABILITIES");
-
-        // 영업이익률 OPM
-        BigDecimal opm = raw.get("OPM");
-        if (opm == null) {
-            opm = toPercent(safeDivide(opInc, sales));
-        }
-        putIfNotNull(result, "OPM", opm);
-
-        // 순이익률 NET_MARGIN
-        BigDecimal netMargin = raw.get("NET_MARGIN");
-        if (netMargin == null) {
-            netMargin = toPercent(safeDivide(netInc, sales));
-        }
-        putIfNotNull(result, "NET_MARGIN", netMargin);
-
-        // 부채비율 DEBT_RATIO = 부채총계 / 자본총계 * 100
-        BigDecimal equityForDebt = (equityTotalCurr != null ? equityTotalCurr : equityOwnerCurr);
-        BigDecimal debtRatio = toPercent(safeDivide(totalLiab, equityForDebt));
-        putIfNotNull(result, "DEBT_RATIO", debtRatio);
-
-        // ROE = (지배주주 당기순이익 or 전체) / 평균 지배주주자본(or 전체) * 100
-        BigDecimal roeSourceNetInc  = (netIncOwner != null ? netIncOwner : netInc);
-        BigDecimal roeEquityCurr    = (equityOwnerCurr != null ? equityOwnerCurr : equityTotalCurr);
-        BigDecimal roeEquityPrev    = (equityOwnerPrev != null ? equityOwnerPrev : equityTotalPrev);
-
-        if (roeSourceNetInc != null && roeEquityCurr != null && roeEquityPrev != null) {
-            BigDecimal avgEquity = roeEquityCurr.add(roeEquityPrev)
-                    .divide(BigDecimal.valueOf(2), 8, RoundingMode.HALF_UP);
-
-            if (avgEquity.compareTo(BigDecimal.ZERO) != 0) {
-                BigDecimal roe = toPercent(
-                        roeSourceNetInc.divide(avgEquity, 8, RoundingMode.HALF_UP)
-                );
-                putIfNotNull(result, "ROE", roe);
-
-                log.debug("[ROE] year={} / netInc(used)={} / equity_curr={} / equity_prev={} / avgEquity={} / ROE={}",
-                        currentYear, roeSourceNetInc, roeEquityCurr, roeEquityPrev, avgEquity, roe);
-            } else {
-                log.debug("[FS-DB][ROE] 평균 자기자본 0 - year={}", currentYear);
-            }
-        } else {
-            log.debug("[FS-DB][ROE] netIncOwner/equityOwnerCurr/equityOwnerPrev 중 null 존재 - year={}", currentYear);
-        }
-
-        // ROA = 당기순이익 / 평균자산총계 * 100
-        BigDecimal totalAssetsPrev = prevRaw != null ? prevRaw.get("TOTAL_ASSETS") : null;
-        if (netInc != null && totalAssets != null && totalAssetsPrev != null) {
-            BigDecimal avgAssets = totalAssets.add(totalAssetsPrev)
-                    .divide(BigDecimal.valueOf(2), 8, RoundingMode.HALF_UP);
-            BigDecimal roa = toPercent(safeDivide(netInc, avgAssets));
-            putIfNotNull(result, "ROA", roa);
-        }
-
-        // 유동비율(단순) = 유동자산 / 유동부채 * 100
-        BigDecimal quickRatio = toPercent(safeDivide(currentAssets, currentLiab));
-        putIfNotNull(result, "QUICK_RATIO", quickRatio);
-
-        return result;
-    }
-
     private Map<String, BigDecimal> calculatePerShareMetrics(Long companyId, Map<String, BigDecimal> raw, int currentYear
     ) {
         Map<String, BigDecimal> result = new LinkedHashMap<>();
@@ -1332,21 +1250,10 @@ public class FinancialService {
         return s == null || s.trim().isEmpty();
     }
 
-    private BigDecimal toPercent(BigDecimal ratio) {
-        if (ratio == null) return null;
-        return ratio.multiply(BigDecimal.valueOf(100));
-    }
     private void putIfNotNull(Map<String, BigDecimal> map, String key, BigDecimal value) {
         if (value != null) {
             map.put(key, value);
         }
-    }
-    private BigDecimal safeDivide(BigDecimal numerator, BigDecimal denominator) {
-        if (numerator == null || denominator == null || BigDecimal.ZERO.compareTo(denominator) == 0) {
-            return null;
-        }
-        // scale과 RoundingMode 조정가능
-        return numerator.divide(denominator, 8, RoundingMode.HALF_UP);
     }
 
     @Transactional

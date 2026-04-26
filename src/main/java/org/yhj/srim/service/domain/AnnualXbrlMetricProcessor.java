@@ -12,6 +12,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AnnualXbrlMetricProcessor {
     private final AnnualXbrlBaseMetricCalculator annualXbrlBaseMetricCalculator;
+    private final AnnualXbrlDerivedMetricCalculator annualXbrlDerivedMetricCalculator;
     private final FinancialService financialService;
 
     @Transactional(readOnly = true)
@@ -29,7 +30,7 @@ public class AnnualXbrlMetricProcessor {
     @Transactional(readOnly = true)
     public Map<String, BigDecimal> buildAnnualDerivedMetricsFromXbrl(Long companyId, int fiscalYear, String fsDiv) {
         FsRawBundle rawBundle = financialService.loadXbrlRawBundle(companyId, fiscalYear, fsDiv);
-        return financialService.buildMetrics(companyId, fiscalYear, rawBundle, MetricStage.DERIVED);
+        return annualXbrlDerivedMetricCalculator.calculate(rawBundle.curr(), rawBundle.prev(), fiscalYear);
     }
 
     @Transactional
