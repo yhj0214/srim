@@ -24,6 +24,9 @@ class AnnualXbrlMetricProcessorTest {
     @Mock
     FinancialService financialService;
 
+    @Mock
+    AnnualXbrlBaseMetricCalculator annualXbrlBaseMetricCalculator;
+
     @Test
     @DisplayName("연간 XBRL metric processor는 base/derived/per-share 저장을 순서대로 위임한다.")
     void processAnnualMetricsFromXbrl_delegatesStagesInOrder() {
@@ -31,7 +34,7 @@ class AnnualXbrlMetricProcessorTest {
         Map<String, java.math.BigDecimal> metrics = Map.of();
 
         when(financialService.loadXbrlRawBundle(7L, 2024, "CFS")).thenReturn(rawBundle);
-        when(financialService.buildMetrics(7L, 2024, rawBundle, MetricStage.BASE)).thenReturn(metrics);
+        when(annualXbrlBaseMetricCalculator.calculate(rawBundle.curr())).thenReturn(metrics);
         when(financialService.buildMetrics(7L, 2024, rawBundle, MetricStage.DERIVED)).thenReturn(metrics);
         when(financialService.buildMetrics(7L, 2024, rawBundle, MetricStage.PER_SHARE)).thenReturn(metrics);
         when(financialService.replaceMetrics(7L, 2024, MetricStage.BASE, metrics)).thenReturn(4);
