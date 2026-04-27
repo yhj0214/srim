@@ -6,16 +6,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.yhj.srim.common.exception.CustomException;
-import org.yhj.srim.common.exception.code.CrawlingError;
 import org.yhj.srim.repository.entity.Company;
 import org.yhj.srim.repository.entity.DartFsFiling;
 import org.yhj.srim.repository.entity.StockCode;
 import org.yhj.srim.service.domain.AnnualXbrlMetricProcessor;
 import org.yhj.srim.service.domain.FinancialMetricService;
 import org.yhj.srim.service.domain.FinancialService;
-import org.yhj.srim.service.domain.XbrlAnnualDocumentLocator;
-import org.yhj.srim.service.dto.XbrlAnnualDocumentRef;
 import org.yhj.srim.service.facade.dto.CollectXbrlRawCommand;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -32,6 +28,9 @@ class AnnualXbrlPipelineFacadeServiceTest {
     AnnualXbrlCollector annualXbrlCollector;
 
     @Mock
+    AnnualXbrlExecutionService annualXbrlExecutionService;
+
+    @Mock
     AnnualXbrlRunPolicy annualXbrlRunPolicy;
 
     @Mock
@@ -42,9 +41,6 @@ class AnnualXbrlPipelineFacadeServiceTest {
 
     @Mock
     FinancialMetricService financialMetricService;
-
-    @Mock
-    XbrlAnnualDocumentLocator xbrlAnnualDocumentLocator;
 
     @Test
     @DisplayName("이미 저장된 XBRL 문서가 있으면 다운로드 없이 기존 문서 ID를 반환한다.")
@@ -155,20 +151,10 @@ class AnnualXbrlPipelineFacadeServiceTest {
                 .stockCode(stockCode)
                 .currency("KRW")
                 .build();
-        DartFsFiling filing = DartFsFiling.builder()
-                .fsFilingId(21L)
-                .rceptNo("20240321000001")
-                .reprtCode("11011")
-                .bsnsYear(2024)
-                .fsDiv("CFS")
-                .build();
-        XbrlAnnualDocumentRef documentRef = new XbrlAnnualDocumentRef("00126380", "20240321000001", 2024, "CFS");
 
         when(financialService.getOrCreateCompanyWithStockCode(1L)).thenReturn(company);
-        when(annualXbrlCollector.collectAnnualFilingMetadata(company, 2024, "CFS")).thenReturn(filing);
-        when(xbrlAnnualDocumentLocator.resolve(7L, 2024, "CFS")).thenReturn(documentRef);
-        when(annualXbrlCollector.collectAnnualInputs(company, "00126380", "20240321000001", 2024, "CFS"))
-                .thenReturn(99L);
+        when(annualXbrlExecutionService.collectAnnualInputs(1L, company, 2024, "CFS"))
+                .thenReturn(new AnnualXbrlExecutionService.ExecutionResult(99L, "CFS"));
         when(annualXbrlMetricProcessor.processAnnualMetricsFromXbrl(7L, 2024, "CFS")).thenReturn(8);
         when(financialMetricService.rebuildAnnualSupplementalMetricsFromXbrl(7L, 2024)).thenReturn(3);
 
@@ -176,9 +162,7 @@ class AnnualXbrlPipelineFacadeServiceTest {
 
         assertThat(documentId).isEqualTo(99L);
         verify(financialService).getOrCreateCompanyWithStockCode(1L);
-        verify(annualXbrlCollector).collectAnnualFilingMetadata(company, 2024, "CFS");
-        verify(xbrlAnnualDocumentLocator).resolve(7L, 2024, "CFS");
-        verify(annualXbrlCollector).collectAnnualInputs(company, "00126380", "20240321000001", 2024, "CFS");
+        verify(annualXbrlExecutionService).collectAnnualInputs(1L, company, 2024, "CFS");
         verify(annualXbrlMetricProcessor).processAnnualMetricsFromXbrl(7L, 2024, "CFS");
         verify(financialMetricService).rebuildAnnualSupplementalMetricsFromXbrl(7L, 2024);
     }
@@ -197,35 +181,16 @@ class AnnualXbrlPipelineFacadeServiceTest {
                 .stockCode(stockCode)
                 .currency("KRW")
                 .build();
-        DartFsFiling filing = DartFsFiling.builder()
-                .fsFilingId(21L)
-                .rceptNo("20240321000001")
-                .reprtCode("11011")
-                .bsnsYear(2024)
-                .fsDiv("OFS")
-                .build();
-        XbrlAnnualDocumentRef documentRef = new XbrlAnnualDocumentRef("00126380", "20240321000001", 2024, "OFS");
-
-        CustomException disclosureNotFound = new CustomException(CrawlingError.DART_DISCLOSURE_NOT_FOUND);
-
         when(financialService.getOrCreateCompanyWithStockCode(1L)).thenReturn(company);
-        when(annualXbrlCollector.collectAnnualFilingMetadata(company, 2024, "CFS"))
-                .thenThrow(disclosureNotFound);
-        when(annualXbrlRunPolicy.shouldFallbackToOfs("CFS", disclosureNotFound)).thenReturn(true);
-        when(annualXbrlCollector.collectAnnualFilingMetadata(company, 2024, "OFS")).thenReturn(filing);
-        when(xbrlAnnualDocumentLocator.resolve(7L, 2024, "OFS")).thenReturn(documentRef);
-        when(annualXbrlCollector.collectAnnualInputs(company, "00126380", "20240321000001", 2024, "OFS"))
-                .thenReturn(99L);
+        when(annualXbrlExecutionService.collectAnnualInputs(1L, company, 2024, "CFS"))
+                .thenReturn(new AnnualXbrlExecutionService.ExecutionResult(99L, "OFS"));
         when(annualXbrlMetricProcessor.processAnnualMetricsFromXbrl(7L, 2024, "OFS")).thenReturn(8);
         when(financialMetricService.rebuildAnnualSupplementalMetricsFromXbrl(7L, 2024)).thenReturn(3);
 
         Long documentId = annualXbrlPipelineFacadeService.runAnnualXbrlPipeline(1L, 2024, "CFS");
 
         assertThat(documentId).isEqualTo(99L);
-        verify(annualXbrlCollector).collectAnnualFilingMetadata(company, 2024, "CFS");
-        verify(annualXbrlCollector).collectAnnualFilingMetadata(company, 2024, "OFS");
-        verify(xbrlAnnualDocumentLocator).resolve(7L, 2024, "OFS");
-        verify(annualXbrlCollector).collectAnnualInputs(company, "00126380", "20240321000001", 2024, "OFS");
+        verify(annualXbrlExecutionService).collectAnnualInputs(1L, company, 2024, "CFS");
         verify(annualXbrlMetricProcessor).processAnnualMetricsFromXbrl(7L, 2024, "OFS");
         verify(financialMetricService).rebuildAnnualSupplementalMetricsFromXbrl(7L, 2024);
     }
@@ -244,32 +209,16 @@ class AnnualXbrlPipelineFacadeServiceTest {
                 .stockCode(stockCode)
                 .currency("KRW")
                 .build();
-        DartFsFiling cfsFiling = DartFsFiling.builder().fsFilingId(21L).rceptNo("20240321000001").reprtCode("11011").bsnsYear(2024).fsDiv("CFS").build();
-        DartFsFiling ofsFiling = DartFsFiling.builder().fsFilingId(22L).rceptNo("20240321000002").reprtCode("11011").bsnsYear(2024).fsDiv("OFS").build();
-        XbrlAnnualDocumentRef cfsDocumentRef = new XbrlAnnualDocumentRef("00126380", "20240321000001", 2024, "CFS");
-        XbrlAnnualDocumentRef ofsDocumentRef = new XbrlAnnualDocumentRef("00126380", "20240321000002", 2024, "OFS");
-
         when(financialService.getOrCreateCompanyWithStockCode(1L)).thenReturn(company);
-        when(annualXbrlCollector.collectAnnualFilingMetadata(company, 2024, "CFS")).thenReturn(cfsFiling);
-        when(annualXbrlCollector.collectAnnualFilingMetadata(company, 2024, "OFS")).thenReturn(ofsFiling);
-        when(xbrlAnnualDocumentLocator.resolve(7L, 2024, "CFS")).thenReturn(cfsDocumentRef);
-        when(xbrlAnnualDocumentLocator.resolve(7L, 2024, "OFS")).thenReturn(ofsDocumentRef);
-        CustomException missingXbrl = new CustomException(CrawlingError.DART_XBRL_NOT_AVAILABLE);
-        when(annualXbrlCollector.collectAnnualInputs(company, "00126380", "20240321000001", 2024, "CFS"))
-                .thenThrow(missingXbrl);
-        when(annualXbrlRunPolicy.shouldFallbackToOfsOnMissingXbrl("CFS", "CFS", missingXbrl)).thenReturn(true);
-        when(annualXbrlCollector.collectAnnualInputs(company, "00126380", "20240321000002", 2024, "OFS"))
-                .thenReturn(99L);
+        when(annualXbrlExecutionService.collectAnnualInputs(1L, company, 2024, "CFS"))
+                .thenReturn(new AnnualXbrlExecutionService.ExecutionResult(99L, "OFS"));
         when(annualXbrlMetricProcessor.processAnnualMetricsFromXbrl(7L, 2024, "OFS")).thenReturn(8);
         when(financialMetricService.rebuildAnnualSupplementalMetricsFromXbrl(7L, 2024)).thenReturn(3);
 
         Long documentId = annualXbrlPipelineFacadeService.runAnnualXbrlPipeline(1L, 2024, "CFS");
 
         assertThat(documentId).isEqualTo(99L);
-        verify(annualXbrlCollector).collectAnnualFilingMetadata(company, 2024, "CFS");
-        verify(xbrlAnnualDocumentLocator).resolve(7L, 2024, "CFS");
-        verify(annualXbrlCollector).collectAnnualFilingMetadata(company, 2024, "OFS");
-        verify(xbrlAnnualDocumentLocator).resolve(7L, 2024, "OFS");
+        verify(annualXbrlExecutionService).collectAnnualInputs(1L, company, 2024, "CFS");
         verify(annualXbrlMetricProcessor).processAnnualMetricsFromXbrl(7L, 2024, "OFS");
     }
 
@@ -287,20 +236,9 @@ class AnnualXbrlPipelineFacadeServiceTest {
                 .stockCode(stockCode)
                 .currency("KRW")
                 .build();
-        DartFsFiling filing = DartFsFiling.builder()
-                .fsFilingId(21L)
-                .rceptNo("20240321000001")
-                .reprtCode("11011")
-                .bsnsYear(2024)
-                .fsDiv("CFS")
-                .build();
-        XbrlAnnualDocumentRef documentRef = new XbrlAnnualDocumentRef("00126380", "20240321000001", 2024, "CFS");
-
         when(financialService.getOrCreateCompanyWithStockCode(1L)).thenReturn(company);
-        when(annualXbrlCollector.collectAnnualFilingMetadata(company, 2024, "CFS")).thenReturn(filing);
-        when(xbrlAnnualDocumentLocator.resolve(7L, 2024, "CFS")).thenReturn(documentRef);
-        when(annualXbrlCollector.collectAnnualInputs(company, "00126380", "20240321000001", 2024, "CFS"))
-                .thenReturn(99L);
+        when(annualXbrlExecutionService.collectAnnualInputs(1L, company, 2024, "CFS"))
+                .thenReturn(new AnnualXbrlExecutionService.ExecutionResult(99L, "CFS"));
         when(annualXbrlRunPolicy.resolveAnnualProcessingFsDiv(7L, 2024, "CFS")).thenReturn("CFS");
         when(annualXbrlMetricProcessor.processAnnualMetricsFromXbrl(7L, 2024, "CFS")).thenReturn(8);
         when(financialMetricService.rebuildAnnualSupplementalMetricsFromXbrl(7L, 2024)).thenReturn(3);
@@ -308,7 +246,7 @@ class AnnualXbrlPipelineFacadeServiceTest {
         int completedYears = annualXbrlPipelineFacadeService.runAnnualXbrlPipeline(1L, 2024, 2024, "CFS");
 
         assertThat(completedYears).isEqualTo(1);
-        verify(annualXbrlCollector).collectAnnualInputs(company, "00126380", "20240321000001", 2024, "CFS");
+        verify(annualXbrlExecutionService).collectAnnualInputs(1L, company, 2024, "CFS");
         verify(annualXbrlCollector).collectCurrentYearPriceData(company);
     }
 }

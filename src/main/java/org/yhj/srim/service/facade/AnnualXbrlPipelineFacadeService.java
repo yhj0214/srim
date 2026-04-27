@@ -8,8 +8,6 @@ import org.yhj.srim.repository.entity.Company;
 import org.yhj.srim.service.domain.AnnualXbrlMetricProcessor;
 import org.yhj.srim.service.domain.FinancialMetricService;
 import org.yhj.srim.service.domain.FinancialService;
-import org.yhj.srim.service.domain.XbrlAnnualDocumentLocator;
-import org.yhj.srim.service.dto.XbrlAnnualDocumentRef;
 import org.yhj.srim.service.facade.dto.CollectXbrlRawCommand;
 
 @Service
@@ -17,11 +15,11 @@ import org.yhj.srim.service.facade.dto.CollectXbrlRawCommand;
 @Slf4j
 public class AnnualXbrlPipelineFacadeService {
     private final AnnualXbrlCollector annualXbrlCollector;
+    private final AnnualXbrlExecutionService annualXbrlExecutionService;
     private final AnnualXbrlRunPolicy annualXbrlRunPolicy;
     private final AnnualXbrlMetricProcessor annualXbrlMetricProcessor;
     private final FinancialService financialService;
     private final FinancialMetricService financialMetricService;
-    private final XbrlAnnualDocumentLocator xbrlAnnualDocumentLocator;
 
     public int processAnnualMetricsFromXbrl(Long stockId, int fiscalYear, String fsDiv) {
         Company company = financialService.getOrCreateCompanyWithStockCode(stockId);
@@ -73,8 +71,14 @@ public class AnnualXbrlPipelineFacadeService {
 
     public Long runAnnualXbrlPipeline(Long stockId, int fiscalYear, String fsDiv) {
         Company company = financialService.getOrCreateCompanyWithStockCode(stockId);
-        String resolvedFsDiv = resolveAnnualFsDiv(company, fiscalYear, fsDiv);
-        return runAnnualXbrlPipelineWithResolvedFsDiv(stockId, company, fiscalYear, fsDiv, resolvedFsDiv);
+        AnnualXbrlExecutionService.ExecutionResult result =
+                annualXbrlExecutionService.collectAnnualInputs(stockId, company, fiscalYear, fsDiv);
+        int savedMetricCount = rebuildAnnualMetrics(company.getCompanyId(), fiscalYear, result.resolvedFsDiv());
+
+        log.info("XBRL 연간 파이프라인 처리 완료 stockId={}, companyId={}, year={}, fsDiv={}, documentId={}, savedMetricCount={}",
+                stockId, company.getCompanyId(), fiscalYear, result.resolvedFsDiv(), result.documentId(), savedMetricCount);
+
+        return result.documentId();
     }
 
     public int runAnnualXbrlPipeline(Long stockId, int startYear, int endYear, String fsDiv) {
@@ -111,78 +115,7 @@ public class AnnualXbrlPipelineFacadeService {
 
     private Long collectAnnualXbrlPipelineInputs(Long stockId, int fiscalYear, String fsDiv) {
         Company company = financialService.getOrCreateCompanyWithStockCode(stockId);
-        String resolvedFsDiv = resolveAnnualFsDiv(company, fiscalYear, fsDiv);
-        return collectAnnualXbrlPipelineInputsWithResolvedFsDiv(stockId, company, fiscalYear, fsDiv, resolvedFsDiv);
-    }
-
-    private Long collectAnnualXbrlPipelineInputsWithResolvedFsDiv(Long stockId,
-                                                                  Company company,
-                                                                  int fiscalYear,
-                                                                  String requestedFsDiv,
-                                                                  String resolvedFsDiv) {
-        XbrlAnnualDocumentRef documentRef = xbrlAnnualDocumentLocator.resolve(company.getCompanyId(), fiscalYear, resolvedFsDiv);
-
-        log.info("XBRL 연간 문서 선택 완료 stockId={}, companyId={}, year={}, requestedFsDiv={}, resolvedFsDiv={}, rceptNo={}",
-                stockId, company.getCompanyId(), fiscalYear, requestedFsDiv, resolvedFsDiv, documentRef.rceptNo());
-
-        try {
-            return annualXbrlCollector.collectAnnualInputs(
-                    company,
-                    documentRef.corpCode(),
-                    documentRef.rceptNo(),
-                    fiscalYear,
-                    resolvedFsDiv
-            );
-        } catch (CustomException e) {
-            if (!annualXbrlRunPolicy.shouldFallbackToOfsOnMissingXbrl(requestedFsDiv, resolvedFsDiv, e)) {
-                throw e;
-            }
-
-            annualXbrlCollector.collectAnnualFilingMetadata(company, fiscalYear, "OFS");
-            log.info("XBRL 파일 미존재 fallback 적용 companyId={}, year={}, requestedFsDiv={}, resolvedFsDiv=OFS",
-                    company.getCompanyId(), fiscalYear, requestedFsDiv);
-            return collectAnnualXbrlPipelineInputsWithResolvedFsDiv(stockId, company, fiscalYear, requestedFsDiv, "OFS");
-        }
-    }
-
-    private String resolveAnnualFsDiv(Company company, int fiscalYear, String requestedFsDiv) {
-        try {
-            annualXbrlCollector.collectAnnualFilingMetadata(company, fiscalYear, requestedFsDiv);
-            return requestedFsDiv;
-        } catch (CustomException e) {
-            if (!annualXbrlRunPolicy.shouldFallbackToOfs(requestedFsDiv, e)) {
-                throw e;
-            }
-
-            annualXbrlCollector.collectAnnualFilingMetadata(company, fiscalYear, "OFS");
-            log.info("XBRL 연간 문서 fallback 적용 companyId={}, year={}, requestedFsDiv={}, resolvedFsDiv=OFS",
-                    company.getCompanyId(), fiscalYear, requestedFsDiv);
-            return "OFS";
-        }
-    }
-
-    private Long runAnnualXbrlPipelineWithResolvedFsDiv(Long stockId,
-                                                        Company company,
-                                                        int fiscalYear,
-                                                        String requestedFsDiv,
-                                                        String resolvedFsDiv) {
-        XbrlAnnualDocumentRef documentRef = xbrlAnnualDocumentLocator.resolve(company.getCompanyId(), fiscalYear, resolvedFsDiv);
-
-        log.info("XBRL 연간 문서 선택 완료 stockId={}, companyId={}, year={}, requestedFsDiv={}, resolvedFsDiv={}, rceptNo={}",
-                stockId, company.getCompanyId(), fiscalYear, requestedFsDiv, resolvedFsDiv, documentRef.rceptNo());
-
-        try {
-            return runAnnualXbrlPipeline(stockId, documentRef.corpCode(), documentRef.rceptNo(), fiscalYear, resolvedFsDiv);
-        } catch (CustomException e) {
-            if (!annualXbrlRunPolicy.shouldFallbackToOfsOnMissingXbrl(requestedFsDiv, resolvedFsDiv, e)) {
-                throw e;
-            }
-
-            annualXbrlCollector.collectAnnualFilingMetadata(company, fiscalYear, "OFS");
-            log.info("XBRL 파일 미존재 fallback 적용 companyId={}, year={}, requestedFsDiv={}, resolvedFsDiv=OFS",
-                    company.getCompanyId(), fiscalYear, requestedFsDiv);
-            return runAnnualXbrlPipelineWithResolvedFsDiv(stockId, company, fiscalYear, requestedFsDiv, "OFS");
-        }
+        return annualXbrlExecutionService.collectAnnualInputs(stockId, company, fiscalYear, fsDiv).documentId();
     }
 
     private void collectCurrentYearPriceData(Long stockId) {
