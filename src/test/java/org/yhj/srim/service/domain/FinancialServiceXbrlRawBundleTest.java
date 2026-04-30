@@ -106,6 +106,43 @@ class FinancialServiceXbrlRawBundleTest {
     }
 
     @Test
+    @DisplayName("FinancialService는 최신 사업보고서 비교표 기준으로 연간 XBRL raw bundle을 조립한다.")
+    void loadXbrlRawBundle_prefersLatestAnnualComparatives() {
+        Company company = saveCompany("TST002B", "900102", "00126381");
+        saveAnnualPeriod(company, 2024);
+        saveAnnualPeriod(company, 2023);
+
+        XbrlDocument current = saveDocument(company, 2024, "20250321002000", LocalDateTime.of(2025, 3, 21, 11, 0));
+        saveAnnualFacts(current, "1000", "200", "250", "600");
+
+        XbrlDocument previous = saveDocument(company, 2023, "20240321001000", LocalDateTime.of(2024, 3, 21, 10, 0));
+        saveAnnualFacts(previous, "800", "150", "220", "500");
+
+        XbrlDocument nextYear = saveDocument(company, 2025, "20260321002000", LocalDateTime.of(2026, 3, 21, 11, 0));
+        saveComparativeAnnualFacts(
+                nextYear,
+                "1500", "900", "700",
+                "350", "180", "140",
+                "300", "260", "210",
+                "700", "550", "450"
+        );
+
+        FsRawBundle rawBundle = financialService.loadXbrlRawBundle(company.getCompanyId(), 2024, "CFS");
+
+        assertThat(rawBundle.curr())
+                .containsEntry("SALES", new BigDecimal("900"))
+                .containsEntry("NET_INC", new BigDecimal("180"))
+                .containsEntry("TOTAL_LIABILITIES", new BigDecimal("260"))
+                .containsEntry("TOTAL_EQUITY", new BigDecimal("550"));
+
+        assertThat(rawBundle.prev())
+                .containsEntry("SALES", new BigDecimal("700"))
+                .containsEntry("NET_INC", new BigDecimal("140"))
+                .containsEntry("TOTAL_LIABILITIES", new BigDecimal("210"))
+                .containsEntry("TOTAL_EQUITY", new BigDecimal("450"));
+    }
+
+    @Test
     @DisplayName("연간 XBRL base metric을 fin_metric_value에 XBRL source로 저장한다.")
     void replaceAnnualBaseMetricsFromXbrl_persistsBaseMetrics() {
         Company company = saveCompany("TST003", "900003", "00126382");
@@ -392,6 +429,125 @@ class FinancialServiceXbrlRawBundleTest {
                 .build());
     }
 
+    private void saveComparativeAnnualFacts(XbrlDocument document,
+                                            String salesCurrent,
+                                            String salesPrevious,
+                                            String salesBeforePrevious,
+                                            String netIncomeCurrent,
+                                            String netIncomePrevious,
+                                            String netIncomeBeforePrevious,
+                                            String totalLiabilitiesCurrent,
+                                            String totalLiabilitiesPrevious,
+                                            String totalLiabilitiesBeforePrevious,
+                                            String totalEquityCurrent,
+                                            String totalEquityPrevious,
+                                            String totalEquityBeforePrevious) {
+        XbrlContext currentDurationContext = saveComparativeContext(document, document.getBsnsYear(), "duration", "CFY");
+        XbrlContext previousDurationContext = saveComparativeContext(document, document.getBsnsYear() - 1, "duration", "PFY");
+        XbrlContext beforePreviousDurationContext = saveComparativeContext(document, document.getBsnsYear() - 2, "duration", "BPFY");
+
+        XbrlContext currentInstantContext = saveComparativeContext(document, document.getBsnsYear(), "instant", "CFY");
+        XbrlContext previousInstantContext = saveComparativeContext(document, document.getBsnsYear() - 1, "instant", "PFY");
+        XbrlContext beforePreviousInstantContext = saveComparativeContext(document, document.getBsnsYear() - 2, "instant", "BPFY");
+
+        saveComparativeFactTriplet(
+                document,
+                currentDurationContext,
+                previousDurationContext,
+                beforePreviousDurationContext,
+                "ifrs-full:Revenue", "Revenue",
+                salesCurrent, salesPrevious, salesBeforePrevious, 1);
+        saveComparativeFactTriplet(
+                document,
+                currentDurationContext,
+                previousDurationContext,
+                beforePreviousDurationContext,
+                "ifrs-full:ProfitLoss", "ProfitLoss",
+                netIncomeCurrent, netIncomePrevious, netIncomeBeforePrevious, 10);
+        saveComparativeFactTriplet(
+                document,
+                currentInstantContext,
+                previousInstantContext,
+                beforePreviousInstantContext,
+                "ifrs-full:Liabilities", "Liabilities",
+                totalLiabilitiesCurrent, totalLiabilitiesPrevious, totalLiabilitiesBeforePrevious, 20);
+        saveComparativeFactTriplet(
+                document,
+                currentInstantContext,
+                previousInstantContext,
+                beforePreviousInstantContext,
+                "ifrs-full:Equity", "Equity",
+                totalEquityCurrent, totalEquityPrevious, totalEquityBeforePrevious, 30);
+        saveComparativeFactTriplet(
+                document,
+                currentInstantContext,
+                previousInstantContext,
+                beforePreviousInstantContext,
+                "ifrs-full:Assets", "Assets",
+                sum(totalLiabilitiesCurrent, totalEquityCurrent),
+                sum(totalLiabilitiesPrevious, totalEquityPrevious),
+                sum(totalLiabilitiesBeforePrevious, totalEquityBeforePrevious),
+                40);
+    }
+
+    private void saveComparativeFactTriplet(XbrlDocument document,
+                                            XbrlContext currentContext,
+                                            XbrlContext previousContext,
+                                            XbrlContext beforePreviousContext,
+                                            String conceptQname,
+                                            String conceptLocalName,
+                                            String currentValue,
+                                            String previousValue,
+                                            String beforePreviousValue,
+                                            int baseOrderHint) {
+        saveComparativeFact(document, currentContext, conceptQname, conceptLocalName, currentValue, baseOrderHint);
+        saveComparativeFact(document, previousContext, conceptQname, conceptLocalName, previousValue, baseOrderHint + 1);
+        saveComparativeFact(document, beforePreviousContext, conceptQname, conceptLocalName, beforePreviousValue, baseOrderHint + 2);
+    }
+
+    private XbrlContext saveComparativeContext(XbrlDocument document, int targetYear, String periodType, String prefix) {
+        String contextRef = prefix + targetYear
+                + ("instant".equals(periodType) ? "eFY" : "dFY")
+                + "_ifrs-full_ConsolidatedAndSeparateFinancialStatementsAxis_ifrs-full_ConsolidatedMember";
+
+        return xbrlContextRepository.save(XbrlContext.builder()
+                .document(document)
+                .contextRef(contextRef)
+                .contextRefHash(hashFor(contextRef))
+                .entityIdentifier("00126380")
+                .periodType(periodType)
+                .periodStart("duration".equals(periodType) ? LocalDate.of(targetYear, 1, 1) : null)
+                .periodEnd("duration".equals(periodType) ? LocalDate.of(targetYear, 12, 31) : null)
+                .instantDate("instant".equals(periodType) ? LocalDate.of(targetYear, 12, 31) : null)
+                .dimensionsJson("[]")
+                .memberSignature("ifrs-full:ConsolidatedAndSeparateFinancialStatementsAxis=ifrs-full:ConsolidatedMember")
+                .build());
+    }
+
+    private void saveComparativeFact(XbrlDocument document,
+                                     XbrlContext context,
+                                     String conceptQname,
+                                     String conceptLocalName,
+                                     String value,
+                                     int orderHint) {
+        xbrlFactRepository.save(XbrlFact.builder()
+                .document(document)
+                .context(context)
+                .contextRef(context.getContextRef())
+                .conceptQname(conceptQname)
+                .conceptLocalName(conceptLocalName)
+                .labelKo(conceptLocalName)
+                .statementRole("test-statement")
+                .unitRef("KRW")
+                .decimals("0")
+                .valueRaw(value)
+                .valueNumeric(new BigDecimal(value))
+                .isNil(false)
+                .memberSignature(context.getMemberSignature())
+                .orderHint(orderHint)
+                .build());
+    }
+
     private void saveOwnerFacts(XbrlDocument document, String netIncomeOwner, String totalEquityOwner, String totalEquityNoncont) {
         XbrlContext durationContext = xbrlContextRepository.findAll().stream()
                 .filter(context -> context.getDocument().getXbrlDocumentId().equals(document.getXbrlDocumentId()))
@@ -482,5 +638,9 @@ class FinancialServiceXbrlRawBundleTest {
 
     private String hashFor(String value) {
         return String.format("%-64s", value).replace(' ', 'x');
+    }
+
+    private String sum(String left, String right) {
+        return new BigDecimal(left).add(new BigDecimal(right)).toPlainString();
     }
 }

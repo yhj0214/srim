@@ -70,6 +70,7 @@ public class AnnualXbrlMetricProcessor {
         return !financialService.loadXbrlRawBundle(companyId, fiscalYear, fsDiv).curr().isEmpty();
     }
 
+    @Transactional
     public int processAnnualMetricsFromXbrl(Long companyId, int fiscalYear, String fsDiv) {
         int savedCount = 0;
         savedCount += replaceAnnualBaseMetricsFromXbrl(companyId, fiscalYear, fsDiv);

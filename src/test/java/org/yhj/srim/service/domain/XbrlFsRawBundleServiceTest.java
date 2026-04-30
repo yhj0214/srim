@@ -101,6 +101,71 @@ class XbrlFsRawBundleServiceTest {
         assertThat(rawBundle.prev()).isEmpty();
     }
 
+    @Test
+    @DisplayName("당해 연도 문서가 없으면 다음 연도 사업보고서의 비교값으로 연간 raw bundle을 보완한다.")
+    void buildRawBundle_withoutCurrentDocument_usesNextYearComparatives() {
+        Company company = saveCompany("910006", "00126386");
+        Long companyId = company.getCompanyId();
+
+        XbrlDocument nextYear = saveDocument(company, 2025, "20260321001000", LocalDateTime.of(2026, 3, 21, 10, 0));
+        saveComparativeAnnualFacts(
+                nextYear,
+                "1500", "1200", "900",
+                "350", "300", "250",
+                "700", "600", "500"
+        );
+
+        FsRawBundle rawBundle = xbrlFsRawBundleService.buildRawBundle(
+                companyId,
+                2024,
+                DartReportType.ANNUAL,
+                "CFS"
+        );
+
+        assertThat(rawBundle.curr())
+                .containsEntry("SALES", new BigDecimal("1200"))
+                .containsEntry("NET_INC", new BigDecimal("300"))
+                .containsEntry("TOTAL_EQUITY", new BigDecimal("600"));
+
+        assertThat(rawBundle.prev())
+                .containsEntry("SALES", new BigDecimal("900"))
+                .containsEntry("NET_INC", new BigDecimal("250"))
+                .containsEntry("TOTAL_EQUITY", new BigDecimal("500"));
+    }
+
+    @Test
+    @DisplayName("당해 연도 문서가 있어도 최신 사업보고서 비교값이 있으면 그 값을 연간 대표 raw로 우선 사용한다.")
+    void buildRawBundle_prefersLatestAnnualComparativesOverOriginalYearDocument() {
+        Company company = saveCompany("910007", "00126387");
+        Long companyId = company.getCompanyId();
+
+        XbrlDocument current = saveDocument(company, 2024, "20250321001000", LocalDateTime.of(2025, 3, 21, 10, 0));
+        saveAnnualFacts(current, "1000", "200", "600");
+
+        XbrlDocument previous = saveDocument(company, 2023, "20240321001000", LocalDateTime.of(2024, 3, 21, 10, 0));
+        saveAnnualFacts(previous, "800", "150", "500");
+
+        XbrlDocument nextYear = saveDocument(company, 2025, "20260321001000", LocalDateTime.of(2026, 3, 21, 10, 0));
+        saveComparativeAnnualFacts(
+                nextYear,
+                "1500", "900", "700",
+                "350", "180", "140",
+                "700", "550", "450"
+        );
+
+        FsRawBundle rawBundle = xbrlFsRawBundleService.buildAnnualRawBundle(companyId, 2024, "CFS");
+
+        assertThat(rawBundle.curr())
+                .containsEntry("SALES", new BigDecimal("900"))
+                .containsEntry("NET_INC", new BigDecimal("180"))
+                .containsEntry("TOTAL_EQUITY", new BigDecimal("550"));
+
+        assertThat(rawBundle.prev())
+                .containsEntry("SALES", new BigDecimal("700"))
+                .containsEntry("NET_INC", new BigDecimal("140"))
+                .containsEntry("TOTAL_EQUITY", new BigDecimal("450"));
+    }
+
     private Company saveCompany(String ticker, String corpCode) {
         StockCode stockCode = stockCodeRepository.save(StockCode.builder()
                 .companyName("XBRL Bundle Test " + ticker)
@@ -208,6 +273,123 @@ class XbrlFsRawBundleServiceTest {
                 .isNil(false)
                 .memberSignature(null)
                 .orderHint(3)
+                .build());
+    }
+
+    private void saveComparativeAnnualFacts(XbrlDocument document,
+                                            String salesCurrent,
+                                            String salesPrevious,
+                                            String salesBeforePrevious,
+                                            String netIncomeCurrent,
+                                            String netIncomePrevious,
+                                            String netIncomeBeforePrevious,
+                                            String equityCurrent,
+                                            String equityPrevious,
+                                            String equityBeforePrevious) {
+        XbrlContext cfyDuration = saveContext(
+                document,
+                "CFY" + document.getBsnsYear() + "dFY_ifrs-full_ConsolidatedAndSeparateFinancialStatementsAxis_ifrs-full_ConsolidatedMember",
+                "duration",
+                LocalDate.of(document.getBsnsYear(), 1, 1),
+                LocalDate.of(document.getBsnsYear(), 12, 31),
+                null
+        );
+        XbrlContext pfyDuration = saveContext(
+                document,
+                "PFY" + (document.getBsnsYear() - 1) + "dFY_ifrs-full_ConsolidatedAndSeparateFinancialStatementsAxis_ifrs-full_ConsolidatedMember",
+                "duration",
+                LocalDate.of(document.getBsnsYear() - 1, 1, 1),
+                LocalDate.of(document.getBsnsYear() - 1, 12, 31),
+                null
+        );
+        XbrlContext bpfyDuration = saveContext(
+                document,
+                "BPFY" + (document.getBsnsYear() - 2) + "dFY_ifrs-full_ConsolidatedAndSeparateFinancialStatementsAxis_ifrs-full_ConsolidatedMember",
+                "duration",
+                LocalDate.of(document.getBsnsYear() - 2, 1, 1),
+                LocalDate.of(document.getBsnsYear() - 2, 12, 31),
+                null
+        );
+
+        XbrlContext cfyInstant = saveContext(
+                document,
+                "CFY" + document.getBsnsYear() + "eFY_ifrs-full_ConsolidatedAndSeparateFinancialStatementsAxis_ifrs-full_ConsolidatedMember",
+                "instant",
+                null,
+                null,
+                LocalDate.of(document.getBsnsYear(), 12, 31)
+        );
+        XbrlContext pfyInstant = saveContext(
+                document,
+                "PFY" + (document.getBsnsYear() - 1) + "eFY_ifrs-full_ConsolidatedAndSeparateFinancialStatementsAxis_ifrs-full_ConsolidatedMember",
+                "instant",
+                null,
+                null,
+                LocalDate.of(document.getBsnsYear() - 1, 12, 31)
+        );
+        XbrlContext bpfyInstant = saveContext(
+                document,
+                "BPFY" + (document.getBsnsYear() - 2) + "eFY_ifrs-full_ConsolidatedAndSeparateFinancialStatementsAxis_ifrs-full_ConsolidatedMember",
+                "instant",
+                null,
+                null,
+                LocalDate.of(document.getBsnsYear() - 2, 12, 31)
+        );
+
+        saveFact(document, cfyDuration, "ifrs-full:Revenue", "Revenue", salesCurrent, 1);
+        saveFact(document, pfyDuration, "ifrs-full:Revenue", "Revenue", salesPrevious, 2);
+        saveFact(document, bpfyDuration, "ifrs-full:Revenue", "Revenue", salesBeforePrevious, 3);
+
+        saveFact(document, cfyDuration, "ifrs-full:ProfitLoss", "ProfitLoss", netIncomeCurrent, 4);
+        saveFact(document, pfyDuration, "ifrs-full:ProfitLoss", "ProfitLoss", netIncomePrevious, 5);
+        saveFact(document, bpfyDuration, "ifrs-full:ProfitLoss", "ProfitLoss", netIncomeBeforePrevious, 6);
+
+        saveFact(document, cfyInstant, "ifrs-full:Equity", "Equity", equityCurrent, 7);
+        saveFact(document, pfyInstant, "ifrs-full:Equity", "Equity", equityPrevious, 8);
+        saveFact(document, bpfyInstant, "ifrs-full:Equity", "Equity", equityBeforePrevious, 9);
+    }
+
+    private XbrlContext saveContext(XbrlDocument document,
+                                    String contextRef,
+                                    String periodType,
+                                    LocalDate periodStart,
+                                    LocalDate periodEnd,
+                                    LocalDate instantDate) {
+        return xbrlContextRepository.save(XbrlContext.builder()
+                .document(document)
+                .contextRef(contextRef)
+                .contextRefHash(String.format("%-64s", contextRef).replace(' ', 'x'))
+                .entityIdentifier("00126380")
+                .periodType(periodType)
+                .periodStart(periodStart)
+                .periodEnd(periodEnd)
+                .instantDate(instantDate)
+                .dimensionsJson("[]")
+                .memberSignature("ifrs-full:ConsolidatedAndSeparateFinancialStatementsAxis=ifrs-full:ConsolidatedMember")
+                .build());
+    }
+
+    private void saveFact(XbrlDocument document,
+                          XbrlContext context,
+                          String conceptQname,
+                          String conceptLocalName,
+                          String value,
+                          int orderHint) {
+        xbrlFactRepository.save(XbrlFact.builder()
+                .document(document)
+                .context(context)
+                .contextRef(context.getContextRef())
+                .conceptQname(conceptQname)
+                .conceptLocalName(conceptLocalName)
+                .labelKo(conceptLocalName)
+                .statementRole("test-statement")
+                .unitRef("KRW")
+                .decimals("0")
+                .valueRaw(value)
+                .valueNumeric(new BigDecimal(value))
+                .isNil(false)
+                .memberSignature(context.getMemberSignature())
+                .orderHint(orderHint)
                 .build());
     }
 }

@@ -22,12 +22,14 @@ public class KrxCrawlingApiController {
      * 전체 시장 크롤링 (KOSPI) 및 데이터 초기화 전체 로직 진행
      * GET /api/crawling/krx/all
      * - 기업 조회 로직
-     * - 재무제표 및 전체 데이터 크롤링
+     * - 연간 XBRL 및 전체 데이터 크롤링
      */
     @PostMapping("/all")
-    public ApiResponse<CrawlAllMarketsResult> crawlAllMarkets() {
+    public ApiResponse<CrawlAllMarketsResult> crawlAllMarkets(
+            @RequestParam(defaultValue = "2015") int startYear,
+            @RequestParam(defaultValue = "CFS") String fsDiv) {
         log.info("전체 시장 크롤링 요청");
-        return ApiResponse.success(managementFacade.runInitialSync());
+        return ApiResponse.success(managementFacade.runInitialSync(startYear, fsDiv));
     }
 
     /**
@@ -42,12 +44,14 @@ public class KrxCrawlingApiController {
 
     /**
      * 데이터 조회 로직
-     * 재무제표 및 전체 데이터 크롤링
+     * 연간 XBRL 및 전체 데이터 크롤링
      */
     @PostMapping("/all/step2")
-    public ApiResponse<Void> crawlAllMarketsStep2() {
+    public ApiResponse<Void> crawlAllMarketsStep2(
+            @RequestParam(defaultValue = "2015") int startYear,
+            @RequestParam(defaultValue = "CFS") String fsDiv) {
         log.info("전체 시장 크롤링 요청 (STEP2)");
-        managementFacade.syncAllCompanies();
+        managementFacade.syncAllCompanies(startYear, fsDiv);
         return ApiResponse.success(null);
     }
 

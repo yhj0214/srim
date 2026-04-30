@@ -11,10 +11,12 @@ import org.yhj.srim.service.domain.CompanyResetService;
 import org.yhj.srim.service.domain.StockService;
 
 import java.time.LocalDate;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -28,9 +30,6 @@ class ManagementFacadeTest {
 
     @Mock
     StockService stockService;
-
-    @Mock
-    PriceChartFacadeService priceChartFacadeService;
 
     @Mock
     CompanyResetService companyResetService;
@@ -47,6 +46,34 @@ class ManagementFacadeTest {
         assertThat(actual.getMappedCount()).isEqualTo(8);
         verify(financialFacadeService).marketCrawling();
         verify(financialFacadeService).crawlAndSaveBondYield(any(LocalDate.class), any(LocalDate.class));
+    }
+
+    @Test
+    @DisplayName("초기 동기화는 step1 후 전체 회사 동기화를 순차 실행한다.")
+    void run_initial_sync_runs_market_then_company_sync() {
+        CrawlAllMarketsResult result = new CrawlAllMarketsResult(10, 8);
+        given(financialFacadeService.marketCrawling()).willReturn(result);
+        given(stockService.findAllStockIds()).willReturn(List.of(1L));
+
+        CrawlAllMarketsResult actual = managementFacade.runInitialSync(2015, "CFS");
+
+        assertThat(actual.getCrawledCount()).isEqualTo(10);
+        assertThat(actual.getMappedCount()).isEqualTo(8);
+        verify(financialFacadeService).marketCrawling();
+        verify(stockService).findAllStockIds();
+        verify(financialFacadeService).runAnnualXbrlPipeline(1L, 2015, LocalDate.now().getYear() - 1, "CFS");
+    }
+
+    @Test
+    @DisplayName("step2는 저장된 전체 stockId를 순회하며 XBRL 전체 run을 실행한다.")
+    void sync_all_companies_runs_for_all_stock_ids() {
+        given(stockService.findAllStockIds()).willReturn(List.of(1L, 2L));
+
+        managementFacade.syncAllCompanies(2015, "CFS");
+
+        verify(stockService).findAllStockIds();
+        verify(financialFacadeService).runAnnualXbrlPipeline(1L, 2015, LocalDate.now().getYear() - 1, "CFS");
+        verify(financialFacadeService).runAnnualXbrlPipeline(2L, 2015, LocalDate.now().getYear() - 1, "CFS");
     }
 
 

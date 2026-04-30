@@ -25,6 +25,19 @@ class KrxCrawlingApiControllerTest {
     ManagementFacade managementFacade;
 
     @Test
+    @DisplayName("전체 크롤링 요청은 step1과 step2를 묶은 초기 동기화에 성공한다.")
+    void all_crawling_success() throws Exception {
+        BDDMockito.given(managementFacade.runInitialSync(2015, "CFS"))
+                .willReturn(new CrawlAllMarketsResult(100, 80));
+
+        mockMvc.perform(post("/api/crawling/krx/all"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.crawledCount").value(100))
+                .andExpect(jsonPath("$.data.mappedCount").value(80));
+    }
+
+    @Test
     @DisplayName("전체 크롤링 step1에 성공한다.")
     void all_crawling_step1_success() throws Exception {
         // given
@@ -38,6 +51,17 @@ class KrxCrawlingApiControllerTest {
                 .andExpect(jsonPath("$.data.crawledCount").value(100))
                 .andExpect(jsonPath("$.data.mappedCount").value(80));
 
+    }
+
+    @Test
+    @DisplayName("전체 크롤링 step2에 성공한다.")
+    void all_crawling_step2_success() throws Exception {
+        mockMvc.perform(post("/api/crawling/krx/all/step2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data").isEmpty());
+
+        BDDMockito.then(managementFacade).should().syncAllCompanies(2015, "CFS");
     }
 
     @Test
