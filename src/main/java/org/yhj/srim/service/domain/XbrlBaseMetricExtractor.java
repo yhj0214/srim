@@ -94,7 +94,8 @@ public class XbrlBaseMetricExtractor {
                 firstPresentDurationFact(bundle, CONCEPT_PROFIT_LOSS_NONCONT, LOCAL_NAME_PROFIT_LOSS_NONCONT),
                 firstPresentMemberFact(bundle, CONCEPT_PROFIT_LOSS, LOCAL_NAME_PROFIT_LOSS, MEMBER_KEYWORD_NONCONT)
         );
-        XbrlOwnershipMetricFallbackResolver.OwnershipMetricValues netIncomeValues =
+        // 지배, 비지배주주 순이익 계산 로직, 정상일경우 바로 return
+        OwnershipMetricValues netIncomeValues =
                 xbrlOwnershipMetricFallbackResolver.resolveNetIncomeValues(
                         bundle,
                         totalProfitLoss,
@@ -117,7 +118,7 @@ public class XbrlBaseMetricExtractor {
                 firstPresentInstantFact(bundle, CONCEPT_NONCONTROLLING_INTERESTS, LOCAL_NAME_NONCONTROLLING_INTERESTS),
                 firstPresentMemberFact(bundle, CONCEPT_EQUITY, LOCAL_NAME_EQUITY, MEMBER_KEYWORD_NONCONT)
         );
-        XbrlOwnershipMetricFallbackResolver.OwnershipMetricValues equityValues =
+        OwnershipMetricValues equityValues =
                 xbrlOwnershipMetricFallbackResolver.resolveEquityValues(
                         bundle,
                         totalEquity,

@@ -1,123 +1,27 @@
 package org.yhj.srim.service.domain;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
-import org.yhj.srim.service.dto.XbrlContextView;
 import org.yhj.srim.service.dto.XbrlFactView;
 import org.yhj.srim.service.dto.XbrlRawBundle;
 
-import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 @Component
+@RequiredArgsConstructor
 public class XbrlNetIncomeAttributionFallbackResolver {
 
-    private static final String AK_HOLDINGS_CORP_CODE = "00125080";
-    private static final String MEMBER_KEYWORD_OWNER = "ownersofparent";
-    private static final String MEMBER_KEYWORD_NONCONT = "noncontrolling";
-    private static final BigDecimal AMOUNT_TOLERANCE = new BigDecimal("1000");
+    private final List<XbrlNetIncomeAttributionFallbackRule> rules;
 
     public Optional<ResolvedNetIncomeAttribution> resolve(XbrlRawBundle bundle, XbrlFactView totalProfitLoss) {
-        if (!supports(bundle) || totalProfitLoss == null || totalProfitLoss.valueNumeric() == null) {
-            return Optional.empty();
-        }
-
-        Map<Long, XbrlContextView> contextById = bundle.contexts().stream()
-                .collect(Collectors.toMap(XbrlContextView::xbrlContextId, context -> context));
-
-        List<XbrlFactView> customProfitLossFacts = bundle.facts().stream()
-                .filter(isCustomProfitLossFact())
-                .filter(fact -> isSimpleConsolidatedDurationFact(contextById.get(fact.xbrlContextId()), fact))
-                .toList();
-
-        if (customProfitLossFacts.size() < 2) {
-            return Optional.empty();
-        }
-
-        for (XbrlFactView ownerCandidate : customProfitLossFacts) {
-            if (!hasMatchingMemberValue(bundle, contextById, ownerCandidate.valueNumeric(), MEMBER_KEYWORD_OWNER)) {
-                continue;
-            }
-
-            for (XbrlFactView noncontCandidate : customProfitLossFacts) {
-                if (ownerCandidate.xbrlFactId().equals(noncontCandidate.xbrlFactId())) {
-                    continue;
-                }
-                if (!hasMatchingMemberValue(bundle, contextById, noncontCandidate.valueNumeric(), MEMBER_KEYWORD_NONCONT)) {
-                    continue;
-                }
-                if (!matchesTotal(totalProfitLoss.valueNumeric(), ownerCandidate.valueNumeric(), noncontCandidate.valueNumeric())) {
-                    continue;
-                }
-
-                return Optional.of(new ResolvedNetIncomeAttribution(ownerCandidate, noncontCandidate));
+        for (XbrlNetIncomeAttributionFallbackRule rule : rules) {
+            Optional<ResolvedNetIncomeAttribution> resolved = rule.resolve(bundle, totalProfitLoss);
+            if (resolved.isPresent()) {
+                return resolved;
             }
         }
-
         return Optional.empty();
-    }
-
-    private boolean supports(XbrlRawBundle bundle) {
-        return bundle != null
-                && bundle.document() != null
-                && AK_HOLDINGS_CORP_CODE.equals(bundle.document().corpCode());
-    }
-
-    private Predicate<XbrlFactView> isCustomProfitLossFact() {
-        return fact -> fact != null
-                && fact.valueNumeric() != null
-                && fact.conceptQname() != null
-                && fact.conceptQname().contains(":")
-                && !fact.conceptQname().startsWith("ifrs-full:")
-                && !fact.conceptQname().startsWith("ifrs:")
-                && containsIgnoreCase(fact.conceptQname(), "ProfitLoss")
-                && containsIgnoreCase(fact.conceptLocalName(), "ProfitLoss");
-    }
-
-    private boolean isSimpleConsolidatedDurationFact(XbrlContextView context, XbrlFactView fact) {
-        if (context == null || !"duration".equals(context.periodType())) {
-            return false;
-        }
-
-        String signature = context.memberSignature() != null ? context.memberSignature() : fact.memberSignature();
-        return containsIgnoreCase(signature, "ConsolidatedMember") && !signature.contains("|");
-    }
-
-    private boolean hasMatchingMemberValue(XbrlRawBundle bundle,
-                                           Map<Long, XbrlContextView> contextById,
-                                           BigDecimal expectedValue,
-                                           String memberKeyword) {
-        return bundle.facts().stream()
-                .filter(fact -> fact.valueNumeric() != null)
-                .filter(fact -> sameValue(fact.valueNumeric(), expectedValue))
-                .anyMatch(fact -> matchesMemberKeyword(contextById.get(fact.xbrlContextId()), fact, memberKeyword));
-    }
-
-    private boolean matchesMemberKeyword(XbrlContextView context, XbrlFactView fact, String memberKeyword) {
-        String signature = context != null ? context.memberSignature() : fact.memberSignature();
-        String dimensions = context != null ? context.dimensionsJson() : null;
-
-        return containsIgnoreCase(signature, "ConsolidatedMember")
-                && containsIgnoreCase(signature, memberKeyword)
-                && !containsIgnoreCase(signature, "SegmentsAxis")
-                && !containsIgnoreCase(dimensions, "SegmentsAxis");
-    }
-
-    private boolean matchesTotal(BigDecimal total, BigDecimal owner, BigDecimal noncont) {
-        return sameValue(total, owner.add(noncont));
-    }
-
-    private boolean sameValue(BigDecimal left, BigDecimal right) {
-        return left != null
-                && right != null
-                && left.subtract(right).abs().compareTo(AMOUNT_TOLERANCE) <= 0;
-    }
-
-    private boolean containsIgnoreCase(String source, String keyword) {
-        return source != null && keyword != null && source.toLowerCase().contains(keyword.toLowerCase());
     }
 
     public record ResolvedNetIncomeAttribution(
