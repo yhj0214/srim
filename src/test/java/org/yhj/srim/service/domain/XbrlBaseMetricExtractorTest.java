@@ -19,7 +19,9 @@ class XbrlBaseMetricExtractorTest {
 
     private final XbrlBaseMetricExtractor extractor = new XbrlBaseMetricExtractor(
             new XbrlFactSelector(),
-            new XbrlNetIncomeAttributionFallbackResolver()
+            new XbrlOwnershipMetricFallbackResolver(
+                    new XbrlNetIncomeAttributionFallbackResolver()
+            )
     );
 
     @Test

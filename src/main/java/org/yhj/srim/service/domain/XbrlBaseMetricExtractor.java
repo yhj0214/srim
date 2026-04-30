@@ -7,7 +7,6 @@ import org.yhj.srim.service.dto.XbrlRawBundle;
 
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 @Component
@@ -73,10 +72,9 @@ public class XbrlBaseMetricExtractor {
 
     private static final String MEMBER_KEYWORD_OWNER = "ownersofparent";
     private static final String MEMBER_KEYWORD_NONCONT = "noncontrolling";
-    private static final BigDecimal ZERO = BigDecimal.ZERO;
 
     private final XbrlFactSelector xbrlFactSelector;
-    private final XbrlNetIncomeAttributionFallbackResolver xbrlNetIncomeAttributionFallbackResolver;
+    private final XbrlOwnershipMetricFallbackResolver xbrlOwnershipMetricFallbackResolver;
 
     public Map<String, BigDecimal> extractBaseMetrics(XbrlRawBundle bundle) {
         Map<String, BigDecimal> metrics = new LinkedHashMap<>();
@@ -96,27 +94,15 @@ public class XbrlBaseMetricExtractor {
                 firstPresentDurationFact(bundle, CONCEPT_PROFIT_LOSS_NONCONT, LOCAL_NAME_PROFIT_LOSS_NONCONT),
                 firstPresentMemberFact(bundle, CONCEPT_PROFIT_LOSS, LOCAL_NAME_PROFIT_LOSS, MEMBER_KEYWORD_NONCONT)
         );
-
-        if (ownerProfitLoss == null || noncontProfitLoss == null) {
-            XbrlNetIncomeAttributionFallbackResolver.ResolvedNetIncomeAttribution fallback =
-                    xbrlNetIncomeAttributionFallbackResolver.resolve(bundle, totalProfitLoss).orElse(null);
-            if (fallback != null) {
-                if (ownerProfitLoss == null) {
-                    ownerProfitLoss = fallback.ownerFact();
-                }
-                if (noncontProfitLoss == null) {
-                    noncontProfitLoss = fallback.noncontFact();
-                }
-            }
-        }
-
-        if (canDefaultOwnerAndNoncont(ownerProfitLoss, noncontProfitLoss, totalProfitLoss, bundle)) {
-            metrics.put(METRIC_NET_INC_OWNER, totalProfitLoss.valueNumeric());
-            metrics.put(METRIC_NET_INC_NONCONT, ZERO);
-        } else {
-            putIfPresent(metrics, METRIC_NET_INC_OWNER, ownerProfitLoss);
-            putIfPresent(metrics, METRIC_NET_INC_NONCONT, noncontProfitLoss);
-        }
+        XbrlOwnershipMetricFallbackResolver.OwnershipMetricValues netIncomeValues =
+                xbrlOwnershipMetricFallbackResolver.resolveNetIncomeValues(
+                        bundle,
+                        totalProfitLoss,
+                        ownerProfitLoss,
+                        noncontProfitLoss
+                );
+        putIfPresent(metrics, METRIC_NET_INC_OWNER, netIncomeValues.ownerValue());
+        putIfPresent(metrics, METRIC_NET_INC_NONCONT, netIncomeValues.noncontValue());
         putIfPresent(metrics, METRIC_TOTAL_ASSETS,
                 firstPresentInstantFact(bundle, CONCEPT_TOTAL_ASSETS, LOCAL_NAME_TOTAL_ASSETS));
         putIfPresent(metrics, METRIC_TOTAL_LIABILITIES,
@@ -131,13 +117,15 @@ public class XbrlBaseMetricExtractor {
                 firstPresentInstantFact(bundle, CONCEPT_NONCONTROLLING_INTERESTS, LOCAL_NAME_NONCONTROLLING_INTERESTS),
                 firstPresentMemberFact(bundle, CONCEPT_EQUITY, LOCAL_NAME_EQUITY, MEMBER_KEYWORD_NONCONT)
         );
-        if (canDefaultOwnerAndNoncont(ownerEquity, noncontEquity, totalEquity, bundle)) {
-            metrics.put(METRIC_TOTAL_EQUITY_OWNER, totalEquity.valueNumeric());
-            metrics.put(METRIC_TOTAL_EQUITY_NONCONT, ZERO);
-        } else {
-            putIfPresent(metrics, METRIC_TOTAL_EQUITY_OWNER, ownerEquity);
-            putIfPresent(metrics, METRIC_TOTAL_EQUITY_NONCONT, noncontEquity);
-        }
+        XbrlOwnershipMetricFallbackResolver.OwnershipMetricValues equityValues =
+                xbrlOwnershipMetricFallbackResolver.resolveEquityValues(
+                        bundle,
+                        totalEquity,
+                        ownerEquity,
+                        noncontEquity
+                );
+        putIfPresent(metrics, METRIC_TOTAL_EQUITY_OWNER, equityValues.ownerValue());
+        putIfPresent(metrics, METRIC_TOTAL_EQUITY_NONCONT, equityValues.noncontValue());
         putIfPresent(metrics, METRIC_CURRENT_ASSETS,
                 firstPresentInstantFact(bundle, CONCEPT_CURRENT_ASSETS, LOCAL_NAME_CURRENT_ASSETS));
         putIfPresent(metrics, METRIC_CURRENT_LIABILITIES,
@@ -216,59 +204,17 @@ public class XbrlBaseMetricExtractor {
     }
 
     private void putIfPresent(Map<String, BigDecimal> metrics, String metricCode, XbrlFactView fact) {
-        if (fact == null || fact.valueNumeric() == null) {
+        putIfPresent(metrics, metricCode, fact == null ? null : fact.valueNumeric());
+    }
+
+    private void putIfPresent(Map<String, BigDecimal> metrics, String metricCode, BigDecimal value) {
+        if (value == null) {
             return;
         }
-        metrics.put(metricCode, fact.valueNumeric());
+        metrics.put(metricCode, value);
     }
 
     private XbrlFactView firstNonNull(XbrlFactView primary, XbrlFactView fallback) {
         return primary != null ? primary : fallback;
-    }
-
-    private boolean canDefaultOwnerAndNoncont(XbrlFactView ownerFact,
-                                              XbrlFactView noncontFact,
-                                              XbrlFactView totalFact,
-                                              XbrlRawBundle bundle) {
-        return ownerFact == null
-                && noncontFact == null
-                && totalFact != null
-                && totalFact.valueNumeric() != null
-                && !hasOwnershipBreakdownEvidence(bundle);
-    }
-
-    private boolean hasOwnershipBreakdownEvidence(XbrlRawBundle bundle) {
-        return bundle.facts().stream().anyMatch(this::isOwnershipBreakdownFact);
-    }
-
-    private boolean isOwnershipBreakdownFact(XbrlFactView fact) {
-        if (fact == null) {
-            return false;
-        }
-
-        return containsOwnershipKeyword(fact.conceptQname())
-                || containsOwnershipKeyword(fact.conceptLocalName())
-                || containsOwnershipKeyword(fact.labelKo())
-                || containsOwnershipKeyword(fact.contextRef())
-                || containsOwnershipKeyword(fact.memberSignature());
-    }
-
-    private boolean containsOwnershipKeyword(String value) {
-        if (value == null || value.isBlank()) {
-            return false;
-        }
-
-        List<String> keywords = List.of(
-                "ownersofparent",
-                "equityattributabletoownersofparent",
-                "profitlossattributabletoownersofparent",
-                "noncontrolling",
-                "profitlossattributabletononcontrollinginterests",
-                "비지배",
-                "지배기업 소유주",
-                "지배주주"
-        );
-        String normalized = value.toLowerCase();
-        return keywords.stream().anyMatch(keyword -> normalized.contains(keyword.toLowerCase()));
     }
 }

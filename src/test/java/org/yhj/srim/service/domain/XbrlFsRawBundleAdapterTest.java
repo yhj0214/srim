@@ -21,7 +21,9 @@ class XbrlFsRawBundleAdapterTest {
     private final XbrlFsRawBundleAdapter adapter =
             new XbrlFsRawBundleAdapter(new XbrlBaseMetricExtractor(
                     new XbrlFactSelector(),
-                    new XbrlNetIncomeAttributionFallbackResolver()
+                    new XbrlOwnershipMetricFallbackResolver(
+                            new XbrlNetIncomeAttributionFallbackResolver()
+                    )
             ));
 
     @Test
