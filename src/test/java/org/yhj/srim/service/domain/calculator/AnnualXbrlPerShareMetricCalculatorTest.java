@@ -1,4 +1,4 @@
-package org.yhj.srim.service.domain;
+package org.yhj.srim.service.domain.calculator;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -9,7 +9,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.yhj.srim.repository.StockShareStatusRepository;
 import org.yhj.srim.repository.entity.ShareClassType;
 import org.yhj.srim.repository.entity.StockShareStatus;
-import org.yhj.srim.service.domain.calculator.AnnualXbrlPerShareMetricCalculator;
 
 import java.math.BigDecimal;
 import java.util.List;

@@ -1,4 +1,4 @@
-package org.yhj.srim.service.domain;
+package org.yhj.srim.service.domain.extraction;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

@@ -1,8 +1,7 @@
-package org.yhj.srim.service.domain;
+package org.yhj.srim.service.domain.calculator;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.yhj.srim.service.domain.calculator.AnnualXbrlDerivedMetricCalculator;
 
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;

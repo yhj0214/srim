@@ -1,4 +1,4 @@
-package org.yhj.srim.service.domain;
+package org.yhj.srim.service.domain.resolver;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

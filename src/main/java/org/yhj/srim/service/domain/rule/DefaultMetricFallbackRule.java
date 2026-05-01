@@ -1,4 +1,4 @@
-package org.yhj.srim.service.domain;
+package org.yhj.srim.service.domain.rule;
 
 import org.springframework.stereotype.Component;
 import org.yhj.srim.service.dto.XbrlFactView;

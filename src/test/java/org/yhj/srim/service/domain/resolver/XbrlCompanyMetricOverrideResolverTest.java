@@ -1,8 +1,9 @@
-package org.yhj.srim.service.domain;
+package org.yhj.srim.service.domain.resolver;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.yhj.srim.service.domain.resolver.XbrlCompanyMetricOverrideResolver;
+import org.yhj.srim.service.domain.extraction.XbrlFactSelector;
+import org.yhj.srim.service.domain.rule.AkHoldingsMetricOverrideRule;
 import org.yhj.srim.service.dto.XbrlContextView;
 import org.yhj.srim.service.dto.XbrlDocumentView;
 import org.yhj.srim.service.dto.XbrlFactView;

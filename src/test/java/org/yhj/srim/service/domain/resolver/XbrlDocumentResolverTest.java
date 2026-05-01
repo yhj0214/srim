@@ -1,4 +1,4 @@
-package org.yhj.srim.service.domain;
+package org.yhj.srim.service.domain.resolver;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -17,7 +17,6 @@ import org.yhj.srim.repository.entity.StockCode;
 import org.yhj.srim.repository.entity.XbrlContext;
 import org.yhj.srim.repository.entity.XbrlDocument;
 import org.yhj.srim.repository.entity.XbrlFact;
-import org.yhj.srim.service.domain.resolver.XbrlDocumentResolver;
 import org.yhj.srim.service.dto.XbrlResolvedBundles;
 
 import java.math.BigDecimal;

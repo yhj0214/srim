@@ -1,8 +1,8 @@
 package org.yhj.srim.service.domain.resolver;
 
 import org.springframework.stereotype.Component;
-import org.yhj.srim.service.domain.XbrlCompanyMetricOverrideRule;
-import org.yhj.srim.service.domain.XbrlCompanyMetricOverrideType;
+import org.yhj.srim.service.domain.rule.XbrlCompanyMetricOverrideRule;
+import org.yhj.srim.service.domain.rule.XbrlCompanyMetricOverrideType;
 import org.yhj.srim.service.dto.XbrlRawBundle;
 
 import java.math.BigDecimal;

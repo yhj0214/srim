@@ -11,7 +11,7 @@ import org.yhj.srim.common.exception.code.CrawlingError;
 import org.yhj.srim.repository.entity.Company;
 import org.yhj.srim.repository.entity.DartFsFiling;
 import org.yhj.srim.repository.entity.StockCode;
-import org.yhj.srim.service.domain.XbrlAnnualDocumentLocator;
+import org.yhj.srim.service.domain.resolver.XbrlAnnualDocumentLocator;
 import org.yhj.srim.service.dto.XbrlAnnualDocumentRef;
 
 import static org.assertj.core.api.Assertions.assertThat;

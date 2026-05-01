@@ -1,4 +1,4 @@
-package org.yhj.srim.service.domain;
+package org.yhj.srim.service.domain.rule;
 
 import java.math.BigDecimal;
 

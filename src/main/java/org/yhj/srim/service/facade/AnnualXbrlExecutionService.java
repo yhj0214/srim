@@ -5,7 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.yhj.srim.common.exception.CustomException;
 import org.yhj.srim.repository.entity.Company;
-import org.yhj.srim.service.domain.XbrlAnnualDocumentLocator;
+import org.yhj.srim.service.domain.resolver.XbrlAnnualDocumentLocator;
 import org.yhj.srim.service.dto.XbrlAnnualDocumentRef;
 
 @Service

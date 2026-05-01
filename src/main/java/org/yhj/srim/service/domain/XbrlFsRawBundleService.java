@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.yhj.srim.client.DartReportType;
+import org.yhj.srim.service.domain.extraction.XbrlFsRawBundleAdapter;
 import org.yhj.srim.service.domain.resolver.XbrlDocumentResolver;
 import org.yhj.srim.service.dto.FsRawBundle;
 import org.yhj.srim.service.dto.XbrlRawBundle;

@@ -2,8 +2,8 @@ package org.yhj.srim.service.domain.resolver;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
-import org.yhj.srim.service.domain.DefaultMetricFallbackRule;
-import org.yhj.srim.service.domain.DefaultMetricFallbackValues;
+import org.yhj.srim.service.domain.rule.DefaultMetricFallbackRule;
+import org.yhj.srim.service.domain.rule.DefaultMetricFallbackValues;
 import org.yhj.srim.service.dto.XbrlRawBundle;
 
 import java.math.BigDecimal;

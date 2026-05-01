@@ -1,7 +1,8 @@
-package org.yhj.srim.service.domain;
+package org.yhj.srim.service.domain.rule;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import org.yhj.srim.service.domain.extraction.XbrlFactSelector;
 import org.yhj.srim.service.dto.XbrlContextView;
 import org.yhj.srim.service.dto.XbrlFactView;
 import org.yhj.srim.service.dto.XbrlRawBundle;
