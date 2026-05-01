@@ -1,4 +1,4 @@
-package org.yhj.srim.service.domain;
+package org.yhj.srim.service.domain.calculator;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

@@ -6,6 +6,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.yhj.srim.service.domain.calculator.AnnualXbrlBaseMetricCalculator;
+import org.yhj.srim.service.domain.calculator.AnnualXbrlDerivedMetricCalculator;
+import org.yhj.srim.service.domain.calculator.AnnualXbrlPerShareMetricCalculator;
 import org.yhj.srim.service.dto.FsRawBundle;
 
 import java.util.LinkedHashMap;

@@ -1,4 +1,4 @@
-package org.yhj.srim.service.domain;
+package org.yhj.srim.service.domain.resolver;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -6,6 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.yhj.srim.client.DartReportType;
 import org.yhj.srim.repository.XbrlDocumentRepository;
 import org.yhj.srim.repository.entity.XbrlDocument;
+import org.yhj.srim.service.domain.XbrlRawReaderService;
 import org.yhj.srim.service.dto.XbrlRawBundle;
 import org.yhj.srim.service.dto.XbrlResolvedBundles;
 

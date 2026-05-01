@@ -2,6 +2,8 @@ package org.yhj.srim.service.domain;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.yhj.srim.service.domain.resolver.XbrlCompanyMetricOverrideResolver;
+import org.yhj.srim.service.domain.resolver.XbrlDefaultMetricFallbackResolver;
 import org.yhj.srim.service.dto.FsRawBundle;
 import org.yhj.srim.service.dto.XbrlContextView;
 import org.yhj.srim.service.dto.XbrlDocumentView;

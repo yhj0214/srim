@@ -17,6 +17,7 @@ import org.yhj.srim.repository.entity.StockCode;
 import org.yhj.srim.repository.entity.XbrlContext;
 import org.yhj.srim.repository.entity.XbrlDocument;
 import org.yhj.srim.repository.entity.XbrlFact;
+import org.yhj.srim.service.domain.resolver.XbrlDocumentResolver;
 import org.yhj.srim.service.dto.XbrlResolvedBundles;
 
 import java.math.BigDecimal;

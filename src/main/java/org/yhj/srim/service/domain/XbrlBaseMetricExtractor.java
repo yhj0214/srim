@@ -2,6 +2,8 @@ package org.yhj.srim.service.domain;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import org.yhj.srim.service.domain.resolver.XbrlCompanyMetricOverrideResolver;
+import org.yhj.srim.service.domain.resolver.XbrlDefaultMetricFallbackResolver;
 import org.yhj.srim.service.dto.XbrlFactView;
 import org.yhj.srim.service.dto.XbrlRawBundle;
 
