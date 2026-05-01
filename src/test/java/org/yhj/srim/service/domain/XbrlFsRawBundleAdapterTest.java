@@ -21,11 +21,11 @@ class XbrlFsRawBundleAdapterTest {
     private final XbrlFsRawBundleAdapter adapter =
             new XbrlFsRawBundleAdapter(new XbrlBaseMetricExtractor(
                     new XbrlFactSelector(),
-                    new XbrlOwnershipMetricFallbackResolver(
-                            new XbrlNetIncomeAttributionFallbackResolver(
-                                    List.of(new AkHoldingsNetIncomeAttributionFallbackRule())
-                            ),
-                            new DefaultOwnershipMetricFallbackRule()
+                    new XbrlDefaultMetricFallbackResolver(
+                            new DefaultMetricFallbackRule()
+                    ),
+                    new XbrlCompanyMetricOverrideResolver(
+                            List.of(new AkHoldingsMetricOverrideRule(new XbrlFactSelector()))
                     )
             ));
 

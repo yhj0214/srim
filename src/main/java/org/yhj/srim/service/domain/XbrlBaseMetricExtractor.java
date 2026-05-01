@@ -74,7 +74,8 @@ public class XbrlBaseMetricExtractor {
     private static final String MEMBER_KEYWORD_NONCONT = "noncontrolling";
 
     private final XbrlFactSelector xbrlFactSelector;
-    private final XbrlOwnershipMetricFallbackResolver xbrlOwnershipMetricFallbackResolver;
+    private final XbrlDefaultMetricFallbackResolver xbrlDefaultMetricFallbackResolver;
+    private final XbrlCompanyMetricOverrideResolver xbrlCompanyMetricOverrideResolver;
 
     public Map<String, BigDecimal> extractBaseMetrics(XbrlRawBundle bundle) {
         Map<String, BigDecimal> metrics = new LinkedHashMap<>();
@@ -94,16 +95,8 @@ public class XbrlBaseMetricExtractor {
                 firstPresentDurationFact(bundle, CONCEPT_PROFIT_LOSS_NONCONT, LOCAL_NAME_PROFIT_LOSS_NONCONT),
                 firstPresentMemberFact(bundle, CONCEPT_PROFIT_LOSS, LOCAL_NAME_PROFIT_LOSS, MEMBER_KEYWORD_NONCONT)
         );
-        // 지배, 비지배주주 순이익 계산 로직, 정상일경우 바로 return
-        OwnershipMetricValues netIncomeValues =
-                xbrlOwnershipMetricFallbackResolver.resolveNetIncomeValues(
-                        bundle,
-                        totalProfitLoss,
-                        ownerProfitLoss,
-                        noncontProfitLoss
-                );
-        putIfPresent(metrics, METRIC_NET_INC_OWNER, netIncomeValues.ownerValue());
-        putIfPresent(metrics, METRIC_NET_INC_NONCONT, netIncomeValues.noncontValue());
+        putIfPresent(metrics, METRIC_NET_INC_OWNER, ownerProfitLoss);
+        putIfPresent(metrics, METRIC_NET_INC_NONCONT, noncontProfitLoss);
         putIfPresent(metrics, METRIC_TOTAL_ASSETS,
                 firstPresentInstantFact(bundle, CONCEPT_TOTAL_ASSETS, LOCAL_NAME_TOTAL_ASSETS));
         putIfPresent(metrics, METRIC_TOTAL_LIABILITIES,
@@ -118,19 +111,14 @@ public class XbrlBaseMetricExtractor {
                 firstPresentInstantFact(bundle, CONCEPT_NONCONTROLLING_INTERESTS, LOCAL_NAME_NONCONTROLLING_INTERESTS),
                 firstPresentMemberFact(bundle, CONCEPT_EQUITY, LOCAL_NAME_EQUITY, MEMBER_KEYWORD_NONCONT)
         );
-        OwnershipMetricValues equityValues =
-                xbrlOwnershipMetricFallbackResolver.resolveEquityValues(
-                        bundle,
-                        totalEquity,
-                        ownerEquity,
-                        noncontEquity
-                );
-        putIfPresent(metrics, METRIC_TOTAL_EQUITY_OWNER, equityValues.ownerValue());
-        putIfPresent(metrics, METRIC_TOTAL_EQUITY_NONCONT, equityValues.noncontValue());
+        putIfPresent(metrics, METRIC_TOTAL_EQUITY_OWNER, ownerEquity);
+        putIfPresent(metrics, METRIC_TOTAL_EQUITY_NONCONT, noncontEquity);
         putIfPresent(metrics, METRIC_CURRENT_ASSETS,
                 firstPresentInstantFact(bundle, CONCEPT_CURRENT_ASSETS, LOCAL_NAME_CURRENT_ASSETS));
         putIfPresent(metrics, METRIC_CURRENT_LIABILITIES,
                 firstPresentInstantFact(bundle, CONCEPT_CURRENT_LIABILITIES, LOCAL_NAME_CURRENT_LIABILITIES));
+        metrics.putAll(xbrlCompanyMetricOverrideResolver.resolveOverrides(bundle, metrics));
+        metrics.putAll(xbrlDefaultMetricFallbackResolver.resolveOverrides(bundle, metrics));
 
         return metrics;
     }

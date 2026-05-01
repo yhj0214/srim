@@ -19,11 +19,11 @@ class XbrlBaseMetricExtractorTest {
 
     private final XbrlBaseMetricExtractor extractor = new XbrlBaseMetricExtractor(
             new XbrlFactSelector(),
-            new XbrlOwnershipMetricFallbackResolver(
-                    new XbrlNetIncomeAttributionFallbackResolver(
-                            List.of(new AkHoldingsNetIncomeAttributionFallbackRule())
-                    ),
-                    new DefaultOwnershipMetricFallbackRule()
+            new XbrlDefaultMetricFallbackResolver(
+                    new DefaultMetricFallbackRule()
+            ),
+            new XbrlCompanyMetricOverrideResolver(
+                    List.of(new AkHoldingsMetricOverrideRule(new XbrlFactSelector()))
             )
     );
 
