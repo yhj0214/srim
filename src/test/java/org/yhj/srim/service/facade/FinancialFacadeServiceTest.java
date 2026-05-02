@@ -11,14 +11,12 @@ import org.yhj.srim.client.DartReportType;
 import org.yhj.srim.common.exception.CustomException;
 import org.yhj.srim.common.exception.code.CrawlingError;
 import org.yhj.srim.controller.dto.CrawlAllMarketsResult;
-import org.yhj.srim.service.crawl.DartCrawlingService;
 import org.yhj.srim.service.crawl.KisSpreadCrawlingService;
 import org.yhj.srim.service.crawl.KrxStockCrawlingService;
 import org.yhj.srim.service.crawl.dto.StockCodeDraft;
 import org.yhj.srim.service.domain.BondYieldCurveService;
 import org.yhj.srim.service.domain.DartCorpCodeSyncService;
 import org.yhj.srim.service.domain.FailedJobService;
-import org.yhj.srim.service.domain.FinancialMetricService;
 import org.yhj.srim.service.domain.FinancialService;
 import org.yhj.srim.service.domain.StockService;
 import org.yhj.srim.service.facade.dto.CollectXbrlRawCommand;
@@ -43,9 +41,6 @@ class FinancialFacadeServiceTest {
     KrxStockCrawlingService krxStockCrawlingService;
 
     @Mock
-    DartCrawlingService dartCrawlingService;
-
-    @Mock
     KisSpreadCrawlingService kisSpreadCrawlingService;
 
     @Mock
@@ -56,9 +51,6 @@ class FinancialFacadeServiceTest {
 
     @Mock
     FinancialService financialService;
-
-    @Mock
-    FinancialMetricService financialMetricService;
 
     @Mock
     AnnualXbrlPipelineFacadeService annualXbrlPipelineFacadeService;

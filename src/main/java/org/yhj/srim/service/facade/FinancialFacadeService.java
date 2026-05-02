@@ -4,8 +4,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
-import org.yhj.srim.client.DartReportType;
-import org.yhj.srim.client.dto.DartShareStatusRow;
 import org.yhj.srim.client.dto.KisSpreadRow;
 import org.yhj.srim.common.exception.CustomException;
 import org.yhj.srim.common.exception.code.CommonError;
@@ -13,13 +11,11 @@ import org.yhj.srim.common.exception.code.CrawlingError;
 import org.yhj.srim.common.exception.code.StockError;
 import org.yhj.srim.controller.dto.CrawlAllMarketsResult;
 import org.yhj.srim.repository.entity.*;
-import org.yhj.srim.service.crawl.DartCrawlingService;
 import org.yhj.srim.service.crawl.dto.StockCodeDraft;
 import org.yhj.srim.service.crawl.KisSpreadCrawlingService;
 import org.yhj.srim.service.domain.BondYieldCurveService;
 import org.yhj.srim.service.domain.DartCorpCodeSyncService;
 import org.yhj.srim.service.domain.FailedJobService;
-import org.yhj.srim.service.domain.FinancialMetricService;
 import org.yhj.srim.service.domain.FinancialService;
 import org.yhj.srim.service.crawl.KrxStockCrawlingService;
 import org.yhj.srim.service.facade.dto.DailyBondYieldFetchResult;
@@ -41,53 +37,23 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 public class FinancialFacadeService {
-    private static final List<DartReportType> INITIAL_FINANCIAL_REPORT_TYPES = List.of(
-            DartReportType.FIRST_QUARTER,
-            DartReportType.HALF_YEAR,
-            DartReportType.THIRD_QUARTER,
-            DartReportType.ANNUAL
-    );
-
     private final KrxStockCrawlingService krxStockCrawlingService;
-    private final DartCrawlingService dartCrawlingService;
     private final KisSpreadCrawlingService kisSpreadCrawlingService;
 
     private final StockService stockService;
     private final DartCorpCodeSyncService dartCorpCodeSyncService;
     private final FinancialService financialService;
-    private final FinancialMetricService financialMetricService;
     private final AnnualXbrlPipelineFacadeService annualXbrlPipelineFacadeService;
     private final BondYieldCurveService bondYieldCurveService;
     private final FailedJobService failedJobService;
 
     private final ThreadPoolTaskExecutor bondYieldTaskExecutor;
 
-    /**
-     * 1. company 조회, 없을 시 생성
-     * 2. 재무제표, 주식 수 원천데이터 크롤링 및 저장
-     */
-    public Company crawlAnnualTable(Long stockId, int startYear) {
-
-        return financialService.findCompanyByStockId(stockId)
-                .orElseGet(() ->{
-
-                    Company company = financialService.createCompany(stockId);
-                    log.debug("신규 company 생성 : stockId = {}, companyId = {}", stockId, company.getCompanyId());
-
-                    initializeCompanyData(company, startYear, LocalDate.now().getYear());
-                    return company;
-                });
-    }
-
     public FinancialTableDto getFinancialTable(Long stockId, int limit, PeriodType periodType) {
         Company company = financialService.findCompanyByStockId(stockId)
                 .orElseThrow(() -> new CustomException(StockError.COMPANY_NOT_FOUND));
 
         return financialService.getFinancialTable(company, limit, periodType);
-    }
-
-    public int rebuildCompanyMetrics(Long companyId, int startYear, int endYear) {
-        return financialMetricService.rebuildCompanyMetrics(companyId, startYear, endYear);
     }
 
     public int processAnnualMetricsFromXbrl(Long stockId, int fiscalYear, String fsDiv) {
@@ -121,36 +87,6 @@ public class FinancialFacadeService {
 
     public Long collectXbrlRaw(CollectXbrlRawCommand command) {
         return annualXbrlPipelineFacadeService.collectXbrlRaw(command);
-    }
-
-    // 회사 초기화용 원천 데이터 적재
-    private void initializeCompanyData(Company company, int startYear, int endYear) {
-        String corpCode = company.getStockCode().getDartCorpCode();
-        Long companyId = company.getCompanyId();
-
-
-        log.info("재무정보 조회 전체 파이프라인 실행 - companyId={}, corpCode={}, year {}~{}",
-                companyId, corpCode, startYear, endYear);
-
-        for (int year = endYear - 1; year >= startYear; year--) {
-            log.debug("{}년 크롤링 및 계산 진행", year);
-
-            // 재무제표 크롤링
-            List<DartCrawlingService.FinancialStatementBatch> batches =
-                    dartCrawlingService.crawlFinancialStatements(corpCode, year, INITIAL_FINANCIAL_REPORT_TYPES);
-            // 재무제표 정보 저장 Line, Filing
-            for (DartCrawlingService.FinancialStatementBatch batch : batches) {
-                financialService.replaceFinancialStatements(corpCode, companyId, batch.rows());
-            }
-
-            // 주식개수정보 크롤링
-            List<DartShareStatusRow> shareStatusRows = dartCrawlingService.crawlShareStatus(corpCode, year);
-            // 주식개수 정보 저장 StockShareStatus
-            stockService.replaceShareStatus(company, year,shareStatusRows);
-
-        }
-        log.info("재무정보 크롤링 및 저장 완료");
-//        financialService.updateCompanyShareInfo(companyId);
     }
     public CrawlAllMarketsResult marketCrawling() {
         // 크롤링 및 데이터 추출
