@@ -5,7 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 import org.yhj.srim.controller.dto.ApiResponse;
 import org.yhj.srim.controller.dto.CrawlAllMarketsResult;
-import org.yhj.srim.service.facade.ManagementFacade;
+import org.yhj.srim.service.facade.ManagementOrchestrator;
 
 /**
  * KRX 종목 크롤링 API 컨트롤러
@@ -16,7 +16,7 @@ import org.yhj.srim.service.facade.ManagementFacade;
 @Slf4j
 public class KrxCrawlingApiController {
 
-    private final ManagementFacade managementFacade;
+    private final ManagementOrchestrator managementOrchestrator;
 
     /**
      * 전체 시장 크롤링 (KOSPI) 및 데이터 초기화 전체 로직 진행
@@ -29,7 +29,7 @@ public class KrxCrawlingApiController {
             @RequestParam(defaultValue = "2015") int startYear,
             @RequestParam(defaultValue = "CFS") String fsDiv) {
         log.info("전체 시장 크롤링 요청");
-        return ApiResponse.success(managementFacade.runInitialSync(startYear, fsDiv));
+        return ApiResponse.success(managementOrchestrator.runInitialSync(startYear, fsDiv));
     }
 
     /**
@@ -39,7 +39,7 @@ public class KrxCrawlingApiController {
     @PostMapping("/all/step1")
     public ApiResponse<CrawlAllMarketsResult> crawlAllMarketsStep1() {
         log.info("전체 시장 크롤링 요청 (STEP1)");
-        return ApiResponse.success(managementFacade.collectMarketData());
+        return ApiResponse.success(managementOrchestrator.collectMarketData());
     }
 
     /**
@@ -51,7 +51,7 @@ public class KrxCrawlingApiController {
             @RequestParam(defaultValue = "2015") int startYear,
             @RequestParam(defaultValue = "CFS") String fsDiv) {
         log.info("전체 시장 크롤링 요청 (STEP2)");
-        managementFacade.syncAllCompanies(startYear, fsDiv);
+        managementOrchestrator.syncAllCompanies(startYear, fsDiv);
         return ApiResponse.success(null);
     }
 
@@ -66,7 +66,7 @@ public class KrxCrawlingApiController {
     @GetMapping("/stocks/{tickerKrx}")
     public ApiResponse<Void> crawlingStockInfo(@PathVariable String tickerKrx){
         log.info("단일 종목 조회 tickerKrx : {}", tickerKrx);
-        managementFacade.syncSingleCompanyByTickerKrx(tickerKrx);
+        managementOrchestrator.syncSingleCompanyByTickerKrx(tickerKrx);
         log.info("단일 종목 조회 종료 tickerKrx : {}", tickerKrx);
         return ApiResponse.success(null);
     }
@@ -74,7 +74,7 @@ public class KrxCrawlingApiController {
     @GetMapping("/stocks/{tickerKrx}/reset")
     public ApiResponse<Void> resetStockInfo(@PathVariable String tickerKrx) {
         log.info("단일 종목 초기화 데이터 삭제 tickerKrx : {}", tickerKrx);
-        managementFacade.resetSingleCompanyByTickerKrx(tickerKrx);
+        managementOrchestrator.resetSingleCompanyByTickerKrx(tickerKrx);
         log.info("단일 종목 초기화 데이터 삭제 종료 tickerKrx : {}", tickerKrx);
         return ApiResponse.success(null);
     }

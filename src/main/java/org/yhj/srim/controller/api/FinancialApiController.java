@@ -5,7 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 import org.yhj.srim.controller.dto.ApiResponse;
 import org.yhj.srim.controller.dto.SrimRequestDto;
-import org.yhj.srim.service.facade.FinancialFacadeService;
+import org.yhj.srim.service.facade.FinancialApplicationService;
 import org.yhj.srim.service.dto.PeriodType;
 import org.yhj.srim.service.domain.SrimService;
 import org.yhj.srim.service.dto.FinancialTableDto;
@@ -19,7 +19,7 @@ import java.time.LocalDate;
 @RequiredArgsConstructor
 @Slf4j
 public class FinancialApiController {
-    private final FinancialFacadeService financialFacadeService;
+    private final FinancialApplicationService financialApplicationService;
     private final SrimService srimService;
 
     /**
@@ -37,7 +37,7 @@ public class FinancialApiController {
             default -> throw new IllegalArgumentException("invalid period: " + period);
         };
         log.debug("재무 테이블 요청 - stockId: {}, period: {}, limit: {}", stockId, periodType, limit);
-        FinancialTableDto result = financialFacadeService.getFinancialTable(stockId, limit, periodType);
+        FinancialTableDto result = financialApplicationService.getFinancialTable(stockId, limit, periodType);
 
         return ApiResponse.success(result);
     }
@@ -64,7 +64,7 @@ public class FinancialApiController {
             @RequestParam(defaultValue = "2015") int startYear,
             @RequestParam(defaultValue = "CFS") String fsDiv) {
         return ApiResponse.success(
-                financialFacadeService.collectAnnualFilingMetadata(
+                financialApplicationService.collectAnnualFilingMetadata(
                         stockId,
                         startYear,
                         LocalDate.now().getYear() - 1,
@@ -79,7 +79,7 @@ public class FinancialApiController {
             @RequestParam(defaultValue = "2015") int startYear,
             @RequestParam(defaultValue = "CFS") String fsDiv) {
         return ApiResponse.success(
-                financialFacadeService.processAnnualMetricsFromXbrl(
+                financialApplicationService.processAnnualMetricsFromXbrl(
                         stockId,
                         startYear,
                         LocalDate.now().getYear() - 1,
@@ -94,7 +94,7 @@ public class FinancialApiController {
             @RequestParam(defaultValue = "2015") int startYear,
             @RequestParam(defaultValue = "CFS") String fsDiv) {
         return ApiResponse.success(
-                financialFacadeService.runAnnualXbrlPipeline(
+                financialApplicationService.runAnnualXbrlPipeline(
                         stockId,
                         startYear,
                         LocalDate.now().getYear() - 1,

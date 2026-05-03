@@ -8,7 +8,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.yhj.srim.controller.dto.CrawlAllMarketsResult;
-import org.yhj.srim.service.facade.ManagementFacade;
+import org.yhj.srim.service.facade.ManagementOrchestrator;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -22,12 +22,12 @@ class KrxCrawlingApiControllerTest {
     MockMvc mockMvc;
 
     @MockitoBean
-    ManagementFacade managementFacade;
+    ManagementOrchestrator managementOrchestrator;
 
     @Test
     @DisplayName("전체 크롤링 요청은 step1과 step2를 묶은 초기 동기화에 성공한다.")
     void all_crawling_success() throws Exception {
-        BDDMockito.given(managementFacade.runInitialSync(2015, "CFS"))
+        BDDMockito.given(managementOrchestrator.runInitialSync(2015, "CFS"))
                 .willReturn(new CrawlAllMarketsResult(100, 80));
 
         mockMvc.perform(post("/api/crawling/krx/all"))
@@ -41,7 +41,7 @@ class KrxCrawlingApiControllerTest {
     @DisplayName("전체 크롤링 step1에 성공한다.")
     void all_crawling_step1_success() throws Exception {
         // given
-        BDDMockito.given(managementFacade.collectMarketData())
+        BDDMockito.given(managementOrchestrator.collectMarketData())
                 .willReturn(new CrawlAllMarketsResult(100, 80));
 
         // when & then
@@ -61,7 +61,7 @@ class KrxCrawlingApiControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data").isEmpty());
 
-        BDDMockito.then(managementFacade).should().syncAllCompanies(2015, "CFS");
+        BDDMockito.then(managementOrchestrator).should().syncAllCompanies(2015, "CFS");
     }
 
     @Test
@@ -72,6 +72,6 @@ class KrxCrawlingApiControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data").isEmpty());
 
-        BDDMockito.then(managementFacade).should().resetSingleCompanyByTickerKrx("005930");
+        BDDMockito.then(managementOrchestrator).should().resetSingleCompanyByTickerKrx("005930");
     }
 }

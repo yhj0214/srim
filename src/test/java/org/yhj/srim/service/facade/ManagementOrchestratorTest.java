@@ -20,13 +20,13 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
-class ManagementFacadeTest {
+class ManagementOrchestratorTest {
 
     @InjectMocks
-    ManagementFacade managementFacade;
+    ManagementOrchestrator managementOrchestrator;
 
     @Mock
-    FinancialFacadeService financialFacadeService;
+    FinancialApplicationService financialApplicationService;
 
     @Mock
     StockService stockService;
@@ -38,30 +38,30 @@ class ManagementFacadeTest {
     @DisplayName("step1은 시장 동기화 결과를 반환하고 채권수익률을 수집한다.")
     void step1_market_sync_and_bond_yield() {
         CrawlAllMarketsResult result = new CrawlAllMarketsResult(10, 8);
-        given(financialFacadeService.marketCrawling()).willReturn(result);
+        given(financialApplicationService.marketCrawling()).willReturn(result);
 
-        CrawlAllMarketsResult actual = managementFacade.collectMarketData();
+        CrawlAllMarketsResult actual = managementOrchestrator.collectMarketData();
 
         assertThat(actual.getCrawledCount()).isEqualTo(10);
         assertThat(actual.getMappedCount()).isEqualTo(8);
-        verify(financialFacadeService).marketCrawling();
-        verify(financialFacadeService).crawlAndSaveBondYield(any(LocalDate.class), any(LocalDate.class));
+        verify(financialApplicationService).marketCrawling();
+        verify(financialApplicationService).crawlAndSaveBondYield(any(LocalDate.class), any(LocalDate.class));
     }
 
     @Test
     @DisplayName("초기 동기화는 step1 후 전체 회사 동기화를 순차 실행한다.")
     void run_initial_sync_runs_market_then_company_sync() {
         CrawlAllMarketsResult result = new CrawlAllMarketsResult(10, 8);
-        given(financialFacadeService.marketCrawling()).willReturn(result);
+        given(financialApplicationService.marketCrawling()).willReturn(result);
         given(stockService.findAllStockIds()).willReturn(List.of(1L));
 
-        CrawlAllMarketsResult actual = managementFacade.runInitialSync(2015, "CFS");
+        CrawlAllMarketsResult actual = managementOrchestrator.runInitialSync(2015, "CFS");
 
         assertThat(actual.getCrawledCount()).isEqualTo(10);
         assertThat(actual.getMappedCount()).isEqualTo(8);
-        verify(financialFacadeService).marketCrawling();
+        verify(financialApplicationService).marketCrawling();
         verify(stockService).findAllStockIds();
-        verify(financialFacadeService).runAnnualXbrlPipeline(1L, 2015, LocalDate.now().getYear() - 1, "CFS");
+        verify(financialApplicationService).runAnnualXbrlPipeline(1L, 2015, LocalDate.now().getYear() - 1, "CFS");
     }
 
     @Test
@@ -69,11 +69,11 @@ class ManagementFacadeTest {
     void sync_all_companies_runs_for_all_stock_ids() {
         given(stockService.findAllStockIds()).willReturn(List.of(1L, 2L));
 
-        managementFacade.syncAllCompanies(2015, "CFS");
+        managementOrchestrator.syncAllCompanies(2015, "CFS");
 
         verify(stockService).findAllStockIds();
-        verify(financialFacadeService).runAnnualXbrlPipeline(1L, 2015, LocalDate.now().getYear() - 1, "CFS");
-        verify(financialFacadeService).runAnnualXbrlPipeline(2L, 2015, LocalDate.now().getYear() - 1, "CFS");
+        verify(financialApplicationService).runAnnualXbrlPipeline(1L, 2015, LocalDate.now().getYear() - 1, "CFS");
+        verify(financialApplicationService).runAnnualXbrlPipeline(2L, 2015, LocalDate.now().getYear() - 1, "CFS");
     }
 
 
@@ -82,7 +82,7 @@ class ManagementFacadeTest {
     void reset_single_company_by_ticker() {
         given(stockService.getStockIdByTickerKrx("005930")).willReturn(1L);
 
-        managementFacade.resetSingleCompanyByTickerKrx("005930");
+        managementOrchestrator.resetSingleCompanyByTickerKrx("005930");
 
         verify(stockService).getStockIdByTickerKrx("005930");
         verify(companyResetService).resetByStockId(1L);

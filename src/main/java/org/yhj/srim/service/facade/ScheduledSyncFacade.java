@@ -22,7 +22,7 @@ import java.util.List;
 public class ScheduledSyncFacade {
 
     private final FailedJobService failedJobService;
-    private final FinancialFacadeService financialFacadeService;
+    private final FinancialApplicationService financialApplicationService;
     private final NaverCrawlingService naverCrawlingService;
     private final StockPriceService stockPriceService;
 
@@ -98,7 +98,7 @@ public class ScheduledSyncFacade {
 
             failedJobService.markRetrying(job);
             try {
-                financialFacadeService.retryBondYieldForDate(job.getTargetDate());
+                financialApplicationService.retryBondYieldForDate(job.getTargetDate());
                 failedJobService.markDone(job);
             } catch (CustomException e) {
                 failedJobService.rescheduleBondYieldFailure(job, e);

@@ -32,10 +32,10 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class FinancialFacadeServiceTest {
+class FinancialApplicationServiceTest {
 
     @InjectMocks
-    FinancialFacadeService financialFacadeService;
+    FinancialApplicationService financialApplicationService;
 
     @Mock
     KrxStockCrawlingService krxStockCrawlingService;
@@ -78,7 +78,7 @@ class FinancialFacadeServiceTest {
         when(stockService.saveStockDrafts(drafts)).thenReturn(2);
         when(dartCorpCodeSyncService.syncFromXml()).thenReturn(2);
 
-        CrawlAllMarketsResult result = financialFacadeService.marketCrawling();
+        CrawlAllMarketsResult result = financialApplicationService.marketCrawling();
 
         assertThat(result).isNotNull();
         assertThat(result.getCrawledCount()).isEqualTo(2);
@@ -97,7 +97,7 @@ class FinancialFacadeServiceTest {
         CustomException ex = new CustomException(CrawlingError.KRX_REQUEST_FAILED);
         when(krxStockCrawlingService.fetchStockList("KOSPI")).thenThrow(ex);
 
-        assertThatThrownBy(() -> financialFacadeService.marketCrawling())
+        assertThatThrownBy(() -> financialApplicationService.marketCrawling())
                 .isInstanceOf(CustomException.class)
                 .hasMessageContaining(CrawlingError.KRX_REQUEST_FAILED.getMessage());
 
@@ -110,7 +110,7 @@ class FinancialFacadeServiceTest {
     void processAnnualMetricsFromXbrl_delegatesToPipelineService() {
         when(annualXbrlPipelineFacadeService.processAnnualMetricsFromXbrl(1L, 2024, "CFS")).thenReturn(11);
 
-        int savedCount = financialFacadeService.processAnnualMetricsFromXbrl(1L, 2024, "CFS");
+        int savedCount = financialApplicationService.processAnnualMetricsFromXbrl(1L, 2024, "CFS");
 
         assertThat(savedCount).isEqualTo(11);
         verify(annualXbrlPipelineFacadeService).processAnnualMetricsFromXbrl(1L, 2024, "CFS");
@@ -121,7 +121,7 @@ class FinancialFacadeServiceTest {
     void collectAnnualFilingMetadata_delegatesToPipelineService() {
         when(annualXbrlPipelineFacadeService.collectAnnualFilingMetadata(1L, 2024, "CFS")).thenReturn(21L);
 
-        Long filingId = financialFacadeService.collectAnnualFilingMetadata(1L, 2024, "CFS");
+        Long filingId = financialApplicationService.collectAnnualFilingMetadata(1L, 2024, "CFS");
 
         assertThat(filingId).isEqualTo(21L);
         verify(annualXbrlPipelineFacadeService).collectAnnualFilingMetadata(1L, 2024, "CFS");
@@ -132,7 +132,7 @@ class FinancialFacadeServiceTest {
     void runAnnualXbrlPipeline_delegatesToPipelineService() {
         when(annualXbrlPipelineFacadeService.runAnnualXbrlPipeline(1L, 2024, "CFS")).thenReturn(99L);
 
-        Long documentId = financialFacadeService.runAnnualXbrlPipeline(1L, 2024, "CFS");
+        Long documentId = financialApplicationService.runAnnualXbrlPipeline(1L, 2024, "CFS");
 
         assertThat(documentId).isEqualTo(99L);
         verify(annualXbrlPipelineFacadeService).runAnnualXbrlPipeline(1L, 2024, "CFS");
@@ -151,7 +151,7 @@ class FinancialFacadeServiceTest {
         );
         when(annualXbrlPipelineFacadeService.collectXbrlRaw(command)).thenReturn(99L);
 
-        Long documentId = financialFacadeService.collectXbrlRaw(command);
+        Long documentId = financialApplicationService.collectXbrlRaw(command);
 
         assertThat(documentId).isEqualTo(99L);
         verify(annualXbrlPipelineFacadeService).collectXbrlRaw(command);

@@ -13,11 +13,11 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class ManagementFacade {
+public class ManagementOrchestrator {
     private static final int DEFAULT_START_YEAR = 2015;
     private static final String DEFAULT_FS_DIV = "CFS";
 
-    private final FinancialFacadeService financialFacadeService;
+    private final FinancialApplicationService financialApplicationService;
     private final StockService stockService;
     private final CompanyResetService companyResetService;
 
@@ -38,9 +38,9 @@ public class ManagementFacade {
         LocalDate startDate = LocalDate.of(DEFAULT_START_YEAR, 1, 1);
 
         // 기업 리스트 크롤링 후 저장 및 dartCorpCode갱신
-        CrawlAllMarketsResult result = financialFacadeService.marketCrawling();
+        CrawlAllMarketsResult result = financialApplicationService.marketCrawling();
         // KE 회사채수익률 크롤링 및 저장
-        financialFacadeService.crawlAndSaveBondYield(startDate, endDate);
+        financialApplicationService.crawlAndSaveBondYield(startDate, endDate);
 
         log.info("STEP1 종료");
         return result;
@@ -86,6 +86,6 @@ public class ManagementFacade {
 
     // 개별 회사 단위 XBRL 연간 파이프라인 초기화
     private void initCompanyByXbrl(Long stockId, int startYear, int endYear, String fsDiv) {
-        financialFacadeService.runAnnualXbrlPipeline(stockId, startYear, endYear, fsDiv);
+        financialApplicationService.runAnnualXbrlPipeline(stockId, startYear, endYear, fsDiv);
     }
 }

@@ -13,7 +13,7 @@ import org.yhj.srim.service.domain.SrimService;
 import org.yhj.srim.service.dto.FinancialTableDto;
 import org.yhj.srim.service.dto.PeriodType;
 import org.yhj.srim.service.dto.SrimResultDto;
-import org.yhj.srim.service.facade.FinancialFacadeService;
+import org.yhj.srim.service.facade.FinancialApplicationService;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -31,7 +31,7 @@ class FinancialApiControllerTest {
     MockMvc mockMvc;
 
     @MockitoBean
-    FinancialFacadeService financialFacadeService;
+    FinancialApplicationService financialApplicationService;
 
     @MockitoBean
     SrimService srimService;
@@ -63,7 +63,7 @@ class FinancialApiControllerTest {
                                 .build()))
                 .build();
 
-        BDDMockito.given(financialFacadeService.getFinancialTable(1L, 10, PeriodType.ANNUAL))
+        BDDMockito.given(financialApplicationService.getFinancialTable(1L, 10, PeriodType.ANNUAL))
                 .willReturn(dto);
 
         mockMvc.perform(get("/api/stocks/1/financial")
@@ -82,7 +82,7 @@ class FinancialApiControllerTest {
     @Test
     @DisplayName("연간 재무 테이블 API 요청이 잘못되면 400을 반환한다.")
     void annual_financial_bad_request() throws Exception {
-        BDDMockito.given(financialFacadeService.getFinancialTable(1L, 10, PeriodType.ANNUAL))
+        BDDMockito.given(financialApplicationService.getFinancialTable(1L, 10, PeriodType.ANNUAL))
                 .willThrow(new IllegalArgumentException("invalid request"));
 
         mockMvc.perform(get("/api/stocks/1/financial")
@@ -99,7 +99,7 @@ class FinancialApiControllerTest {
     @Test
     @DisplayName("연간 재무 테이블 API에서 CustomException이 발생하면 ErrorCode를 반환한다.")
     void annual_financial_custom_error() throws Exception {
-        BDDMockito.given(financialFacadeService.getFinancialTable(1L, 10, PeriodType.ANNUAL))
+        BDDMockito.given(financialApplicationService.getFinancialTable(1L, 10, PeriodType.ANNUAL))
                 .willThrow(new CustomException(CommonError.INVALID_INPUT, "custom detail"));
 
         mockMvc.perform(get("/api/stocks/1/financial")
@@ -116,7 +116,7 @@ class FinancialApiControllerTest {
     @Test
     @DisplayName("연간 재무 테이블 API 처리 중 오류가 발생하면 500을 반환한다.")
     void annual_financial_internal_error() throws Exception {
-        BDDMockito.given(financialFacadeService.getFinancialTable(1L, 10, PeriodType.ANNUAL))
+        BDDMockito.given(financialApplicationService.getFinancialTable(1L, 10, PeriodType.ANNUAL))
                 .willThrow(new RuntimeException("unhandled 발생"));
 
         mockMvc.perform(get("/api/stocks/1/financial")
@@ -253,7 +253,7 @@ class FinancialApiControllerTest {
     @Test
     @DisplayName("연간 XBRL filing collect API가 성공한다.")
     void annual_xbrl_collect_success() throws Exception {
-        BDDMockito.given(financialFacadeService.collectAnnualFilingMetadata(
+        BDDMockito.given(financialApplicationService.collectAnnualFilingMetadata(
                         1L, 2015, LocalDate.now().getYear() - 1, "CFS"))
                 .willReturn(9);
 
@@ -267,7 +267,7 @@ class FinancialApiControllerTest {
     @Test
     @DisplayName("연간 XBRL process API가 성공한다.")
     void annual_xbrl_process_success() throws Exception {
-        BDDMockito.given(financialFacadeService.processAnnualMetricsFromXbrl(
+        BDDMockito.given(financialApplicationService.processAnnualMetricsFromXbrl(
                         1L, 2015, LocalDate.now().getYear() - 1, "CFS"))
                 .willReturn(64);
 
@@ -281,7 +281,7 @@ class FinancialApiControllerTest {
     @Test
     @DisplayName("연간 XBRL run API가 성공한다.")
     void annual_xbrl_run_success() throws Exception {
-        BDDMockito.given(financialFacadeService.runAnnualXbrlPipeline(
+        BDDMockito.given(financialApplicationService.runAnnualXbrlPipeline(
                         1L, 2015, LocalDate.now().getYear() - 1, "CFS"))
                 .willReturn(9);
 

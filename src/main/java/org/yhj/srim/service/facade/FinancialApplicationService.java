@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class FinancialFacadeService {
+public class FinancialApplicationService {
     private final KrxStockCrawlingService krxStockCrawlingService;
     private final KisSpreadCrawlingService kisSpreadCrawlingService;
 
