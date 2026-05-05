@@ -53,9 +53,9 @@ class QueryApiControllerTest {
     @DisplayName("종목 검색 API가 성공한다.")
     void stock_search_success() throws Exception {
         StockDto stockDto = StockDto.builder()
-                .id(1L)
+                .stockId(1L)
                 .companyName("삼성전자")
-                .ticker("005930")
+                .tickerKrx("005930")
                 .market("KOSPI")
                 .build();
 
