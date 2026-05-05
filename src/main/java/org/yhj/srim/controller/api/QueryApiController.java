@@ -55,21 +55,6 @@ public class QueryApiController {
         return ApiResponse.success(stocks);
     }
 
-    @GetMapping("/{id}")
-    public ApiResponse<StockDto> getById(@PathVariable Long id) {
-        StockDto stock = stockService.getById(id);
-        return ApiResponse.success(stock);
-    }
-
-    @GetMapping("/{market}-{ticker}")
-    public ApiResponse<StockDto> getByTicker(
-            @PathVariable String market,
-            @PathVariable String ticker) {
-
-        StockDto stock = stockService.getByTicker(market, ticker);
-        return ApiResponse.success(stock);
-    }
-
     @GetMapping("/popular")
     public ApiResponse<List<PopularStockDto>> getPopularStocks(
             @RequestParam(defaultValue = "7") int days,

@@ -45,14 +45,6 @@ public class InitializationApiController {
         return ApiResponse.success(null);
     }
 
-    @GetMapping("/api/crawling/krx/stocks/{tickerKrx}")
-    public ApiResponse<Void> crawlingStockInfo(@PathVariable String tickerKrx) {
-        log.info("단일 종목 조회 tickerKrx : {}", tickerKrx);
-        managementOrchestrator.syncSingleCompanyByTickerKrx(tickerKrx);
-        log.info("단일 종목 조회 종료 tickerKrx : {}", tickerKrx);
-        return ApiResponse.success(null);
-    }
-
     @GetMapping("/api/crawling/krx/stocks/{tickerKrx}/reset")
     public ApiResponse<Void> resetStockInfo(@PathVariable String tickerKrx) {
         log.info("단일 종목 초기화 데이터 삭제 tickerKrx : {}", tickerKrx);
