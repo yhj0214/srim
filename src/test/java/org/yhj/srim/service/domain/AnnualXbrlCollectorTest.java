@@ -1,4 +1,4 @@
-package org.yhj.srim.service.facade;
+package org.yhj.srim.service.domain;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -16,10 +16,8 @@ import org.yhj.srim.repository.entity.DartFsFiling;
 import org.yhj.srim.repository.entity.StockCode;
 import org.yhj.srim.service.crawl.DartCrawlingService;
 import org.yhj.srim.service.crawl.XbrlFinancialStatementCrawlingService;
-import org.yhj.srim.service.domain.DartFsFilingService;
-import org.yhj.srim.service.domain.StockService;
-import org.yhj.srim.service.domain.XbrlRawService;
-import org.yhj.srim.service.facade.dto.CollectXbrlRawCommand;
+import org.yhj.srim.service.application.PriceChartApplicationService;
+import org.yhj.srim.service.application.dto.CollectXbrlRawCommand;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -54,7 +52,7 @@ class AnnualXbrlCollectorTest {
     XbrlRawService xbrlRawService;
 
     @Mock
-    PriceChartFacadeService priceChartFacadeService;
+    PriceChartApplicationService priceChartFacadeService;
 
     @Test
     @DisplayName("이미 저장된 XBRL 문서가 있으면 다운로드 없이 기존 문서 ID를 반환한다.")

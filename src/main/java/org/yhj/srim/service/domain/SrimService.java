@@ -8,7 +8,7 @@ import org.yhj.srim.common.exception.CustomException;
 import org.yhj.srim.common.exception.code.SrimError;
 import org.yhj.srim.repository.*;
 import org.yhj.srim.repository.entity.*;
-import org.yhj.srim.service.facade.dto.YearBaseData;
+import org.yhj.srim.service.application.dto.YearBaseData;
 import org.yhj.srim.service.dto.SrimCalculateCommand;
 import org.yhj.srim.service.dto.SrimResultDto;
 

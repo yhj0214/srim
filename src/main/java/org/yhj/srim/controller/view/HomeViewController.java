@@ -22,28 +22,4 @@ public class HomeViewController {
         return "index";
     }
 
-
-    /**
-     * 홈 페이지 (검색창)
-     */
-//    @GetMapping("/")
-//    public String home(Model model) {
-//        long totalStocks = stockService.count();
-//        model.addAttribute("totalStocks", totalStocks);
-//        return "index";
-//    }
-
-    /**
-     * 회사채 수익률 페이지
-     */
-    @GetMapping("/bond-yields")
-    public String bondYields() {
-        return "bond-yields";
-    }
-
-
-    @GetMapping("/admin")
-    public String admin(){
-        return "admin";
-    }
 }

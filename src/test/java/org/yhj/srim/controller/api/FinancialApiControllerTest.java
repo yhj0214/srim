@@ -13,7 +13,7 @@ import org.yhj.srim.service.domain.SrimService;
 import org.yhj.srim.service.dto.FinancialTableDto;
 import org.yhj.srim.service.dto.PeriodType;
 import org.yhj.srim.service.dto.SrimResultDto;
-import org.yhj.srim.service.facade.FinancialApplicationService;
+import org.yhj.srim.service.application.FinancialApplicationService;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;

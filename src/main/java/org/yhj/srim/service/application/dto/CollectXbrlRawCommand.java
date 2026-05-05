@@ -1,4 +1,4 @@
-package org.yhj.srim.service.facade.dto;
+package org.yhj.srim.service.application.dto;
 
 import org.yhj.srim.client.DartReportType;
 

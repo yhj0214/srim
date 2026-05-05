@@ -5,7 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 import org.yhj.srim.controller.dto.ApiResponse;
 import org.yhj.srim.controller.dto.CrawlAllMarketsResult;
-import org.yhj.srim.service.facade.ManagementOrchestrator;
+import org.yhj.srim.service.application.ManagementOrchestrator;
 
 /**
  * KRX 종목 크롤링 API 컨트롤러

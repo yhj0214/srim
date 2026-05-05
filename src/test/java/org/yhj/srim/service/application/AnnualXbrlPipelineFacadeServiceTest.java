@@ -1,4 +1,4 @@
-package org.yhj.srim.service.facade;
+package org.yhj.srim.service.application;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -9,10 +9,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.yhj.srim.repository.entity.Company;
 import org.yhj.srim.repository.entity.DartFsFiling;
 import org.yhj.srim.repository.entity.StockCode;
-import org.yhj.srim.service.domain.AnnualXbrlMetricProcessor;
-import org.yhj.srim.service.domain.FinancialMetricService;
-import org.yhj.srim.service.domain.FinancialService;
-import org.yhj.srim.service.facade.dto.CollectXbrlRawCommand;
+import org.yhj.srim.service.domain.*;
+import org.yhj.srim.service.application.dto.CollectXbrlRawCommand;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
@@ -22,7 +20,7 @@ import static org.mockito.Mockito.when;
 class AnnualXbrlPipelineFacadeServiceTest {
 
     @InjectMocks
-    AnnualXbrlPipelineFacadeService annualXbrlPipelineFacadeService;
+    AnnualXbrlPipelineOrchestrator annualXbrlPipelineFacadeService;
 
     @Mock
     AnnualXbrlCollector annualXbrlCollector;

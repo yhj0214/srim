@@ -1,4 +1,4 @@
-package org.yhj.srim.service.facade;
+package org.yhj.srim.service.application;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -19,7 +19,7 @@ import org.yhj.srim.service.domain.DartCorpCodeSyncService;
 import org.yhj.srim.service.domain.FailedJobService;
 import org.yhj.srim.service.domain.FinancialService;
 import org.yhj.srim.service.domain.StockService;
-import org.yhj.srim.service.facade.dto.CollectXbrlRawCommand;
+import org.yhj.srim.service.application.dto.CollectXbrlRawCommand;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -53,7 +53,7 @@ class FinancialApplicationServiceTest {
     FinancialService financialService;
 
     @Mock
-    AnnualXbrlPipelineFacadeService annualXbrlPipelineFacadeService;
+    AnnualXbrlPipelineOrchestrator annualXbrlPipelineFacadeService;
 
     @Mock
     BondYieldCurveService bondYieldCurveService;

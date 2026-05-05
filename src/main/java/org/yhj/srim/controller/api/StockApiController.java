@@ -10,7 +10,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 import org.yhj.srim.controller.dto.ApiResponse;
 import org.yhj.srim.service.domain.CompanyViewService;
-import org.yhj.srim.service.facade.PriceChartFacadeService;
+import org.yhj.srim.service.application.PriceChartApplicationService;
 import org.yhj.srim.service.domain.StockService;
 import org.yhj.srim.service.dto.PopularStockDto;
 import org.yhj.srim.service.dto.StockDto;
@@ -27,7 +27,7 @@ public class StockApiController {
 
     private final CompanyViewService companyViewService;
     private final StockService stockService;
-    private final PriceChartFacadeService priceChartFacadeService;
+    private final PriceChartApplicationService priceChartFacadeService;
 
     /**
      * 종목 검색 API

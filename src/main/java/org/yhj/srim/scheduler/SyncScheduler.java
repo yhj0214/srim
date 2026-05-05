@@ -4,14 +4,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.yhj.srim.service.facade.ScheduledSyncFacade;
+import org.yhj.srim.service.application.ScheduledSyncOrchestrator;
 
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class SyncScheduler {
 
-    private final ScheduledSyncFacade scheduledSyncFacade;
+    private final ScheduledSyncOrchestrator scheduledSyncFacade;
 
     @Scheduled(cron = "${app.scheduler.price.cron}", zone = "${app.scheduler.zone:Asia/Seoul}")
     public void syncDailyPrices() {

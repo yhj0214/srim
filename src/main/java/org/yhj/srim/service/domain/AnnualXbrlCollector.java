@@ -1,4 +1,4 @@
-package org.yhj.srim.service.facade;
+package org.yhj.srim.service.domain;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,10 +12,8 @@ import org.yhj.srim.repository.entity.Company;
 import org.yhj.srim.repository.entity.DartFsFiling;
 import org.yhj.srim.service.crawl.DartCrawlingService;
 import org.yhj.srim.service.crawl.XbrlFinancialStatementCrawlingService;
-import org.yhj.srim.service.domain.DartFsFilingService;
-import org.yhj.srim.service.domain.StockService;
-import org.yhj.srim.service.domain.XbrlRawService;
-import org.yhj.srim.service.facade.dto.CollectXbrlRawCommand;
+import org.yhj.srim.service.application.PriceChartApplicationService;
+import org.yhj.srim.service.application.dto.CollectXbrlRawCommand;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -30,7 +28,7 @@ public class AnnualXbrlCollector {
     private final StockService stockService;
     private final DartFsFilingService dartFsFilingService;
     private final XbrlRawService xbrlRawService;
-    private final PriceChartFacadeService priceChartFacadeService;
+    private final PriceChartApplicationService priceChartFacadeService;
 
     public Long collectXbrlRaw(CollectXbrlRawCommand command) {
         Optional<Long> existingDocumentId = xbrlRawService.findStoredDocumentId(

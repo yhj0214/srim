@@ -8,7 +8,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.yhj.srim.controller.dto.CrawlAllMarketsResult;
-import org.yhj.srim.service.facade.ManagementOrchestrator;
+import org.yhj.srim.service.application.ManagementOrchestrator;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;

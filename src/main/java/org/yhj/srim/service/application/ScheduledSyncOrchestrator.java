@@ -1,4 +1,4 @@
-package org.yhj.srim.service.facade;
+package org.yhj.srim.service.application;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,7 +19,7 @@ import java.util.List;
 @Service
 @Slf4j
 @RequiredArgsConstructor
-public class ScheduledSyncFacade {
+public class ScheduledSyncOrchestrator {
 
     private final FailedJobService failedJobService;
     private final FinancialApplicationService financialApplicationService;
