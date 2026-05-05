@@ -9,7 +9,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.yhj.srim.client.DartClient;
 import org.yhj.srim.client.dto.DartFilingRow;
 import org.yhj.srim.service.crawl.parser.DartFilingParser;
-import org.yhj.srim.service.crawl.parser.DartFinancialStatementParser;
 import org.yhj.srim.service.crawl.parser.DartShareStatusParser;
 
 import java.util.List;
@@ -28,9 +27,6 @@ class DartCrawlingServiceTest {
 
     @Mock
     private DartFilingParser dartFilingParser;
-
-    @Mock
-    private DartFinancialStatementParser dartFinancialStatementParser;
 
     @Mock
     private DartShareStatusParser dartShareStatusParser;

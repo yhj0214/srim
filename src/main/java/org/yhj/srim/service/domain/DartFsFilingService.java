@@ -20,9 +20,19 @@ public class DartFsFilingService {
     @Transactional
     public DartFsFiling saveAnnualFilingMetadata(String corpCode, Long companyId, int fiscalYear,
                                                  DartFilingRow row, String fsDiv) {
+        return saveFilingMetadata(corpCode, companyId, fiscalYear, row, DartReportType.ANNUAL, fsDiv);
+    }
+
+    @Transactional
+    public DartFsFiling saveFilingMetadata(String corpCode,
+                                           Long companyId,
+                                           int fiscalYear,
+                                           DartFilingRow row,
+                                           DartReportType reportType,
+                                           String fsDiv) {
         Optional<DartFsFiling> existing = dartFsFilingRepository.findByRceptNoAndReprtCodeAndFsDiv(
                 row.getRceptNo(),
-                DartReportType.ANNUAL.code(),
+                reportType.code(),
                 fsDiv
         );
         if (existing.isPresent()) {
@@ -33,10 +43,10 @@ public class DartFsFilingService {
                 .corpCode(corpCode)
                 .companyId(companyId)
                 .rceptNo(row.getRceptNo())
-                .reprtCode(DartReportType.ANNUAL.code())
+                .reprtCode(reportType.code())
                 .bsnsYear(fiscalYear)
                 .fsDiv(fsDiv)
-                .reportTp(DartReportType.ANNUAL.label())
+                .reportTp(reportType.label())
                 .rceptDt(parseDate(row.getRceptDt()))
                 .note(buildNote(row))
                 .build();

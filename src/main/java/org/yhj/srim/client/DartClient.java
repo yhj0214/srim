@@ -30,20 +30,6 @@ public class DartClient {
         this.restTemplate = restTemplate;
     }
 
-    public String fetchFinancialStatementsBody(String corpCode, int year, DartReportType reportType) {
-        String url = DART_FS_URL
-                + "?crtfc_key=" + apiKey
-                + "&corp_code=" + corpCode
-                + "&bsns_year=" + year
-                + "&reprt_code=" + reportType.code()
-                + "&fs_div=CFS";
-
-        log.debug("DART 재무제표 조회 url : {}", url);
-
-        ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
-        return response.getBody();
-    }
-
     public String fetchAnnualFilingListBody(String corpCode, int fiscalYear) {
         int disclosureYear = fiscalYear + 1;
         String url = DART_DISCLOSURE_LIST_URL

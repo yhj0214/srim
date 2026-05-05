@@ -38,33 +38,6 @@ class DartClientTest {
     }
 
     @Test
-    void fetchAnnualFinancialStatementsSuccess(){
-        String apiKey = env.getProperty("dart.api.key");
-        if(!hasText(apiKey)) {
-            System.out.println("API_KEY 프로퍼티가 없어 테스트를 스킵");
-            return;
-        }
-
-        // when
-        List<DartFsRow> rows = dartCrawlingService.crawlFinancial("00126380", 2021, DartReportType.ANNUAL);
-
-        // then
-        String meta = rows.get(0).toString();
-        String[] temp = meta.split(",");
-        for(int i = 0; i < temp.length; i++) {
-            System.out.println(temp[i]);
-        }
-
-        log.info("[DART FS] firstRow={}", rows.get(0));
-
-        for (DartFsRow row : rows) {
-            log.debug("[DART FS] {}", row);
-        }
-
-        Assertions.assertThat(rows).isNotEmpty();
-    }
-
-    @Test
     void fetchShareStatusSuccess(){
         String apiKey = env.getProperty("dart.api.key");
         if(!hasText(apiKey)) {

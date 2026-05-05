@@ -646,6 +646,16 @@ public class FinancialService {
         return rawBundle;
     }
 
+    FsRawBundle loadQuarterXbrlRawBundle(Long companyId, int fiscalYear, int fiscalQuarter, String fsDiv) {
+        FinPeriod period = findQuarterPeriod(companyId, fiscalYear, fiscalQuarter).orElse(null);
+        if (period == null) {
+            log.warn("분기 FinPeriod가 없습니다. companyId={}, year={}, quarter={}", companyId, fiscalYear, fiscalQuarter);
+            return new FsRawBundle(new LinkedHashMap<>(), new LinkedHashMap<>());
+        }
+
+        return loadXbrlRawBundle(companyId, period, fsDiv);
+    }
+
     FsRawBundle loadQuarterRawBundle(Long companyId, int fiscalYear, int fiscalQuarter) {
         FinPeriod period = findQuarterPeriod(companyId, fiscalYear, fiscalQuarter).orElse(null);
         if (period == null) {

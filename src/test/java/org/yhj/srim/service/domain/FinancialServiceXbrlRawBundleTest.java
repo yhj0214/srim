@@ -23,6 +23,7 @@ import org.yhj.srim.repository.entity.StockShareStatus;
 import org.yhj.srim.repository.entity.XbrlContext;
 import org.yhj.srim.repository.entity.XbrlDocument;
 import org.yhj.srim.repository.entity.XbrlFact;
+import org.yhj.srim.client.DartReportType;
 import org.yhj.srim.service.dto.FsRawBundle;
 
 import java.math.BigDecimal;
@@ -140,6 +141,38 @@ class FinancialServiceXbrlRawBundleTest {
                 .containsEntry("NET_INC", new BigDecimal("140"))
                 .containsEntry("TOTAL_LIABILITIES", new BigDecimal("210"))
                 .containsEntry("TOTAL_EQUITY", new BigDecimal("450"));
+    }
+
+    @Test
+    @DisplayName("FinancialService는 분기 XBRL 문서를 별도 경로로 조립해 raw bundle을 반환한다.")
+    void loadQuarterXbrlRawBundle_returnsQuarterBundleFromSeparatePath() {
+        Company company = saveCompany("TST002Q", "900202", "00126386");
+        saveQuarterPeriod(company, 2024, DartReportType.FIRST_QUARTER);
+        saveQuarterPeriod(company, 2023, DartReportType.FIRST_QUARTER);
+
+        XbrlDocument current = saveQuarterDocument(
+                company, 2024, DartReportType.FIRST_QUARTER, "20240515002000", LocalDateTime.of(2024, 5, 15, 11, 0)
+        );
+        saveQuarterFacts(current, DartReportType.FIRST_QUARTER, "250", "40", "300", "500");
+
+        XbrlDocument previous = saveQuarterDocument(
+                company, 2023, DartReportType.FIRST_QUARTER, "20230515001000", LocalDateTime.of(2023, 5, 15, 10, 0)
+        );
+        saveQuarterFacts(previous, DartReportType.FIRST_QUARTER, "200", "30", "280", "470");
+
+        FsRawBundle rawBundle = financialService.loadQuarterXbrlRawBundle(company.getCompanyId(), 2024, 1, "CFS");
+
+        assertThat(rawBundle.curr())
+                .containsEntry("SALES", new BigDecimal("250"))
+                .containsEntry("NET_INC", new BigDecimal("40"))
+                .containsEntry("TOTAL_LIABILITIES", new BigDecimal("300"))
+                .containsEntry("TOTAL_EQUITY", new BigDecimal("500"));
+
+        assertThat(rawBundle.prev())
+                .containsEntry("SALES", new BigDecimal("200"))
+                .containsEntry("NET_INC", new BigDecimal("30"))
+                .containsEntry("TOTAL_LIABILITIES", new BigDecimal("280"))
+                .containsEntry("TOTAL_EQUITY", new BigDecimal("470"));
     }
 
     @Test
@@ -297,6 +330,19 @@ class FinancialServiceXbrlRawBundleTest {
                 .build());
     }
 
+    private FinPeriod saveQuarterPeriod(Company company, int fiscalYear, DartReportType reportType) {
+        return finPeriodRepository.save(FinPeriod.builder()
+                .company(company)
+                .periodType(reportType.periodType())
+                .fiscalYear(fiscalYear)
+                .fiscalQuarter(reportType.fiscalQuarter())
+                .periodStart(reportType.periodStart(fiscalYear))
+                .periodEnd(reportType.periodEnd(fiscalYear))
+                .label(reportType.periodLabel(fiscalYear))
+                .isEstimate(false)
+                .build());
+    }
+
     private XbrlDocument saveDocument(Company company, int year, String rceptNo, LocalDateTime parsedAt) {
         return xbrlDocumentRepository.save(XbrlDocument.builder()
                 .corpCode("00126380")
@@ -306,6 +352,27 @@ class FinancialServiceXbrlRawBundleTest {
                 .bsnsYear(year)
                 .fsDiv("CFS")
                 .reportTp("연간")
+                .sourceUrl("https://example.com/" + rceptNo + ".zip")
+                .localPath("/tmp/" + rceptNo + ".zip")
+                .taxonomyVersion("https://taxonomy.example/ifrs-full.xsd")
+                .parseVersion("test-v1")
+                .parsedAt(parsedAt)
+                .build());
+    }
+
+    private XbrlDocument saveQuarterDocument(Company company,
+                                             int year,
+                                             DartReportType reportType,
+                                             String rceptNo,
+                                             LocalDateTime parsedAt) {
+        return xbrlDocumentRepository.save(XbrlDocument.builder()
+                .corpCode("00126380")
+                .company(company)
+                .rceptNo(rceptNo)
+                .reprtCode(reportType.code())
+                .bsnsYear(year)
+                .fsDiv("CFS")
+                .reportTp(reportType.label())
                 .sourceUrl("https://example.com/" + rceptNo + ".zip")
                 .localPath("/tmp/" + rceptNo + ".zip")
                 .taxonomyVersion("https://taxonomy.example/ifrs-full.xsd")
@@ -339,6 +406,126 @@ class FinancialServiceXbrlRawBundleTest {
                 .periodStart(null)
                 .periodEnd(null)
                 .instantDate(LocalDate.of(document.getBsnsYear(), 12, 31))
+                .dimensionsJson("[]")
+                .memberSignature(null)
+                .build());
+
+        xbrlFactRepository.save(XbrlFact.builder()
+                .document(document)
+                .context(durationContext)
+                .contextRef(durationContext.getContextRef())
+                .conceptQname("ifrs-full:Revenue")
+                .conceptLocalName("Revenue")
+                .labelKo("매출액")
+                .statementRole("income-statement")
+                .unitRef("KRW")
+                .decimals("0")
+                .valueRaw(sales)
+                .valueNumeric(new BigDecimal(sales))
+                .isNil(false)
+                .memberSignature(null)
+                .orderHint(1)
+                .build());
+
+        xbrlFactRepository.save(XbrlFact.builder()
+                .document(document)
+                .context(durationContext)
+                .contextRef(durationContext.getContextRef())
+                .conceptQname("ifrs-full:ProfitLoss")
+                .conceptLocalName("ProfitLoss")
+                .labelKo("당기순이익")
+                .statementRole("income-statement")
+                .unitRef("KRW")
+                .decimals("0")
+                .valueRaw(netIncome)
+                .valueNumeric(new BigDecimal(netIncome))
+                .isNil(false)
+                .memberSignature(null)
+                .orderHint(2)
+                .build());
+
+        xbrlFactRepository.save(XbrlFact.builder()
+                .document(document)
+                .context(instantContext)
+                .contextRef(instantContext.getContextRef())
+                .conceptQname("ifrs-full:Assets")
+                .conceptLocalName("Assets")
+                .labelKo("자산총계")
+                .statementRole("balance-sheet")
+                .unitRef("KRW")
+                .decimals("0")
+                .valueRaw(totalAssets.toPlainString())
+                .valueNumeric(totalAssets)
+                .isNil(false)
+                .memberSignature(null)
+                .orderHint(3)
+                .build());
+
+        xbrlFactRepository.save(XbrlFact.builder()
+                .document(document)
+                .context(instantContext)
+                .contextRef(instantContext.getContextRef())
+                .conceptQname("ifrs-full:Liabilities")
+                .conceptLocalName("Liabilities")
+                .labelKo("부채총계")
+                .statementRole("balance-sheet")
+                .unitRef("KRW")
+                .decimals("0")
+                .valueRaw(totalLiabilities)
+                .valueNumeric(new BigDecimal(totalLiabilities))
+                .isNil(false)
+                .memberSignature(null)
+                .orderHint(4)
+                .build());
+
+        xbrlFactRepository.save(XbrlFact.builder()
+                .document(document)
+                .context(instantContext)
+                .contextRef(instantContext.getContextRef())
+                .conceptQname("ifrs-full:Equity")
+                .conceptLocalName("Equity")
+                .labelKo("자본총계")
+                .statementRole("balance-sheet")
+                .unitRef("KRW")
+                .decimals("0")
+                .valueRaw(totalEquity)
+                .valueNumeric(new BigDecimal(totalEquity))
+                .isNil(false)
+                .memberSignature(null)
+                .orderHint(5)
+                .build());
+    }
+
+    private void saveQuarterFacts(XbrlDocument document,
+                                  DartReportType reportType,
+                                  String sales,
+                                  String netIncome,
+                                  String totalLiabilities,
+                                  String totalEquity) {
+        BigDecimal totalAssets = new BigDecimal(totalLiabilities).add(new BigDecimal(totalEquity));
+
+        XbrlContext durationContext = xbrlContextRepository.save(XbrlContext.builder()
+                .document(document)
+                .contextRef("ctx-duration-" + document.getBsnsYear() + "-" + reportType.code())
+                .contextRefHash(hashFor("ctx-duration-" + document.getBsnsYear() + "-" + reportType.code()))
+                .entityIdentifier("00126380")
+                .periodType("duration")
+                .periodStart(reportType.periodStart(document.getBsnsYear()))
+                .periodEnd(reportType.periodEnd(document.getBsnsYear()))
+                .instantDate(null)
+                .dimensionsJson("[]")
+                .memberSignature(null)
+                .build());
+
+        XbrlContext instantContext = xbrlContextRepository.save(XbrlContext.builder()
+                .document(document)
+                .contextRef("ctx-instant-" + document.getBsnsYear() + "-" + reportType.code())
+                .contextRefHash(hashFor("ctx-instant-" + document.getBsnsYear() + "-" + reportType.code()))
+                .entityIdentifier("00126380")
+                .periodType("instant")
+                .periodStart(null)
+                .periodEnd(null)
+                .instantDate(reportType.periodEnd(document.getBsnsYear()))
                 .dimensionsJson("[]")
                 .memberSignature(null)
                 .build());
