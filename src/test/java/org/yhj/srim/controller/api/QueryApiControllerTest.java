@@ -5,18 +5,22 @@ import org.junit.jupiter.api.Test;
 import org.mockito.BDDMockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.yhj.srim.common.exception.CustomException;
 import org.yhj.srim.common.exception.code.CommonError;
+import org.yhj.srim.service.application.FinancialApplicationService;
+import org.yhj.srim.service.application.PriceChartApplicationService;
+import org.yhj.srim.service.domain.CompanyViewService;
 import org.yhj.srim.service.domain.SrimService;
+import org.yhj.srim.service.domain.StockService;
 import org.yhj.srim.service.dto.FinancialTableDto;
 import org.yhj.srim.service.dto.PeriodType;
 import org.yhj.srim.service.dto.SrimResultDto;
-import org.yhj.srim.service.application.FinancialApplicationService;
+import org.yhj.srim.service.dto.StockDto;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -24,17 +28,47 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(controllers = FinancialApiController.class)
-class FinancialApiControllerTest {
+@WebMvcTest(controllers = QueryApiController.class)
+class QueryApiControllerTest {
 
     @Autowired
     MockMvc mockMvc;
+
+    @MockitoBean
+    CompanyViewService companyViewService;
+
+    @MockitoBean
+    StockService stockService;
+
+    @MockitoBean
+    PriceChartApplicationService priceChartApplicationService;
 
     @MockitoBean
     FinancialApplicationService financialApplicationService;
 
     @MockitoBean
     SrimService srimService;
+
+    @Test
+    @DisplayName("종목 검색 API가 성공한다.")
+    void stock_search_success() throws Exception {
+        StockDto stockDto = StockDto.builder()
+                .id(1L)
+                .companyName("삼성전자")
+                .ticker("005930")
+                .market("KOSPI")
+                .build();
+
+        BDDMockito.given(stockService.search(BDDMockito.eq("삼성"), BDDMockito.any()))
+                .willReturn(new PageImpl<>(List.of(stockDto)));
+
+        mockMvc.perform(get("/api/stocks")
+                        .param("q", "삼성"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.content[0].companyName").value("삼성전자"))
+                .andExpect(jsonPath("$.data.content[0].ticker").value("005930"));
+    }
 
     @Test
     @DisplayName("연간 재무 테이블 API가 성공한다.")
@@ -248,47 +282,5 @@ class FinancialApiControllerTest {
                 .andExpect(jsonPath("$.error.code").value("COMMON-002"))
                 .andExpect(jsonPath("$.error.message").value("서버 오류가 발생했습니다."))
                 .andExpect(jsonPath("$.error.path").value("/api/stocks/1/srim"));
-    }
-
-    @Test
-    @DisplayName("연간 XBRL filing collect API가 성공한다.")
-    void annual_xbrl_collect_success() throws Exception {
-        BDDMockito.given(financialApplicationService.collectAnnualFilingMetadata(
-                        1L, 2015, LocalDate.now().getYear() - 1, "CFS"))
-                .willReturn(9);
-
-        mockMvc.perform(get("/api/stocks/1/xbrl/annual/collect")
-                        .param("fsDiv", "CFS"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data").value(9));
-    }
-
-    @Test
-    @DisplayName("연간 XBRL process API가 성공한다.")
-    void annual_xbrl_process_success() throws Exception {
-        BDDMockito.given(financialApplicationService.processAnnualMetricsFromXbrl(
-                        1L, 2015, LocalDate.now().getYear() - 1, "CFS"))
-                .willReturn(64);
-
-        mockMvc.perform(get("/api/stocks/1/xbrl/annual/process")
-                        .param("fsDiv", "CFS"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data").value(64));
-    }
-
-    @Test
-    @DisplayName("연간 XBRL run API가 성공한다.")
-    void annual_xbrl_run_success() throws Exception {
-        BDDMockito.given(financialApplicationService.runAnnualXbrlPipeline(
-                        1L, 2015, LocalDate.now().getYear() - 1, "CFS"))
-                .willReturn(9);
-
-        mockMvc.perform(get("/api/stocks/1/xbrl/annual/run")
-                        .param("fsDiv", "CFS"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data").value(9));
     }
 }
