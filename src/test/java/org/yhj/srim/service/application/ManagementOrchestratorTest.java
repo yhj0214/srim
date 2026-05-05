@@ -28,6 +28,9 @@ class ManagementOrchestratorTest {
     FinancialApplicationService financialApplicationService;
 
     @Mock
+    AnnualXbrlPipelineOrchestrator annualXbrlPipelineOrchestrator;
+
+    @Mock
     StockService stockService;
 
     @Mock
@@ -60,7 +63,7 @@ class ManagementOrchestratorTest {
         assertThat(actual.getMappedCount()).isEqualTo(8);
         verify(financialApplicationService).marketCrawling();
         verify(stockService).findAllStockIds();
-        verify(financialApplicationService).runAnnualXbrlPipeline(1L, 2015, LocalDate.now().getYear() - 1, "CFS");
+        verify(annualXbrlPipelineOrchestrator).runAnnualXbrlPipeline(1L, 2015, LocalDate.now().getYear() - 1, "CFS");
     }
 
     @Test
@@ -71,8 +74,8 @@ class ManagementOrchestratorTest {
         managementOrchestrator.syncAllCompanies(2015, "CFS");
 
         verify(stockService).findAllStockIds();
-        verify(financialApplicationService).runAnnualXbrlPipeline(1L, 2015, LocalDate.now().getYear() - 1, "CFS");
-        verify(financialApplicationService).runAnnualXbrlPipeline(2L, 2015, LocalDate.now().getYear() - 1, "CFS");
+        verify(annualXbrlPipelineOrchestrator).runAnnualXbrlPipeline(1L, 2015, LocalDate.now().getYear() - 1, "CFS");
+        verify(annualXbrlPipelineOrchestrator).runAnnualXbrlPipeline(2L, 2015, LocalDate.now().getYear() - 1, "CFS");
     }
 
 

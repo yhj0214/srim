@@ -7,7 +7,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
-import org.yhj.srim.client.DartReportType;
 import org.yhj.srim.common.exception.CustomException;
 import org.yhj.srim.common.exception.code.CrawlingError;
 import org.yhj.srim.controller.dto.CrawlAllMarketsResult;
@@ -19,7 +18,6 @@ import org.yhj.srim.service.domain.DartCorpCodeSyncService;
 import org.yhj.srim.service.domain.FailedJobService;
 import org.yhj.srim.service.domain.FinancialService;
 import org.yhj.srim.service.domain.StockService;
-import org.yhj.srim.service.application.dto.CollectXbrlRawCommand;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -51,9 +49,6 @@ class FinancialApplicationServiceTest {
 
     @Mock
     FinancialService financialService;
-
-    @Mock
-    AnnualXbrlPipelineOrchestrator annualXbrlPipelineFacadeService;
 
     @Mock
     BondYieldCurveService bondYieldCurveService;
@@ -105,55 +100,4 @@ class FinancialApplicationServiceTest {
         verifyNoMoreInteractions(krxStockCrawlingService, stockService, dartCorpCodeSyncService);
     }
 
-    @Test
-    @DisplayName("연간 XBRL metric 처리는 전용 파이프라인 서비스에 위임한다.")
-    void processAnnualMetricsFromXbrl_delegatesToPipelineService() {
-        when(annualXbrlPipelineFacadeService.processAnnualMetricsFromXbrl(1L, 2024, "CFS")).thenReturn(11);
-
-        int savedCount = financialApplicationService.processAnnualMetricsFromXbrl(1L, 2024, "CFS");
-
-        assertThat(savedCount).isEqualTo(11);
-        verify(annualXbrlPipelineFacadeService).processAnnualMetricsFromXbrl(1L, 2024, "CFS");
-    }
-
-    @Test
-    @DisplayName("연간 filing 메타 수집은 전용 파이프라인 서비스에 위임한다.")
-    void collectAnnualFilingMetadata_delegatesToPipelineService() {
-        when(annualXbrlPipelineFacadeService.collectAnnualFilingMetadata(1L, 2024, "CFS")).thenReturn(21L);
-
-        Long filingId = financialApplicationService.collectAnnualFilingMetadata(1L, 2024, "CFS");
-
-        assertThat(filingId).isEqualTo(21L);
-        verify(annualXbrlPipelineFacadeService).collectAnnualFilingMetadata(1L, 2024, "CFS");
-    }
-
-    @Test
-    @DisplayName("연간 XBRL run은 전용 파이프라인 서비스에 위임한다.")
-    void runAnnualXbrlPipeline_delegatesToPipelineService() {
-        when(annualXbrlPipelineFacadeService.runAnnualXbrlPipeline(1L, 2024, "CFS")).thenReturn(99L);
-
-        Long documentId = financialApplicationService.runAnnualXbrlPipeline(1L, 2024, "CFS");
-
-        assertThat(documentId).isEqualTo(99L);
-        verify(annualXbrlPipelineFacadeService).runAnnualXbrlPipeline(1L, 2024, "CFS");
-    }
-
-    @Test
-    @DisplayName("XBRL raw 수집은 전용 파이프라인 서비스에 위임한다.")
-    void collectXbrlRaw_delegatesToPipelineService() {
-        CollectXbrlRawCommand command = new CollectXbrlRawCommand(
-                1L,
-                "00126380",
-                "20240321000001",
-                2024,
-                DartReportType.ANNUAL,
-                "CFS"
-        );
-        when(annualXbrlPipelineFacadeService.collectXbrlRaw(command)).thenReturn(99L);
-
-        Long documentId = financialApplicationService.collectXbrlRaw(command);
-
-        assertThat(documentId).isEqualTo(99L);
-        verify(annualXbrlPipelineFacadeService).collectXbrlRaw(command);
-    }
 }

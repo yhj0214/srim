@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.yhj.srim.controller.dto.ApiResponse;
 import org.yhj.srim.controller.dto.CrawlAllMarketsResult;
-import org.yhj.srim.service.application.FinancialApplicationService;
+import org.yhj.srim.service.application.AnnualXbrlPipelineOrchestrator;
 import org.yhj.srim.service.application.ManagementOrchestrator;
 
 import java.time.LocalDate;
@@ -20,7 +20,7 @@ import java.time.LocalDate;
 public class InitializationApiController {
 
     private final ManagementOrchestrator managementOrchestrator;
-    private final FinancialApplicationService financialApplicationService;
+    private final AnnualXbrlPipelineOrchestrator annualXbrlPipelineOrchestrator;
 
     @PostMapping("/api/crawling/krx/all")
     public ApiResponse<CrawlAllMarketsResult> crawlAllMarkets(
@@ -59,7 +59,7 @@ public class InitializationApiController {
             @RequestParam(defaultValue = "2015") int startYear,
             @RequestParam(defaultValue = "CFS") String fsDiv) {
         return ApiResponse.success(
-                financialApplicationService.collectAnnualFilingMetadata(
+                annualXbrlPipelineOrchestrator.collectAnnualFilingMetadata(
                         stockId,
                         startYear,
                         LocalDate.now().getYear() - 1,
@@ -74,7 +74,7 @@ public class InitializationApiController {
             @RequestParam(defaultValue = "2015") int startYear,
             @RequestParam(defaultValue = "CFS") String fsDiv) {
         return ApiResponse.success(
-                financialApplicationService.processAnnualMetricsFromXbrl(
+                annualXbrlPipelineOrchestrator.processAnnualMetricsFromXbrl(
                         stockId,
                         startYear,
                         LocalDate.now().getYear() - 1,
@@ -89,7 +89,7 @@ public class InitializationApiController {
             @RequestParam(defaultValue = "2015") int startYear,
             @RequestParam(defaultValue = "CFS") String fsDiv) {
         return ApiResponse.success(
-                financialApplicationService.runAnnualXbrlPipeline(
+                annualXbrlPipelineOrchestrator.runAnnualXbrlPipeline(
                         stockId,
                         startYear,
                         LocalDate.now().getYear() - 1,

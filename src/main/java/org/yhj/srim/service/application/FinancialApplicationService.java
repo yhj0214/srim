@@ -19,7 +19,6 @@ import org.yhj.srim.service.domain.FailedJobService;
 import org.yhj.srim.service.domain.FinancialService;
 import org.yhj.srim.service.crawl.KrxStockCrawlingService;
 import org.yhj.srim.service.application.dto.DailyBondYieldFetchResult;
-import org.yhj.srim.service.application.dto.CollectXbrlRawCommand;
 import org.yhj.srim.service.domain.StockService;
 import org.yhj.srim.service.dto.FinancialTableDto;
 import org.yhj.srim.service.dto.PeriodType;
@@ -41,7 +40,6 @@ public class FinancialApplicationService {
     private final StockService stockService;
     private final DartCorpCodeSyncService dartCorpCodeSyncService;
     private final FinancialService financialService;
-    private final AnnualXbrlPipelineOrchestrator annualXbrlPipelineFacadeService;
     private final BondYieldCurveService bondYieldCurveService;
     private final FailedJobService failedJobService;
 
@@ -54,38 +52,6 @@ public class FinancialApplicationService {
         return financialService.getFinancialTable(company, limit, periodType);
     }
 
-    public int processAnnualMetricsFromXbrl(Long stockId, int fiscalYear, String fsDiv) {
-        return annualXbrlPipelineFacadeService.processAnnualMetricsFromXbrl(stockId, fiscalYear, fsDiv);
-    }
-
-    public int collectAnnualFilingMetadata(Long stockId, int startYear, int endYear, String fsDiv) {
-        return annualXbrlPipelineFacadeService.collectAnnualFilingMetadata(stockId, startYear, endYear, fsDiv);
-    }
-
-    public int processAnnualMetricsFromXbrl(Long stockId, int startYear, int endYear, String fsDiv) {
-        return annualXbrlPipelineFacadeService.processAnnualMetricsFromXbrl(stockId, startYear, endYear, fsDiv);
-    }
-
-    public Long collectAnnualFilingMetadata(Long stockId, int fiscalYear, String fsDiv) {
-        return annualXbrlPipelineFacadeService.collectAnnualFilingMetadata(stockId, fiscalYear, fsDiv);
-    }
-
-    public Long runAnnualXbrlPipeline(Long stockId, String corpCode,
-                                      String rceptNo, int bsnsYear, String fsDiv) {
-        return annualXbrlPipelineFacadeService.runAnnualXbrlPipeline(stockId, corpCode, rceptNo, bsnsYear, fsDiv);
-    }
-
-    public Long runAnnualXbrlPipeline(Long stockId, int fiscalYear, String fsDiv) {
-        return annualXbrlPipelineFacadeService.runAnnualXbrlPipeline(stockId, fiscalYear, fsDiv);
-    }
-
-    public int runAnnualXbrlPipeline(Long stockId, int startYear, int endYear, String fsDiv) {
-        return annualXbrlPipelineFacadeService.runAnnualXbrlPipeline(stockId, startYear, endYear, fsDiv);
-    }
-
-    public Long collectXbrlRaw(CollectXbrlRawCommand command) {
-        return annualXbrlPipelineFacadeService.collectXbrlRaw(command);
-    }
     public CrawlAllMarketsResult marketCrawling() {
         // 크롤링 및 데이터 추출
         List<StockCodeDraft> stockCodeDrafts = krxStockCrawlingService.fetchStockList("KOSPI");

@@ -8,7 +8,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.yhj.srim.controller.dto.CrawlAllMarketsResult;
-import org.yhj.srim.service.application.FinancialApplicationService;
+import org.yhj.srim.service.application.AnnualXbrlPipelineOrchestrator;
 import org.yhj.srim.service.application.ManagementOrchestrator;
 
 import java.time.LocalDate;
@@ -28,7 +28,7 @@ class InitializationApiControllerTest {
     ManagementOrchestrator managementOrchestrator;
 
     @MockitoBean
-    FinancialApplicationService financialApplicationService;
+    AnnualXbrlPipelineOrchestrator annualXbrlPipelineOrchestrator;
 
     @Test
     @DisplayName("전체 크롤링 요청은 step1과 step2를 묶은 초기 동기화에 성공한다.")
@@ -81,7 +81,7 @@ class InitializationApiControllerTest {
     @Test
     @DisplayName("연간 XBRL filing collect API가 성공한다.")
     void annual_xbrl_collect_success() throws Exception {
-        BDDMockito.given(financialApplicationService.collectAnnualFilingMetadata(
+        BDDMockito.given(annualXbrlPipelineOrchestrator.collectAnnualFilingMetadata(
                         1L, 2015, LocalDate.now().getYear() - 1, "CFS"))
                 .willReturn(9);
 
@@ -95,7 +95,7 @@ class InitializationApiControllerTest {
     @Test
     @DisplayName("연간 XBRL process API가 성공한다.")
     void annual_xbrl_process_success() throws Exception {
-        BDDMockito.given(financialApplicationService.processAnnualMetricsFromXbrl(
+        BDDMockito.given(annualXbrlPipelineOrchestrator.processAnnualMetricsFromXbrl(
                         1L, 2015, LocalDate.now().getYear() - 1, "CFS"))
                 .willReturn(64);
 
@@ -109,7 +109,7 @@ class InitializationApiControllerTest {
     @Test
     @DisplayName("연간 XBRL run API가 성공한다.")
     void annual_xbrl_run_success() throws Exception {
-        BDDMockito.given(financialApplicationService.runAnnualXbrlPipeline(
+        BDDMockito.given(annualXbrlPipelineOrchestrator.runAnnualXbrlPipeline(
                         1L, 2015, LocalDate.now().getYear() - 1, "CFS"))
                 .willReturn(9);
 

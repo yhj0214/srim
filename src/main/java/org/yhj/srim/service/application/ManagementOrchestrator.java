@@ -18,6 +18,7 @@ public class ManagementOrchestrator {
     private static final String DEFAULT_FS_DIV = "CFS";
 
     private final FinancialApplicationService financialApplicationService;
+    private final AnnualXbrlPipelineOrchestrator annualXbrlPipelineOrchestrator;
     private final StockService stockService;
     private final CompanyResetService companyResetService;
 
@@ -86,6 +87,6 @@ public class ManagementOrchestrator {
 
     // 개별 회사 단위 XBRL 연간 파이프라인 초기화
     private void initCompanyByXbrl(Long stockId, int startYear, int endYear, String fsDiv) {
-        financialApplicationService.runAnnualXbrlPipeline(stockId, startYear, endYear, fsDiv);
+        annualXbrlPipelineOrchestrator.runAnnualXbrlPipeline(stockId, startYear, endYear, fsDiv);
     }
 }
