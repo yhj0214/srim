@@ -10,9 +10,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.yhj.srim.common.exception.CustomException;
 import org.yhj.srim.common.exception.code.CommonError;
-import org.yhj.srim.service.application.FinancialApplicationService;
 import org.yhj.srim.service.application.PriceChartApplicationService;
 import org.yhj.srim.service.domain.CompanyViewService;
+import org.yhj.srim.service.domain.FinancialService;
 import org.yhj.srim.service.domain.SrimService;
 import org.yhj.srim.service.domain.StockService;
 import org.yhj.srim.service.dto.FinancialTableDto;
@@ -44,7 +44,7 @@ class QueryApiControllerTest {
     PriceChartApplicationService priceChartApplicationService;
 
     @MockitoBean
-    FinancialApplicationService financialApplicationService;
+    FinancialService financialService;
 
     @MockitoBean
     SrimService srimService;
@@ -97,7 +97,7 @@ class QueryApiControllerTest {
                                 .build()))
                 .build();
 
-        BDDMockito.given(financialApplicationService.getFinancialTable(1L, 10, PeriodType.ANNUAL))
+        BDDMockito.given(financialService.getFinancialTableByStockId(1L, 10, PeriodType.ANNUAL))
                 .willReturn(dto);
 
         mockMvc.perform(get("/api/stocks/1/financial")
@@ -116,7 +116,7 @@ class QueryApiControllerTest {
     @Test
     @DisplayName("연간 재무 테이블 API 요청이 잘못되면 400을 반환한다.")
     void annual_financial_bad_request() throws Exception {
-        BDDMockito.given(financialApplicationService.getFinancialTable(1L, 10, PeriodType.ANNUAL))
+        BDDMockito.given(financialService.getFinancialTableByStockId(1L, 10, PeriodType.ANNUAL))
                 .willThrow(new IllegalArgumentException("invalid request"));
 
         mockMvc.perform(get("/api/stocks/1/financial")
@@ -133,7 +133,7 @@ class QueryApiControllerTest {
     @Test
     @DisplayName("연간 재무 테이블 API에서 CustomException이 발생하면 ErrorCode를 반환한다.")
     void annual_financial_custom_error() throws Exception {
-        BDDMockito.given(financialApplicationService.getFinancialTable(1L, 10, PeriodType.ANNUAL))
+        BDDMockito.given(financialService.getFinancialTableByStockId(1L, 10, PeriodType.ANNUAL))
                 .willThrow(new CustomException(CommonError.INVALID_INPUT, "custom detail"));
 
         mockMvc.perform(get("/api/stocks/1/financial")
@@ -150,7 +150,7 @@ class QueryApiControllerTest {
     @Test
     @DisplayName("연간 재무 테이블 API 처리 중 오류가 발생하면 500을 반환한다.")
     void annual_financial_internal_error() throws Exception {
-        BDDMockito.given(financialApplicationService.getFinancialTable(1L, 10, PeriodType.ANNUAL))
+        BDDMockito.given(financialService.getFinancialTableByStockId(1L, 10, PeriodType.ANNUAL))
                 .willThrow(new RuntimeException("unhandled 발생"));
 
         mockMvc.perform(get("/api/stocks/1/financial")

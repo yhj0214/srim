@@ -22,7 +22,7 @@ import java.util.List;
 public class ScheduledSyncOrchestrator {
 
     private final FailedJobService failedJobService;
-    private final FinancialApplicationService financialApplicationService;
+    private final MarketInitializationApplicationService marketInitializationApplicationService;
     private final NaverCrawlingService naverCrawlingService;
     private final StockPriceService stockPriceService;
 
@@ -98,7 +98,7 @@ public class ScheduledSyncOrchestrator {
 
             failedJobService.markRetrying(job);
             try {
-                financialApplicationService.retryBondYieldForDate(job.getTargetDate());
+                marketInitializationApplicationService.retryBondYieldForDate(job.getTargetDate());
                 failedJobService.markDone(job);
             } catch (CustomException e) {
                 failedJobService.rescheduleBondYieldFailure(job, e);

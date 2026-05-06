@@ -25,7 +25,7 @@ class ManagementOrchestratorTest {
     ManagementOrchestrator managementOrchestrator;
 
     @Mock
-    FinancialApplicationService financialApplicationService;
+    MarketInitializationApplicationService marketInitializationApplicationService;
 
     @Mock
     AnnualXbrlPipelineOrchestrator annualXbrlPipelineOrchestrator;
@@ -40,28 +40,28 @@ class ManagementOrchestratorTest {
     @DisplayName("step1은 시장 동기화 결과를 반환하고 채권수익률을 수집한다.")
     void step1_market_sync_and_bond_yield() {
         CrawlAllMarketsResult result = new CrawlAllMarketsResult(10, 8);
-        given(financialApplicationService.marketCrawling()).willReturn(result);
+        given(marketInitializationApplicationService.marketCrawling()).willReturn(result);
 
         CrawlAllMarketsResult actual = managementOrchestrator.collectMarketData();
 
         assertThat(actual.getCrawledCount()).isEqualTo(10);
         assertThat(actual.getMappedCount()).isEqualTo(8);
-        verify(financialApplicationService).marketCrawling();
-        verify(financialApplicationService).crawlAndSaveBondYield(any(LocalDate.class), any(LocalDate.class));
+        verify(marketInitializationApplicationService).marketCrawling();
+        verify(marketInitializationApplicationService).crawlAndSaveBondYield(any(LocalDate.class), any(LocalDate.class));
     }
 
     @Test
     @DisplayName("초기 동기화는 step1 후 전체 회사 동기화를 순차 실행한다.")
     void run_initial_sync_runs_market_then_company_sync() {
         CrawlAllMarketsResult result = new CrawlAllMarketsResult(10, 8);
-        given(financialApplicationService.marketCrawling()).willReturn(result);
+        given(marketInitializationApplicationService.marketCrawling()).willReturn(result);
         given(stockService.findAllStockIds()).willReturn(List.of(1L));
 
         CrawlAllMarketsResult actual = managementOrchestrator.runInitialSync(2015, "CFS");
 
         assertThat(actual.getCrawledCount()).isEqualTo(10);
         assertThat(actual.getMappedCount()).isEqualTo(8);
-        verify(financialApplicationService).marketCrawling();
+        verify(marketInitializationApplicationService).marketCrawling();
         verify(stockService).findAllStockIds();
         verify(annualXbrlPipelineOrchestrator).runAnnualXbrlPipeline(1L, 2015, LocalDate.now().getYear() - 1, "CFS");
     }

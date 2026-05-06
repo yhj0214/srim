@@ -17,7 +17,7 @@ public class ManagementOrchestrator {
     private static final int DEFAULT_START_YEAR = 2015;
     private static final String DEFAULT_FS_DIV = "CFS";
 
-    private final FinancialApplicationService financialApplicationService;
+    private final MarketInitializationApplicationService marketInitializationApplicationService;
     private final AnnualXbrlPipelineOrchestrator annualXbrlPipelineOrchestrator;
     private final StockService stockService;
     private final CompanyResetService companyResetService;
@@ -39,9 +39,9 @@ public class ManagementOrchestrator {
         LocalDate startDate = LocalDate.of(DEFAULT_START_YEAR, 1, 1);
 
         // 기업 리스트 크롤링 후 저장 및 dartCorpCode갱신
-        CrawlAllMarketsResult result = financialApplicationService.marketCrawling();
+        CrawlAllMarketsResult result = marketInitializationApplicationService.marketCrawling();
         // KE 회사채수익률 크롤링 및 저장
-        financialApplicationService.crawlAndSaveBondYield(startDate, endDate);
+        marketInitializationApplicationService.crawlAndSaveBondYield(startDate, endDate);
 
         log.info("STEP1 종료");
         return result;

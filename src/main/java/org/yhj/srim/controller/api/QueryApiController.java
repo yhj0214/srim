@@ -15,9 +15,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.yhj.srim.controller.dto.ApiResponse;
 import org.yhj.srim.controller.dto.SrimRequestDto;
-import org.yhj.srim.service.application.FinancialApplicationService;
 import org.yhj.srim.service.application.PriceChartApplicationService;
 import org.yhj.srim.service.domain.CompanyViewService;
+import org.yhj.srim.service.domain.FinancialService;
 import org.yhj.srim.service.domain.SrimService;
 import org.yhj.srim.service.domain.StockService;
 import org.yhj.srim.service.dto.FinancialTableDto;
@@ -40,7 +40,7 @@ public class QueryApiController {
     private final CompanyViewService companyViewService;
     private final StockService stockService;
     private final PriceChartApplicationService priceChartApplicationService;
-    private final FinancialApplicationService financialApplicationService;
+    private final FinancialService financialService;
     private final SrimService srimService;
 
     @GetMapping
@@ -88,7 +88,7 @@ public class QueryApiController {
             default -> throw new IllegalArgumentException("invalid period: " + period);
         };
         log.debug("재무 테이블 요청 - stockId: {}, period: {}, limit: {}", stockId, periodType, limit);
-        FinancialTableDto result = financialApplicationService.getFinancialTable(stockId, limit, periodType);
+        FinancialTableDto result = financialService.getFinancialTableByStockId(stockId, limit, periodType);
 
         return ApiResponse.success(result);
     }

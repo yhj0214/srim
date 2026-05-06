@@ -16,7 +16,6 @@ import org.yhj.srim.service.crawl.dto.StockCodeDraft;
 import org.yhj.srim.service.domain.BondYieldCurveService;
 import org.yhj.srim.service.domain.DartCorpCodeSyncService;
 import org.yhj.srim.service.domain.FailedJobService;
-import org.yhj.srim.service.domain.FinancialService;
 import org.yhj.srim.service.domain.StockService;
 
 import java.time.LocalDate;
@@ -30,10 +29,10 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class FinancialApplicationServiceTest {
+class MarketInitializationApplicationServiceTest {
 
     @InjectMocks
-    FinancialApplicationService financialApplicationService;
+    MarketInitializationApplicationService marketInitializationApplicationService;
 
     @Mock
     KrxStockCrawlingService krxStockCrawlingService;
@@ -46,9 +45,6 @@ class FinancialApplicationServiceTest {
 
     @Mock
     DartCorpCodeSyncService dartCorpCodeSyncService;
-
-    @Mock
-    FinancialService financialService;
 
     @Mock
     BondYieldCurveService bondYieldCurveService;
@@ -73,7 +69,7 @@ class FinancialApplicationServiceTest {
         when(stockService.saveStockDrafts(drafts)).thenReturn(2);
         when(dartCorpCodeSyncService.syncFromXml()).thenReturn(2);
 
-        CrawlAllMarketsResult result = financialApplicationService.marketCrawling();
+        CrawlAllMarketsResult result = marketInitializationApplicationService.marketCrawling();
 
         assertThat(result).isNotNull();
         assertThat(result.getCrawledCount()).isEqualTo(2);
@@ -92,12 +88,11 @@ class FinancialApplicationServiceTest {
         CustomException ex = new CustomException(CrawlingError.KRX_REQUEST_FAILED);
         when(krxStockCrawlingService.fetchStockList("KOSPI")).thenThrow(ex);
 
-        assertThatThrownBy(() -> financialApplicationService.marketCrawling())
+        assertThatThrownBy(() -> marketInitializationApplicationService.marketCrawling())
                 .isInstanceOf(CustomException.class)
                 .hasMessageContaining(CrawlingError.KRX_REQUEST_FAILED.getMessage());
 
         verify(krxStockCrawlingService, times(1)).fetchStockList("KOSPI");
         verifyNoMoreInteractions(krxStockCrawlingService, stockService, dartCorpCodeSyncService);
     }
-
 }

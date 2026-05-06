@@ -104,6 +104,13 @@ public class FinancialService {
         return getFinancialTable(company, limit, PeriodType.ANNUAL);
     }
 
+    public FinancialTableDto getFinancialTableByStockId(Long stockId, int limit, PeriodType periodType) {
+        Company company = findCompanyByStockId(stockId)
+                .orElseThrow(() -> new CustomException(StockError.COMPANY_NOT_FOUND));
+
+        return getFinancialTable(company, limit, periodType);
+    }
+
     private FinPeriod saveOrUpdatePeriod(Long companyId, DartReportType reportType, int fiscalYear) {
         Company company = companyRepository.findById(companyId)
                 .orElseThrow(() -> new CustomException(StockError.COMPANY_NOT_FOUND, "companyId=" + companyId));

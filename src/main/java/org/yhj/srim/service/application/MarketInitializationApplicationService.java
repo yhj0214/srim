@@ -8,65 +8,46 @@ import org.yhj.srim.client.dto.KisSpreadRow;
 import org.yhj.srim.common.exception.CustomException;
 import org.yhj.srim.common.exception.code.CommonError;
 import org.yhj.srim.common.exception.code.CrawlingError;
-import org.yhj.srim.common.exception.code.StockError;
 import org.yhj.srim.controller.dto.CrawlAllMarketsResult;
-import org.yhj.srim.repository.entity.*;
-import org.yhj.srim.service.crawl.dto.StockCodeDraft;
+import org.yhj.srim.service.application.dto.DailyBondYieldFetchResult;
 import org.yhj.srim.service.crawl.KisSpreadCrawlingService;
+import org.yhj.srim.service.crawl.KrxStockCrawlingService;
+import org.yhj.srim.service.crawl.dto.StockCodeDraft;
 import org.yhj.srim.service.domain.BondYieldCurveService;
 import org.yhj.srim.service.domain.DartCorpCodeSyncService;
 import org.yhj.srim.service.domain.FailedJobService;
-import org.yhj.srim.service.domain.FinancialService;
-import org.yhj.srim.service.crawl.KrxStockCrawlingService;
-import org.yhj.srim.service.application.dto.DailyBondYieldFetchResult;
 import org.yhj.srim.service.domain.StockService;
-import org.yhj.srim.service.dto.FinancialTableDto;
-import org.yhj.srim.service.dto.PeriodType;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.YearMonth;
-import java.util.*;
-import java.util.concurrent.*;
-
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class FinancialApplicationService {
+public class MarketInitializationApplicationService {
     private final KrxStockCrawlingService krxStockCrawlingService;
     private final KisSpreadCrawlingService kisSpreadCrawlingService;
-
     private final StockService stockService;
     private final DartCorpCodeSyncService dartCorpCodeSyncService;
-    private final FinancialService financialService;
     private final BondYieldCurveService bondYieldCurveService;
     private final FailedJobService failedJobService;
-
     private final ThreadPoolTaskExecutor bondYieldTaskExecutor;
 
-    public FinancialTableDto getFinancialTable(Long stockId, int limit, PeriodType periodType) {
-        Company company = financialService.findCompanyByStockId(stockId)
-                .orElseThrow(() -> new CustomException(StockError.COMPANY_NOT_FOUND));
-
-        return financialService.getFinancialTable(company, limit, periodType);
-    }
-
     public CrawlAllMarketsResult marketCrawling() {
-        // 크롤링 및 데이터 추출
         List<StockCodeDraft> stockCodeDrafts = krxStockCrawlingService.fetchStockList("KOSPI");
-
-        // 추출 데이터 저장 StockCode로 변환 및 저장
         int saved = stockService.saveStockDrafts(stockCodeDrafts);
-
-        // xml파일의 corp_code, corp_name, stock_code 별도 테이블 저장
-        // 별도 테이블과 stockcode테이블을 조인하여 stockcode 데이블 갱신
         int mappedCount = dartCorpCodeSyncService.syncFromXml();
         return new CrawlAllMarketsResult(saved, mappedCount);
     }
 
     public void crawlAndSaveBondYield(LocalDate startDate, LocalDate endDate) {
-
         if (startDate == null || endDate == null) {
             throw new CustomException(CommonError.INVALID_INPUT, "startDate/endDate는 null일 수 없습니다.");
         }
@@ -90,6 +71,16 @@ public class FinancialApplicationService {
 
         log.info("BondYield done processedDays={}, upserts={}, skippedDays={}, range={}~{}",
                 processedDays, upsertCount, skippedDays, startDate, endDate);
+    }
+
+    public void retryBondYieldForDate(LocalDate date) {
+        List<KisSpreadRow> rows = kisSpreadCrawlingService.fetchSpreadRows(date);
+        if (rows.isEmpty()) {
+            throw new CustomException(CrawlingError.KIS_REQUEST_FAILED, "date=" + date + ", empty rows");
+        }
+
+        int upsertCount = bondYieldCurveService.upsertDailyRows(date, rows);
+        log.info("BondYield retry success date={} upserts={}", date, upsertCount);
     }
 
     private MonthBondYieldResult processBondYieldMonth(YearMonth month, LocalDate startDate, LocalDate endDate) {
@@ -196,16 +187,6 @@ public class FinancialApplicationService {
         }
     }
 
-    public void retryBondYieldForDate(LocalDate date) {
-        List<KisSpreadRow> rows = kisSpreadCrawlingService.fetchSpreadRows(date);
-        if (rows.isEmpty()) {
-            throw new CustomException(CrawlingError.KIS_REQUEST_FAILED, "date=" + date + ", empty rows");
-        }
-
-        int upsertCount = bondYieldCurveService.upsertDailyRows(date, rows);
-        log.info("BondYield retry success date={} upserts={}", date, upsertCount);
-    }
-
     private String buildBondYieldFailureDetail(CustomException e) {
         if (e.getDetail() == null || e.getDetail().isBlank()) {
             return e.getMessage();
@@ -215,5 +196,4 @@ public class FinancialApplicationService {
 
     private record MonthBondYieldResult(int processedDays, int upsertCount, int skippedDays) {
     }
-
 }
