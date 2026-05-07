@@ -22,6 +22,7 @@ public class QuarterXbrlCollector {
     private final DartFsFilingService dartFsFilingService;
     private final XbrlFinancialStatementCrawlingService xbrlFinancialStatementCrawlingService;
     private final XbrlRawService xbrlRawService;
+    private final FinancialService financialService;
 
     /**
      * 분기 보고서타입으로 변환한 후
@@ -32,6 +33,7 @@ public class QuarterXbrlCollector {
     public Long collectQuarterInputs(Company company, int fiscalYear, int fiscalQuarter, String fsDiv) {
         DartReportType reportType = resolveQuarterReportType(fiscalQuarter);
         DartFsFiling filing = collectQuarterFilingMetadata(company, fiscalYear, reportType, fsDiv);
+        financialService.ensureQuarterPeriod(company.getCompanyId(), fiscalYear, fiscalQuarter);
 
         return collectXbrlRaw(new CollectXbrlRawCommand(
                 company.getCompanyId(),

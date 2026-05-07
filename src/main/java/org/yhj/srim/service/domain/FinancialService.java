@@ -202,6 +202,11 @@ public class FinancialService {
         return saved;
     }
 
+    @Transactional
+    public FinPeriod ensureQuarterPeriod(Long companyId, int fiscalYear, int fiscalQuarter) {
+        return saveOrUpdateQuarterPeriod(companyId, fiscalYear, fiscalQuarter);
+    }
+
     private void saveOrUpdateMetricValue(Long companyId, FinPeriod period, String metricCode, BigDecimal value) {
         log.debug("지표 값 저장 - company={}, period={}, metric={}, value={}",
                 companyId, period, metricCode, value);

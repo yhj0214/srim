@@ -44,6 +44,9 @@ class QuarterXbrlCollectorTest {
     @Mock
     XbrlRawService xbrlRawService;
 
+    @Mock
+    FinancialService financialService;
+
     @Test
     @DisplayName("이미 저장된 분기 XBRL 문서가 있으면 다운로드 없이 기존 문서 ID를 반환한다.")
     void collectXbrlRaw_returnsExistingDocumentId() {
@@ -126,6 +129,7 @@ class QuarterXbrlCollectorTest {
         assertThat(documentId).isEqualTo(99L);
         verify(dartCrawlingService).crawlLatestFiling("00126380", 2024, DartReportType.FIRST_QUARTER);
         verify(dartFsFilingService).saveFilingMetadata("00126380", 7L, 2024, filingRow, DartReportType.FIRST_QUARTER, "CFS");
+        verify(financialService).ensureQuarterPeriod(7L, 2024, 1);
         verify(xbrlRawService).findStoredDocumentId("20240516000001", "11013", "CFS");
         verify(xbrlFinancialStatementCrawlingService).crawlFinancialStatementsXbrl(
                 "00126380", "20240516000001", 2024, DartReportType.FIRST_QUARTER, "CFS"
