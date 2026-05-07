@@ -51,6 +51,10 @@ public class AnnualXbrlCollector {
         return xbrlRawService.saveFinancialStatementsXbrl(command.corpCode(), command.companyId(), batch);
     }
 
+    /**
+     * 공시보고서의 메타데이터(fsfiling)를 수집하여 저장합니다. 고유 식별자인 rceptNo와 재무제표 구분(fsDiv)을 포함합니다.
+     * STOCK-004 예외 발생 가능
+     */
     public DartFsFiling collectAnnualFilingMetadata(Company company, int fiscalYear, String fsDiv) {
         String corpCode = company.getStockCode().getDartCorpCode();
         if (corpCode == null || corpCode.length() != 8) {
@@ -92,11 +96,13 @@ public class AnnualXbrlCollector {
         }
     }
 
+    // 공시보고서의 주식 현황 데이터를 수집하여 저장. 기존 데이터는 삭제 후 새로 저장
     private void collectAnnualShareStatus(Company company, String corpCode, int fiscalYear) {
         List<DartShareStatusRow> shareStatusRows = dartCrawlingService.crawlShareStatus(corpCode, fiscalYear);
         stockService.replaceShareStatus(company, fiscalYear, shareStatusRows);
     }
 
+    // 공시보고서의 주가 데이터를 수집하여 저장합니다. 기존 데이터는 삭제 후 새로 저장
     private void collectAnnualPriceData(Company company, int fiscalYear) {
         LocalDate startDate = LocalDate.of(fiscalYear, 1, 1);
         LocalDate endDate = LocalDate.of(fiscalYear, 12, 31);

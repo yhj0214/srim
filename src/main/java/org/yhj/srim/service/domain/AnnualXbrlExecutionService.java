@@ -26,6 +26,7 @@ public class AnnualXbrlExecutionService {
                                                                  int fiscalYear,
                                                                  String requestedFsDiv,
                                                                  String resolvedFsDiv) {
+        // xbrl document를 확보
         XbrlAnnualDocumentRef documentRef = xbrlAnnualDocumentLocator.resolve(company.getCompanyId(), fiscalYear, resolvedFsDiv);
 
         log.info("XBRL 연간 문서 선택 완료 stockId={}, companyId={}, year={}, requestedFsDiv={}, resolvedFsDiv={}, rceptNo={}",
@@ -52,11 +53,16 @@ public class AnnualXbrlExecutionService {
         }
     }
 
+    /**
+     * 처음에는 요청된 fsDiv로 메타데이터 수집을 시도하고, 실패할 경우 OFS로 fallback하여 메타데이터 수집을 시도함.
+     * fsfiling데이터 수집 및 저장
+     */
     private String resolveAnnualFsDiv(Company company, int fiscalYear, String requestedFsDiv) {
         try {
             annualXbrlCollector.collectAnnualFilingMetadata(company, fiscalYear, requestedFsDiv);
             return requestedFsDiv;
         } catch (CustomException e) {
+            // 이미 OFS로 fallback 했는데도 메타데이터 수집에 실패한 경우에는 더 이상 대체할 fsDiv가 없으므로 예외를 던짐.
             if (!annualXbrlRunPolicy.shouldFallbackToOfs(requestedFsDiv, e)) {
                 throw e;
             }

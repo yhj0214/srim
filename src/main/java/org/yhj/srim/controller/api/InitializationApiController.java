@@ -12,8 +12,6 @@ import org.yhj.srim.controller.dto.CrawlAllMarketsResult;
 import org.yhj.srim.service.application.AnnualXbrlPipelineOrchestrator;
 import org.yhj.srim.service.application.ManagementOrchestrator;
 
-import java.time.LocalDate;
-
 @RestController
 @RequiredArgsConstructor
 @Slf4j
@@ -53,36 +51,6 @@ public class InitializationApiController {
         return ApiResponse.success(null);
     }
 
-    @GetMapping("/api/stocks/{stockId}/xbrl/annual/collect")
-    public ApiResponse<Integer> collectAnnualXbrlFiling(
-            @PathVariable Long stockId,
-            @RequestParam(defaultValue = "2015") int startYear,
-            @RequestParam(defaultValue = "CFS") String fsDiv) {
-        return ApiResponse.success(
-                annualXbrlPipelineOrchestrator.collectAnnualFilingMetadata(
-                        stockId,
-                        startYear,
-                        LocalDate.now().getYear() - 1,
-                        fsDiv
-                )
-        );
-    }
-
-    @GetMapping("/api/stocks/{stockId}/xbrl/annual/process")
-    public ApiResponse<Integer> processAnnualXbrlMetrics(
-            @PathVariable Long stockId,
-            @RequestParam(defaultValue = "2015") int startYear,
-            @RequestParam(defaultValue = "CFS") String fsDiv) {
-        return ApiResponse.success(
-                annualXbrlPipelineOrchestrator.processAnnualMetricsFromXbrl(
-                        stockId,
-                        startYear,
-                        LocalDate.now().getYear() - 1,
-                        fsDiv
-                )
-        );
-    }
-
     @GetMapping("/api/stocks/{stockId}/xbrl/annual/run")
     public ApiResponse<Integer> runAnnualXbrlPipeline(
             @PathVariable Long stockId,
@@ -92,7 +60,7 @@ public class InitializationApiController {
                 annualXbrlPipelineOrchestrator.runAnnualXbrlPipeline(
                         stockId,
                         startYear,
-                        LocalDate.now().getYear() - 1,
+                        java.time.LocalDate.now().getYear() - 1,
                         fsDiv
                 )
         );

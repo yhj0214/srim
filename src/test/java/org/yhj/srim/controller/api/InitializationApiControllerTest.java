@@ -11,8 +11,6 @@ import org.yhj.srim.controller.dto.CrawlAllMarketsResult;
 import org.yhj.srim.service.application.AnnualXbrlPipelineOrchestrator;
 import org.yhj.srim.service.application.ManagementOrchestrator;
 
-import java.time.LocalDate;
-
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -79,38 +77,10 @@ class InitializationApiControllerTest {
     }
 
     @Test
-    @DisplayName("연간 XBRL filing collect API가 성공한다.")
-    void annual_xbrl_collect_success() throws Exception {
-        BDDMockito.given(annualXbrlPipelineOrchestrator.collectAnnualFilingMetadata(
-                        1L, 2015, LocalDate.now().getYear() - 1, "CFS"))
-                .willReturn(9);
-
-        mockMvc.perform(get("/api/stocks/1/xbrl/annual/collect")
-                        .param("fsDiv", "CFS"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data").value(9));
-    }
-
-    @Test
-    @DisplayName("연간 XBRL process API가 성공한다.")
-    void annual_xbrl_process_success() throws Exception {
-        BDDMockito.given(annualXbrlPipelineOrchestrator.processAnnualMetricsFromXbrl(
-                        1L, 2015, LocalDate.now().getYear() - 1, "CFS"))
-                .willReturn(64);
-
-        mockMvc.perform(get("/api/stocks/1/xbrl/annual/process")
-                        .param("fsDiv", "CFS"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data").value(64));
-    }
-
-    @Test
     @DisplayName("연간 XBRL run API가 성공한다.")
     void annual_xbrl_run_success() throws Exception {
         BDDMockito.given(annualXbrlPipelineOrchestrator.runAnnualXbrlPipeline(
-                        1L, 2015, LocalDate.now().getYear() - 1, "CFS"))
+                        1L, 2015, java.time.LocalDate.now().getYear() - 1, "CFS"))
                 .willReturn(9);
 
         mockMvc.perform(get("/api/stocks/1/xbrl/annual/run")

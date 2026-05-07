@@ -19,6 +19,9 @@ public class XbrlAnnualDocumentLocator {
     private final CompanyRepository companyRepository;
     private final DartFsFilingRepository dartFsFilingRepository;
 
+    /**
+     * 저장된 fsfiling데이터를 조회하여 반환합니다. fsfiling데이터는 공시보고서의 고유 식별자인 rceptNo와 재무제표 구분(fsDiv)을 포함
+     */
     @Transactional(readOnly = true)
     public XbrlAnnualDocumentRef resolve(Long companyId, int fiscalYear, String fsDiv) {
         Company company = companyRepository.findWithStockCodeByCompanyId(companyId)
