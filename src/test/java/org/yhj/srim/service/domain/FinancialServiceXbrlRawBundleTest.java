@@ -176,6 +176,92 @@ class FinancialServiceXbrlRawBundleTest {
     }
 
     @Test
+    @DisplayName("FinancialService는 2분기 XBRL raw에서 지배/비지배 순이익만 직전 분기 기준으로 보정한다.")
+    void loadQuarterXbrlRawBundle_secondQuarter_matchesJsonAdjustment() {
+        Company company = saveCompany("TST002Q2", "900212", "00126387");
+        saveQuarterPeriod(company, 2024, DartReportType.FIRST_QUARTER);
+        saveQuarterPeriod(company, 2024, DartReportType.HALF_YEAR);
+
+        XbrlDocument firstQuarter = saveQuarterDocument(
+                company, 2024, DartReportType.FIRST_QUARTER, "20240515002001", LocalDateTime.of(2024, 5, 15, 11, 0)
+        );
+        saveQuarterFacts(firstQuarter, DartReportType.FIRST_QUARTER, "100", "10", "280", "470");
+        saveOwnerFacts(firstQuarter, "8", "420", "50");
+
+        XbrlDocument halfYear = saveQuarterDocument(
+                company, 2024, DartReportType.HALF_YEAR, "20240814002001", LocalDateTime.of(2024, 8, 14, 11, 0)
+        );
+        saveQuarterFacts(halfYear, DartReportType.HALF_YEAR, "250", "25", "300", "500");
+        saveOwnerFacts(halfYear, "20", "450", "50");
+
+        FsRawBundle rawBundle = financialService.loadQuarterXbrlRawBundle(company.getCompanyId(), 2024, 2, "CFS");
+
+        assertThat(rawBundle.curr())
+                .containsEntry("SALES", new BigDecimal("250"))
+                .containsEntry("NET_INC", new BigDecimal("25"))
+                .containsEntry("NET_INC_OWNER", new BigDecimal("12"))
+                .containsEntry("TOTAL_LIABILITIES", new BigDecimal("300"))
+                .containsEntry("TOTAL_EQUITY", new BigDecimal("500"));
+
+        assertThat(rawBundle.prev())
+                .containsEntry("SALES", new BigDecimal("100"))
+                .containsEntry("NET_INC", new BigDecimal("10"))
+                .containsEntry("NET_INC_OWNER", new BigDecimal("8"))
+                .containsEntry("TOTAL_LIABILITIES", new BigDecimal("280"))
+                .containsEntry("TOTAL_EQUITY", new BigDecimal("470"));
+    }
+
+    @Test
+    @DisplayName("FinancialService는 4분기 XBRL raw를 annual에서 1~3분기 누적값을 차감해 조립한다.")
+    void loadQuarterXbrlRawBundle_fourthQuarter_matchesJsonAdjustment() {
+        Company company = saveCompany("TST002Q4", "900214", "00126388");
+        saveQuarterPeriod(company, 2024, DartReportType.FIRST_QUARTER);
+        saveQuarterPeriod(company, 2024, DartReportType.HALF_YEAR);
+        saveQuarterPeriod(company, 2024, DartReportType.THIRD_QUARTER);
+        saveQuarterFourthPeriod(company, 2024);
+
+        XbrlDocument firstQuarter = saveQuarterDocument(
+                company, 2024, DartReportType.FIRST_QUARTER, "20240515002002", LocalDateTime.of(2024, 5, 15, 11, 0)
+        );
+        saveQuarterFacts(firstQuarter, DartReportType.FIRST_QUARTER, "100", "10", "280", "470");
+        saveOwnerFacts(firstQuarter, "8", "420", "50");
+
+        XbrlDocument halfYear = saveQuarterDocument(
+                company, 2024, DartReportType.HALF_YEAR, "20240814002002", LocalDateTime.of(2024, 8, 14, 11, 0)
+        );
+        saveQuarterFacts(halfYear, DartReportType.HALF_YEAR, "250", "25", "300", "500");
+        saveOwnerFacts(halfYear, "20", "450", "50");
+
+        XbrlDocument thirdQuarter = saveQuarterDocument(
+                company, 2024, DartReportType.THIRD_QUARTER, "20241114002002", LocalDateTime.of(2024, 11, 14, 11, 0)
+        );
+        saveQuarterFacts(thirdQuarter, DartReportType.THIRD_QUARTER, "450", "60", "330", "520");
+        saveOwnerFacts(thirdQuarter, "48", "470", "50");
+
+        XbrlDocument annual = saveDocument(
+                company, 2024, "20250321002004", LocalDateTime.of(2025, 3, 21, 12, 0)
+        );
+        saveAnnualFacts(annual, "1000", "100", "350", "600");
+        saveOwnerFacts(annual, "80", "520", "80");
+
+        FsRawBundle rawBundle = financialService.loadQuarterXbrlRawBundle(company.getCompanyId(), 2024, 4, "CFS");
+
+        assertThat(rawBundle.curr())
+                .containsEntry("SALES", new BigDecimal("200"))
+                .containsEntry("NET_INC", new BigDecimal("5"))
+                .containsEntry("NET_INC_OWNER", new BigDecimal("24"))
+                .containsEntry("TOTAL_LIABILITIES", new BigDecimal("350"))
+                .containsEntry("TOTAL_EQUITY", new BigDecimal("600"));
+
+        assertThat(rawBundle.prev())
+                .containsEntry("SALES", new BigDecimal("450"))
+                .containsEntry("NET_INC", new BigDecimal("60"))
+                .containsEntry("NET_INC_OWNER", new BigDecimal("48"))
+                .containsEntry("TOTAL_LIABILITIES", new BigDecimal("330"))
+                .containsEntry("TOTAL_EQUITY", new BigDecimal("520"));
+    }
+
+    @Test
     @DisplayName("연간 XBRL base metric을 fin_metric_value에 XBRL source로 저장한다.")
     void replaceAnnualBaseMetricsFromXbrl_persistsBaseMetrics() {
         Company company = saveCompany("TST003", "900003", "00126382");
@@ -339,6 +425,19 @@ class FinancialServiceXbrlRawBundleTest {
                 .periodStart(reportType.periodStart(fiscalYear))
                 .periodEnd(reportType.periodEnd(fiscalYear))
                 .label(reportType.periodLabel(fiscalYear))
+                .isEstimate(false)
+                .build());
+    }
+
+    private FinPeriod saveQuarterFourthPeriod(Company company, int fiscalYear) {
+        return finPeriodRepository.save(FinPeriod.builder()
+                .company(company)
+                .periodType("QTR")
+                .fiscalYear(fiscalYear)
+                .fiscalQuarter(4)
+                .periodStart(LocalDate.of(fiscalYear, 10, 1))
+                .periodEnd(LocalDate.of(fiscalYear, 12, 31))
+                .label(fiscalYear + "/12")
                 .isEstimate(false)
                 .build());
     }

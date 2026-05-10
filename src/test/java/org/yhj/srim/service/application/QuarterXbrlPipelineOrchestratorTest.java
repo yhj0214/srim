@@ -14,6 +14,7 @@ import org.yhj.srim.service.domain.QuarterXbrlMetricProcessor;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.times;
 
 @ExtendWith(MockitoExtension.class)
 class QuarterXbrlPipelineOrchestratorTest {
@@ -46,5 +47,36 @@ class QuarterXbrlPipelineOrchestratorTest {
         assertThat(savedMetricCount).isEqualTo(8);
         verify(quarterXbrlCollector).collectQuarterInputs(company, 2024, 1, "CFS");
         verify(quarterXbrlMetricProcessor).processQuarterMetricsFromXbrl(7L, 2024, 1, "CFS");
+    }
+
+    @Test
+    @DisplayName("연도 범위 분기 XBRL run은 1년의 4개 분기를 순서대로 처리한다.")
+    void runQuarterXbrlPipelineRange_delegatesAllQuarters() {
+        Company company = Company.builder()
+                .companyId(7L)
+                .currency("KRW")
+                .build();
+        when(financialService.getOrCreateCompanyWithStockCode(1L)).thenReturn(company);
+        when(quarterXbrlCollector.collectQuarterInputs(company, 2024, 1, "CFS")).thenReturn(11L);
+        when(quarterXbrlCollector.collectQuarterInputs(company, 2024, 2, "CFS")).thenReturn(12L);
+        when(quarterXbrlCollector.collectQuarterInputs(company, 2024, 3, "CFS")).thenReturn(13L);
+        when(quarterXbrlCollector.collectQuarterInputs(company, 2024, 4, "CFS")).thenReturn(14L);
+        when(quarterXbrlMetricProcessor.processQuarterMetricsFromXbrl(7L, 2024, 1, "CFS")).thenReturn(8);
+        when(quarterXbrlMetricProcessor.processQuarterMetricsFromXbrl(7L, 2024, 2, "CFS")).thenReturn(8);
+        when(quarterXbrlMetricProcessor.processQuarterMetricsFromXbrl(7L, 2024, 3, "CFS")).thenReturn(8);
+        when(quarterXbrlMetricProcessor.processQuarterMetricsFromXbrl(7L, 2024, 4, "CFS")).thenReturn(8);
+
+        int savedMetricCount = quarterXbrlPipelineOrchestrator.runQuarterXbrlPipelineRange(1L, 2024, 2024, "CFS");
+
+        assertThat(savedMetricCount).isEqualTo(32);
+        verify(quarterXbrlCollector).collectQuarterInputs(company, 2024, 1, "CFS");
+        verify(quarterXbrlCollector).collectQuarterInputs(company, 2024, 2, "CFS");
+        verify(quarterXbrlCollector).collectQuarterInputs(company, 2024, 3, "CFS");
+        verify(quarterXbrlCollector).collectQuarterInputs(company, 2024, 4, "CFS");
+        verify(quarterXbrlMetricProcessor).processQuarterMetricsFromXbrl(7L, 2024, 1, "CFS");
+        verify(quarterXbrlMetricProcessor).processQuarterMetricsFromXbrl(7L, 2024, 2, "CFS");
+        verify(quarterXbrlMetricProcessor).processQuarterMetricsFromXbrl(7L, 2024, 3, "CFS");
+        verify(quarterXbrlMetricProcessor).processQuarterMetricsFromXbrl(7L, 2024, 4, "CFS");
+        verify(financialService, times(8)).getOrCreateCompanyWithStockCode(1L);
     }
 }

@@ -97,6 +97,7 @@ public class QuarterXbrlCollector {
             case 1 -> DartReportType.FIRST_QUARTER;
             case 2 -> DartReportType.HALF_YEAR;
             case 3 -> DartReportType.THIRD_QUARTER;
+            case 4 -> DartReportType.ANNUAL;
             default -> throw new CustomException(
                     CommonError.INVALID_INPUT,
                     "지원하지 않는 분기 값입니다. fiscalQuarter=" + fiscalQuarter

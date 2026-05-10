@@ -11,6 +11,7 @@ import org.yhj.srim.controller.dto.ApiResponse;
 import org.yhj.srim.controller.dto.CrawlAllMarketsResult;
 import org.yhj.srim.service.application.AnnualXbrlPipelineOrchestrator;
 import org.yhj.srim.service.application.ManagementOrchestrator;
+import org.yhj.srim.service.application.QuarterXbrlPipelineOrchestrator;
 
 @RestController
 @RequiredArgsConstructor
@@ -19,6 +20,7 @@ public class InitializationApiController {
 
     private final ManagementOrchestrator managementOrchestrator;
     private final AnnualXbrlPipelineOrchestrator annualXbrlPipelineOrchestrator;
+    private final QuarterXbrlPipelineOrchestrator quarterXbrlPipelineOrchestrator;
 
     @PostMapping("/api/crawling/krx/all")
     public ApiResponse<CrawlAllMarketsResult> crawlAllMarkets(
@@ -56,11 +58,35 @@ public class InitializationApiController {
             @PathVariable Long stockId,
             @RequestParam(defaultValue = "2015") int startYear,
             @RequestParam(defaultValue = "CFS") String fsDiv) {
+        int endYear = java.time.LocalDate.now().getYear() - 1;
+        int completedAnnualYears = annualXbrlPipelineOrchestrator.runAnnualXbrlPipeline(
+                stockId,
+                startYear,
+                endYear,
+                fsDiv
+        );
+        quarterXbrlPipelineOrchestrator.runQuarterXbrlPipelineRange(
+                stockId,
+                startYear,
+                endYear,
+                fsDiv
+        );
         return ApiResponse.success(
-                annualXbrlPipelineOrchestrator.runAnnualXbrlPipeline(
+                completedAnnualYears
+        );
+    }
+
+    @GetMapping("/api/stocks/{stockId}/xbrl/quarter/run")
+    public ApiResponse<Integer> runQuarterXbrlPipeline(
+            @PathVariable Long stockId,
+            @RequestParam int fiscalYear,
+            @RequestParam int fiscalQuarter,
+            @RequestParam(defaultValue = "CFS") String fsDiv) {
+        return ApiResponse.success(
+                quarterXbrlPipelineOrchestrator.runQuarterXbrlPipeline(
                         stockId,
-                        startYear,
-                        java.time.LocalDate.now().getYear() - 1,
+                        fiscalYear,
+                        fiscalQuarter,
                         fsDiv
                 )
         );

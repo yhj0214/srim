@@ -10,6 +10,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.yhj.srim.controller.dto.CrawlAllMarketsResult;
 import org.yhj.srim.service.application.AnnualXbrlPipelineOrchestrator;
 import org.yhj.srim.service.application.ManagementOrchestrator;
+import org.yhj.srim.service.application.QuarterXbrlPipelineOrchestrator;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -27,6 +28,9 @@ class InitializationApiControllerTest {
 
     @MockitoBean
     AnnualXbrlPipelineOrchestrator annualXbrlPipelineOrchestrator;
+
+    @MockitoBean
+    QuarterXbrlPipelineOrchestrator quarterXbrlPipelineOrchestrator;
 
     @Test
     @DisplayName("전체 크롤링 요청은 step1과 step2를 묶은 초기 동기화에 성공한다.")
@@ -82,11 +86,32 @@ class InitializationApiControllerTest {
         BDDMockito.given(annualXbrlPipelineOrchestrator.runAnnualXbrlPipeline(
                         1L, 2015, java.time.LocalDate.now().getYear() - 1, "CFS"))
                 .willReturn(9);
+        BDDMockito.given(quarterXbrlPipelineOrchestrator.runQuarterXbrlPipelineRange(
+                        1L, 2015, java.time.LocalDate.now().getYear() - 1, "CFS"))
+                .willReturn(32);
 
         mockMvc.perform(get("/api/stocks/1/xbrl/annual/run")
                         .param("fsDiv", "CFS"))
                 .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.success").value(true))
+                        .andExpect(jsonPath("$.data").value(9));
+
+        BDDMockito.then(quarterXbrlPipelineOrchestrator).should().runQuarterXbrlPipelineRange(
+                1L, 2015, java.time.LocalDate.now().getYear() - 1, "CFS");
+    }
+
+    @Test
+    @DisplayName("분기 XBRL run API가 성공한다.")
+    void quarter_xbrl_run_success() throws Exception {
+        BDDMockito.given(quarterXbrlPipelineOrchestrator.runQuarterXbrlPipeline(1L, 2024, 1, "CFS"))
+                .willReturn(8);
+
+        mockMvc.perform(get("/api/stocks/1/xbrl/quarter/run")
+                        .param("fiscalYear", "2024")
+                        .param("fiscalQuarter", "1")
+                        .param("fsDiv", "CFS"))
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data").value(9));
+                .andExpect(jsonPath("$.data").value(8));
     }
 }
